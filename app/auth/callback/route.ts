@@ -5,10 +5,14 @@ import { NextResponse } from "next/server";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const redirectTo = new URL("/onboarding", url.origin);
 
+  // Redirect targets
+  const loginRedirect = new URL("/login?error=missing_code", url.origin);
+  const successRedirect = new URL("/onboarding", url.origin);
+
+  // No code → fail safely
   if (!code) {
-    return NextResponse.redirect(new URL("/login?error=missing_code", url.origin));
+    return NextResponse.redirect(loginRedirect);
   }
 
   const cookieStore = await cookies();
@@ -37,5 +41,6 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/login?error=auth", url.origin));
   }
 
-  return NextResponse.redirect(new URL("/onboarding", url.origin));
+  // Success → onboarding
+  return NextResponse.redirect(successRedirect);
 }
