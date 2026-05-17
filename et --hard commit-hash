@@ -1,0 +1,18 @@
+[33mff27fca[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m fix auth callback page route (replace route.ts issue)
+[33m8e56b4d[m fix auth callback, onboarding flow, and dashboard stability
+[33mbb10a87[m fix auth callback and onboarding flow
+[33mf04ae4a[m fix auth callback and onboarding flow
+[33m77dc430[m fix auth callback flow
+[33m334d224[m fix auth callback flow
+[33m40ee8ae[m fix auth callback flow
+[33me456ffc[m update login page
+[33m8ce8ae0[m trigger redeploy
+[33m733ae74[m trigger redeploy
+[33m4adbf2d[m fix ai-insights page export
+[33m51f9c6b[m fix aba page export
+[33m7a6cb20[m update tsconfig
+[33m0eb4aa4[m clean project state
+[33md5c0cd3[m Remove middleware and fix layout
+[33ma1557c7[m update dependencies remove deprecated supabase auth helpers
+[33ma949233[m fix auth + dashboard updates
+[33md35ed94[m initial commit
