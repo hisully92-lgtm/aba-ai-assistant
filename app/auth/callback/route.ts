@@ -8,14 +8,14 @@ export async function GET(request: Request) {
 
   // Redirect targets
   const loginRedirect = new URL("/login?error=missing_code", url.origin);
-  const successRedirect = new URL("/onboarding", url.origin);
+  const onboardingRedirect = new URL("/onboarding", url.origin);
 
-  // No code → fail safely
+  // No code provided → fail safely
   if (!code) {
     return NextResponse.redirect(loginRedirect);
   }
 
-  const cookieStore = await cookies();
+  const cookieStore = cookies();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -41,6 +41,5 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/login?error=auth", url.origin));
   }
 
-  // Success → onboarding
-  return NextResponse.redirect(successRedirect);
+  return NextResponse.redirect(onboardingRedirect);
 }
