@@ -270,30 +270,29 @@ Write in clear, professional ABA language.
 
     if (mode === "notes") {
       entryClient = sessionClient;
-      entryType = "Session Note";
+      entryType = "notes";
     }
 
     if (mode === "interventions") {
       entryClient = behaviorName;
-      entryType = "Behavior Data";
+      entryType = "interventions";
     }
 
     if (mode === "programs") {
       entryClient = programName;
-      entryType = "Skill Program";
+      entryType = "programs";
     }
 
-    const newEntry = {
-      mode,
-      type: entryType,
-      client: entryClient,
-      staffMember,
-      prompt: finalPrompt,
-      result: data.result,
-      date: new Date().toLocaleString(),
-    };
 
-    const updatedHistory = [newEntry, ...history];
+    const updatedHistory = [{
+        mode,
+        type: entryType,
+        client: entryClient,
+        staffMember,
+        prompt: finalPrompt,
+        result: data.result,
+        date: new Date().toLocaleString(),
+      }, ...history];
     setHistory(updatedHistory);
     localStorage.setItem("aba-history", JSON.stringify(updatedHistory));
 
