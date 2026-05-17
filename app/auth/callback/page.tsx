@@ -2,14 +2,10 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabaseClient";
 
-export default function CallbackPage() {
+export default function AuthCallback() {
   const router = useRouter();
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
 
   useEffect(() => {
     const handleAuth = async () => {
@@ -24,7 +20,7 @@ export default function CallbackPage() {
     };
 
     handleAuth();
-  }, [router, supabase]);
+  }, [router]);
 
   return <div>Signing you in...</div>;
 }

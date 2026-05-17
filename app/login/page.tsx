@@ -64,11 +64,12 @@ export default function LoginPage() {
     }
 
     const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}`
-      },
-    });
+  email,
+  options: {
+    emailRedirectTo:
+      "https://aba-ai-assistant-wtwd.vercel.app/auth/callback",
+  },
+});
 
     if (error) {
       alert(error.message);
