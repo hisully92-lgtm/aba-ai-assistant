@@ -23,43 +23,7 @@ export default function LoginPage() {
     return (profile?.role as UserRole) ?? "rbt";
   }
 
-  // -------------------------
-  // AUTO SESSION CHECK
-  // -------------------------
-  useEffect(() => {
-    async function checkSession() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.user) return;
-
-      const role = await getUserRole(session.user);
-
-      if (role === "admin") router.replace("/admin");
-      else if (role === "supervisor") router.replace("/supervisor");
-      else if (role === "student_analyst") router.replace("/student");
-      else router.replace("/rbt");
-    }
-
-    checkSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!session?.user) return;
-
-      const role = await getUserRole(session.user);
-
-      if (role === "admin") router.replace("/admin");
-      else if (role === "supervisor") router.replace("/supervisor");
-      else if (role === "student_analyst") router.replace("/student");
-      else router.replace("/rbt");
-    });
-
-    return () => subscription.unsubscribe();
-  }, [router]);
-
+  
   // -------------------------
   // OTP SIGN IN
   // -------------------------
