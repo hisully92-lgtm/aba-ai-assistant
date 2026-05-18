@@ -10,47 +10,60 @@ export default function SignupPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const signUp = async () => {
-    if (!fullName || !email || !password) {
+    if (!fullName || !email || !password || !confirmPassword) {
       alert("Please complete all fields.");
       return;
     }
 
-    // Create auth user
+    if (password !== confirmPassword) {
+      alert("Passwords do not match.");
+      return;
+    }
+
+    if (password.length < 6) {
+      alert("Password must be at least 6 characters.");
+      return;
+    }
+
+    setLoading(true);
+
+    // Create auth user (NO redirect callback — simplified auth flow)
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
     });
 
     if (error) {
+      setLoading(false);
       alert(error.message);
       return;
     }
 
-    // Make sure user exists
+    // Create profile AFTER user exists
     if (data.user) {
-      // Create profile row
       const { error: profileError } = await supabase
         .from("profiles")
         .insert({
           id: data.user.id,
           full_name: fullName,
-          email: data.user.email,
+          email: email,
           role: "rbt",
         });
 
       if (profileError) {
+        setLoading(false);
         alert(profileError.message);
         return;
       }
     }
 
-    alert("Account created successfully.");
+    setLoading(false);
 
+    alert("Check your email to confirm your account.");
     router.push("/login");
   };
 
@@ -88,13 +101,18 @@ export default function SignupPage() {
         onChange={(e) => setPassword(e.target.value)}
       />
 
-      <button onClick={signUp}>
-        Create Account
+      <input
+        placeholder="Confirm Password"
+        type="password"
+        value={confirmPassword}
+        onChange={(e) => setConfirmPassword(e.target.value)}
+      />
+
+      <button onClick={signUp} disabled={loading}>
+        {loading ? "Creating Account..." : "Create Account"}
       </button>
 
-      <p>
-        Already have an account?
-      </p>
+      <p>Already have an account?</p>
 
       <button onClick={() => router.push("/login")}>
         Sign In

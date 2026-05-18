@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import type { UserRole } from "@/lib/roles";
@@ -9,6 +9,8 @@ export default function LoginPage() {
   const router = useRouter();
 
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
   // -------------------------
   // ROLE FETCH (SINGLE SOURCE OF TRUTH)
@@ -23,31 +25,42 @@ export default function LoginPage() {
     return (profile?.role as UserRole) ?? "rbt";
   }
 
-  
   // -------------------------
-  // OTP SIGN IN
+  // SIGN IN (EMAIL + PASSWORD)
   // -------------------------
-  const signInWithEmail = async () => {
-    if (!email) {
-      alert("Enter your email first.");
+  const signIn = async () => {
+    if (!email || !password) {
+      alert("Enter email and password.");
       return;
     }
 
-    const { error } = await supabase.auth.signInWithOtp({
+    setLoading(true);
+
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+      password,
     });
+
+    setLoading(false);
 
     if (error) {
       alert(error.message);
       return;
     }
 
-    alert("Check your email to sign in.");
+    if (data.user) {
+      const role = await getUserRole(data.user);
+
+      if (role === "admin") router.replace("/admin");
+      else if (role === "supervisor") router.replace("/supervisor");
+      else if (role === "student_analyst") router.replace("/student");
+      else router.replace("/rbt");
+    }
   };
 
+  // -------------------------
+  // CREATE ACCOUNT NAVIGATION
+  // -------------------------
   const createAccount = () => {
     router.push("/signup");
   };
@@ -76,7 +89,14 @@ export default function LoginPage() {
       </div>
 
       <div style={{ display: "flex", justifyContent: "center", padding: 32 }}>
-        <section style={{ width: 420, background: "white", padding: 28 }}>
+        <section
+          style={{
+            width: 420,
+            background: "white",
+            padding: 28,
+            borderRadius: 12,
+          }}
+        >
           <h2>Sign in to ABA AI</h2>
 
           <label>Email</label>
@@ -87,8 +107,16 @@ export default function LoginPage() {
             style={{ width: "100%", marginBottom: 12 }}
           />
 
-          <button onClick={signInWithEmail}>
-            Sign in with email
+          <label>Password</label>
+          <input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            type="password"
+            style={{ width: "100%", marginBottom: 12 }}
+          />
+
+          <button onClick={signIn} disabled={loading}>
+            {loading ? "Signing in..." : "Sign in"}
           </button>
 
           <hr style={{ margin: "20px 0" }} />
