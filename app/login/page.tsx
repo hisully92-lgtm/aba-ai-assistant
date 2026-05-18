@@ -5,21 +5,14 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import type { UserRole } from "@/lib/roles";
 
-type Mode = "signin" | "signup";
-
 export default function LoginPage() {
   const router = useRouter();
 
-  const [step, setStep] = useState<1 | 2>(1);
-  const [mode, setMode] = useState<Mode>("signin");
-
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
+  // -------------------------
+  // ROLE FETCH (SINGLE SOURCE OF TRUTH)
+  // -------------------------
   async function getUserRole(sessionUser: any): Promise<UserRole> {
     const { data: profile } = await supabase
       .from("profiles")
@@ -31,7 +24,7 @@ export default function LoginPage() {
   }
 
   // -------------------------
-  // AUTO REDIRECT IF LOGGED IN
+  // AUTO SESSION CHECK
   // -------------------------
   useEffect(() => {
     async function checkSession() {
@@ -68,88 +61,31 @@ export default function LoginPage() {
   }, [router]);
 
   // -------------------------
-  // STEP 1 → EMAIL
+  // OTP SIGN IN
   // -------------------------
-  const continueStep = () => {
-    setError(null);
-
+  const signInWithEmail = async () => {
     if (!email) {
-      setError("Please enter your email.");
+      alert("Enter your email first.");
       return;
     }
 
-    setStep(2);
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    alert("Check your email to sign in.");
   };
 
-  // -------------------------
-  // STEP 2 → AUTH FLOW
-  // -------------------------
-  const handleAuth = async () => {
-    setError(null);
-
-    if (!password) {
-      setError("Please enter your password.");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      // -------------------------
-      // SIGN IN ATTEMPT
-      // -------------------------
-      if (mode === "signin") {
-        const { data, error } =
-          await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
-
-        if (error) {
-          setError(error.message);
-          return;
-        }
-
-        if (data.user) return;
-      }
-
-      // -------------------------
-      // SIGN UP FLOW (EXPLICIT ONLY)
-      // -------------------------
-      const { data: signupData, error: signupError } =
-        await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-          },
-        });
-
-      if (signupError) {
-        setError(signupError.message);
-        return;
-      }
-
-      if (signupData.user) {
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .insert({
-            id: signupData.user.id,
-            full_name: fullName || "User",
-            email: signupData.user.email,
-            role: "rbt",
-          });
-
-        if (profileError) {
-          setError(profileError.message);
-          return;
-        }
-      }
-
-      setError("Check your email to confirm your account.");
-    } finally {
-      setLoading(false);
-    }
+  const createAccount = () => {
+    router.push("/signup");
   };
 
   // -------------------------
@@ -157,7 +93,6 @@ export default function LoginPage() {
   // -------------------------
   return (
     <main style={{ minHeight: "100vh", background: "#f3f4f6" }}>
-      {/* HEADER */}
       <div
         style={{
           height: 240,
@@ -176,106 +111,27 @@ export default function LoginPage() {
         </h1>
       </div>
 
-      {/* CARD */}
       <div style={{ display: "flex", justifyContent: "center", padding: 32 }}>
-        <section
-          style={{
-            width: 420,
-            background: "white",
-            padding: 28,
-            borderRadius: 12,
-          }}
-        >
+        <section style={{ width: 420, background: "white", padding: 28 }}>
           <h2>Sign in to ABA AI</h2>
 
-          {/* ERROR */}
-          {error && (
-            <p style={{ color: "red", marginTop: 10 }}>
-              {error}
-            </p>
-          )}
+          <label>Email</label>
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            type="email"
+            style={{ width: "100%", marginBottom: 12 }}
+          />
 
-          {/* STEP 1 */}
-          {step === 1 && (
-            <>
-              <label>Email</label>
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                type="email"
-                style={{ width: "100%", marginBottom: 12 }}
-              />
+          <button onClick={signInWithEmail}>
+            Sign in with email
+          </button>
 
-              <button onClick={continueStep}>
-                Continue
-              </button>
-            </>
-          )}
+          <hr style={{ margin: "20px 0" }} />
 
-          {/* STEP 2 */}
-          {step === 2 && (
-            <>
-              <p style={{ marginBottom: 10 }}>{email}</p>
-
-              {/* MODE TOGGLE */}
-              <div style={{ marginBottom: 10 }}>
-                <button
-                  onClick={() => setMode("signin")}
-                  style={{
-                    marginRight: 10,
-                    fontWeight: mode === "signin" ? "bold" : "normal",
-                  }}
-                >
-                  Sign in
-                </button>
-
-                <button
-                  onClick={() => setMode("signup")}
-                  style={{
-                    fontWeight: mode === "signup" ? "bold" : "normal",
-                  }}
-                >
-                  Create account
-                </button>
-              </div>
-
-              {/* FULL NAME ONLY FOR SIGNUP */}
-              {mode === "signup" && (
-                <>
-                  <label>Full Name</label>
-                  <input
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    type="text"
-                    style={{ width: "100%", marginBottom: 12 }}
-                  />
-                </>
-              )}
-
-              <label>Password</label>
-              <input
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                type="password"
-                style={{ width: "100%", marginBottom: 12 }}
-              />
-
-              <button onClick={handleAuth} disabled={loading}>
-                {loading
-                  ? "Loading..."
-                  : mode === "signin"
-                  ? "Sign in"
-                  : "Create account"}
-              </button>
-
-              {/* OPTIONAL FUTURE HOOK */}
-              {mode === "signin" && (
-                <p style={{ marginTop: 10, fontSize: 12 }}>
-                  Forgot password (hook coming next)
-                </p>
-              )}
-            </>
-          )}
+          <button onClick={createAccount}>
+            Create account
+          </button>
         </section>
       </div>
     </main>
