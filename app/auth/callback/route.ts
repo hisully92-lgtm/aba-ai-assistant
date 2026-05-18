@@ -6,13 +6,8 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
 
-  // Redirect targets
-  const loginRedirect = new URL("/login?error=missing_code", url.origin);
-  const onboardingRedirect = new URL("/onboarding", url.origin);
-
-  // No code provided → fail safely
   if (!code) {
-    return NextResponse.redirect(loginRedirect);
+    return NextResponse.redirect(new URL("/login", url.origin));
   }
 
   const cookieStore = await cookies();
@@ -37,9 +32,10 @@ export async function GET(request: Request) {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    console.error("Auth callback error:", error.message);
+    console.error("Auth error:", error.message);
     return NextResponse.redirect(new URL("/login?error=auth", url.origin));
   }
 
-  return NextResponse.redirect(onboardingRedirect);
+  // IMPORTANT: give browser time to receive cookies
+  return NextResponse.redirect(new URL("/dashboard", url.origin));
 }
