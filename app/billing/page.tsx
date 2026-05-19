@@ -8,57 +8,125 @@ type Client = {
   full_name: string;
 };
 
-type Billing = {
+type BillingRecord = {
   id: string;
+  client_id: string;
+  session_id: string;
   duration_minutes: number;
   billable_units: number;
+  rate_per_unit: number;
   total_amount: number;
   status: string;
 };
 
 export default function BillingPage() {
   const [clients, setClients] = useState<Client[]>([]);
-  const [selectedClient, setSelectedClient] = useState("");
+  const [selectedClient, setSelectedClient] = useState<string>("");
 
-  const [duration, setDuration] = useState(0);
+  const [records, setRecords] = useState<BillingRecord[]>([]);
   const [rate, setRate] = useState(25);
 
-  const [records, setRecords] = useState<Billing[]>([]);
-
+  // =========================================================
   // LOAD CLIENTS
-  async function loadClients() {
-    const { data } = await supabase.from("clients").select("*");
-    setClients(data || []);
-  }
+  // =========================================================
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase.from("clients").select("*");
+      setClients(data || []);
+    };
 
+    load();
+  }, []);
+
+  // =========================================================
   // LOAD BILLING RECORDS
+  // =========================================================
   async function loadBilling(clientId: string) {
     setSelectedClient(clientId);
 
     const { data } = await supabase
       .from("billing_sessions")
       .select("*")
-      .eq("client_id", clientId);
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false });
 
     setRecords(data || []);
   }
 
-  useEffect(() => {
-    loadClients();
-  }, []);
+  // =========================================================
+  // AUTO CREATE BILLING FROM COMPLETED SESSION
+  // =========================================================
+  async function syncSessionToBilling(session: any) {
+    if (session.status !== "completed") return;
 
-  // CREATE BILLING SESSION
-  async function createBilling() {
-    if (!selectedClient || duration <= 0) return;
+    const start = new Date(session.start_time);
+    const end = new Date(session.end_time);
 
-    const user = await supabase.auth.getUser();
+    const durationMinutes =
+      (end.getTime() - start.getTime()) / 60000;
 
-    const units = duration / 15;
+    // ABA BILLING RULE: 15-min units
+    const units = Math.ceil(durationMinutes / 15);
     const total = units * rate;
 
-    const { error } = await supabase.from("billing_sessions").insert({
-      client_id: selectedClient,
-      rbt_id: user.data.user?.id,
+    await supabase.from("billing_sessions").insert({
+      client_id: session.client_id,
+      session_id: session.id,
+      duration_minutes: durationMinutes,
+      billable_units: units,
+      rate_per_unit: rate,
+      total_amount: total,
+      status: "draft",
+    });
+  }
+
+  // =========================================================
+  // LOAD + AUTO SYNC FROM SESSIONS
+  // =========================================================
+  useEffect(() => {
+    const channel = supabase
+      .channel("billing-sync")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "sessions",
+        },
+        async (payload) => {
+          const session = payload.new as any;
+
+          // only generate billing when session completes
+          if (session.status === "completed") {
+            await syncSessionToBilling(session);
+
+            if (session.client_id === selectedClient) {
+              loadBilling(session.client_id);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedClient, rate]);
+
+  // =========================================================
+  // MANUAL BILLING CREATE (OPTIONAL OVERRIDE)
+  // =========================================================
+  async function createManualBilling(session: any) {
+    const start = new Date(session.start_time);
+    const end = new Date(session.end_time);
+
+    const duration = (end.getTime() - start.getTime()) / 60000;
+    const units = Math.ceil(duration / 15);
+    const total = units * rate;
+
+    await supabase.from("billing_sessions").insert({
+      client_id: session.client_id,
+      session_id: session.id,
       duration_minutes: duration,
       billable_units: units,
       rate_per_unit: rate,
@@ -66,22 +134,19 @@ export default function BillingPage() {
       status: "draft",
     });
 
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setDuration(0);
-    loadBilling(selectedClient);
+    loadBilling(session.client_id);
   }
 
+  // =========================================================
+  // UI
+  // =========================================================
   return (
     <div style={{ padding: 20 }}>
-      <h1>Billing System</h1>
+      <h1>ABA Billing System</h1>
 
       {/* CLIENT SELECT */}
       <div style={{ marginBottom: 20 }}>
-        <h2>Select Client</h2>
+        <h2>Clients</h2>
 
         {clients.map((c) => (
           <button
@@ -94,37 +159,26 @@ export default function BillingPage() {
         ))}
       </div>
 
-      {/* CREATE BILLING ENTRY */}
-      {selectedClient && (
-        <div style={{ marginBottom: 20 }}>
-          <h2>Create Billing Session</h2>
-
-          <input
-            type="number"
-            placeholder="Duration (minutes)"
-            value={duration}
-            onChange={(e) => setDuration(Number(e.target.value))}
-          />
-
-          <input
-            type="number"
-            value={rate}
-            onChange={(e) => setRate(Number(e.target.value))}
-          />
-
-          <button onClick={createBilling}>Create Billing Record</button>
-        </div>
-      )}
+      {/* RATE CONTROL */}
+      <div style={{ marginBottom: 20 }}>
+        <label>Rate per unit: </label>
+        <input
+          type="number"
+          value={rate}
+          onChange={(e) => setRate(Number(e.target.value))}
+        />
+      </div>
 
       {/* BILLING TABLE */}
       <h2>Billing Records</h2>
 
-      <table border={1} cellPadding={10} style={{ width: "100%" }}>
+      <table border={1} cellPadding={10} width="100%">
         <thead>
           <tr>
-            <th>Duration</th>
+            <th>Minutes</th>
             <th>Units</th>
-            <th>Total ($)</th>
+            <th>Rate</th>
+            <th>Total</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -134,6 +188,7 @@ export default function BillingPage() {
             <tr key={r.id}>
               <td>{r.duration_minutes}</td>
               <td>{r.billable_units}</td>
+              <td>${r.rate_per_unit}</td>
               <td>${r.total_amount}</td>
               <td>{r.status}</td>
             </tr>
