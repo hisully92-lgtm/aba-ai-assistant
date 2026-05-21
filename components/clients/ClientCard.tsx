@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Card from "../ui/Card";
+import ExportClientButton from "@/components/clients/ExportClientButton";
 
 type Client = {
   id: string;
