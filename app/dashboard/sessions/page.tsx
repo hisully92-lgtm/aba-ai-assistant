@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 
-import Section from "@/components/ui/Section";
-import Button from "@/components/ui/Button";
-import PageHeader from "@/components/layout/PageHeader";
+import Section from "../../components/ui/Section";
+import Button from "../../components/ui/Button";
+import PageHeader from "../../components/layout/PageHeader";
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 
