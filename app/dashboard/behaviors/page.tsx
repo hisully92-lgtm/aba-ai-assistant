@@ -32,13 +32,7 @@ const emptyForm = {
   replacement_behavior: "",
 };
 
-export default function BehaviorsPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const clientId = params.id;
-
+export default function BehaviorsPage() {
   const [behaviors, setBehaviors] = useState<Behavior[]>([]);
   const [form, setForm] = useState(emptyForm);
 
@@ -51,12 +45,13 @@ export default function BehaviorsPage({
     const user = auth?.user;
     if (!user) return;
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("behaviors")
       .select("*")
       .eq("created_by", user.id)
-      .eq("client_id", clientId)
       .order("created_at", { ascending: false });
+
+    if (error) console.error(error.message);
 
     setBehaviors(data ?? []);
   }
@@ -71,17 +66,18 @@ export default function BehaviorsPage({
       .insert([
         {
           ...form,
-          client_id: clientId,
           created_by: user.id,
         },
       ])
       .select()
       .single();
 
-    if (error) return console.error(error.message);
+    if (error) {
+      console.error(error.message);
+      return;
+    }
 
     if (data) setBehaviors((prev) => [data, ...prev]);
-
     setForm(emptyForm);
   }
 
@@ -90,29 +86,27 @@ export default function BehaviorsPage({
       <h2 className="text-2xl font-bold mb-2">Behavior Interventions</h2>
 
       <p className="text-gray-600 mb-6">
-        Collect ABC data and intervention tracking.
+        Track ABC data and intervention strategies.
       </p>
 
       <div className="flex flex-col gap-4">
-        {(Object.entries(form) as [keyof typeof form, string][]).map(
-          ([key, value]) => (
-            <textarea
-              key={key}
-              value={value}
-              onChange={(e) =>
-                setForm({ ...form, [key]: e.target.value })
-              }
-              placeholder={key.replaceAll("_", " ")}
-              className="border rounded-lg p-3"
-            />
-          )
-        )}
+        {Object.entries(form).map(([key, value]) => (
+          <textarea
+            key={key}
+            value={value}
+            onChange={(e) =>
+              setForm({ ...form, [key]: e.target.value })
+            }
+            placeholder={key.replaceAll("_", " ")}
+            className="border rounded-lg p-3"
+          />
+        ))}
 
         <button
           onClick={handleSave}
           className="bg-black text-white rounded-lg p-3 font-medium"
         >
-          Generate Intervention Plan
+          Save Behavior
         </button>
       </div>
     </div>

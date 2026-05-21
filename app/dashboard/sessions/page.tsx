@@ -16,6 +16,7 @@ type Session = {
   interventions_used: string;
   client_response: string;
   next_session_plan: string;
+  client_id?: string;
 };
 
 const emptyForm: Omit<Session, "id"> = {
@@ -32,32 +33,40 @@ const emptyForm: Omit<Session, "id"> = {
   next_session_plan: "",
 };
 
-export default function SessionsPage() {
+export default function SessionsPage({
+  params,
+}: {
+  params?: { id: string };
+}) {
+  const clientId = params?.id; // safe optional
   const [sessions, setSessions] = useState<Session[]>([]);
   const [form, setForm] = useState(emptyForm);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetchSessions();
   }, []);
 
   async function fetchSessions() {
-    setLoading(true);
-
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("sessions")
       .select("*")
-      .eq("created_by", user.id)
-      .order("created_at", { ascending: false });
+      .eq("created_by", user.id);
+
+    if (clientId) {
+      query = query.eq("client_id", clientId);
+    }
+
+    const { data, error } = await query.order("created_at", {
+      ascending: false,
+    });
 
     if (error) console.error(error.message);
 
     setSessions(data ?? []);
-    setLoading(false);
   }
 
   async function handleSave() {
@@ -71,6 +80,7 @@ export default function SessionsPage() {
         {
           ...form,
           created_by: user.id,
+          client_id: clientId ?? null,
         },
       ])
       .select()
@@ -89,10 +99,6 @@ export default function SessionsPage() {
     <div className="bg-white rounded-2xl shadow p-6 border">
       <h2 className="text-2xl font-bold mb-2">Session Notes</h2>
 
-      <p className="text-gray-600 mb-6">
-        Create structured ABA session documentation.
-      </p>
-
       <div className="flex flex-col gap-4">
         {(Object.keys(form) as (keyof typeof form)[]).map((key) => (
           <input
@@ -108,7 +114,7 @@ export default function SessionsPage() {
 
         <button
           onClick={handleSave}
-          className="bg-black text-white rounded-lg p-3 font-medium"
+          className="bg-black text-white rounded-lg p-3"
         >
           Save Session
         </button>
