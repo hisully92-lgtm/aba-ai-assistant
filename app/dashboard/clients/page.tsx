@@ -24,9 +24,6 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [showForm, setShowForm] = useState(false);
 
-  // -------------------------
-  // LOAD CLIENTS
-  // -------------------------
   useEffect(() => {
     fetchClients();
   }, []);
@@ -34,67 +31,34 @@ export default function ClientsPage() {
   async function fetchClients() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
-
     if (!user) return;
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("clients")
       .select("*")
       .eq("created_by", user.id)
       .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Fetch clients error:", error.message);
-      return;
-    }
-
     setClients(data ?? []);
   }
 
-  // -------------------------
-  // ADD CLIENT
-  // -------------------------
   async function handleAddClient(client: any) {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
-
-    if (!user) {
-      console.error("No authenticated user");
-      return;
-    }
+    if (!user) return;
 
     const { data, error } = await supabase
       .from("clients")
-      .insert([
-        {
-          name: client.name,
-          age: client.age,
-          diagnosis: client.diagnosis,
-          caregiver_name: client.caregiver_name,
-          goals: client.goals,
-          behaviors: client.behaviors,
-          skill_programs: client.skill_programs,
-          created_by: user.id,
-        },
-      ])
+      .insert([{ ...client, created_by: user.id }])
       .select()
       .single();
 
-    if (error) {
-      console.error("Insert client error:", error.message);
-      return;
-    }
+    if (error) return console.error(error.message);
 
-    if (data) {
-      setClients((prev) => [data, ...prev]);
-    }
-
+    if (data) setClients((prev) => [data, ...prev]);
     setShowForm(false);
   }
 
-  // -------------------------
-  // UI
-  // -------------------------
   return (
     <div>
       <PageHeader title="Clients">
@@ -112,9 +76,7 @@ export default function ClientsPage() {
       <Section title="Client List">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {clients.length === 0 ? (
-            <p className="text-gray-500">
-              No clients yet. Add your first client.
-            </p>
+            <p className="text-gray-500">No clients yet.</p>
           ) : (
             clients.map((client) => (
               <ClientCard key={client.id} client={client} />

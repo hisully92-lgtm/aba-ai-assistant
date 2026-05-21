@@ -18,27 +18,25 @@ type Session = {
   next_session_plan: string;
 };
 
+const emptyForm: Omit<Session, "id"> = {
+  staff_member: "",
+  client_name: "",
+  date: "",
+  location: "",
+  duration: "",
+  people_present: "",
+  programs_targeted: "",
+  behaviors_observed: "",
+  interventions_used: "",
+  client_response: "",
+  next_session_plan: "",
+};
+
 export default function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
 
-  const [form, setForm] = useState({
-    staff_member: "",
-    client_name: "",
-    date: "",
-    location: "",
-    duration: "",
-    people_present: "",
-    programs_targeted: "",
-    behaviors_observed: "",
-    interventions_used: "",
-    client_response: "",
-    next_session_plan: "",
-  });
-
-  // -------------------------
-  // LOAD
-  // -------------------------
   useEffect(() => {
     fetchSessions();
   }, []);
@@ -56,17 +54,12 @@ export default function SessionsPage() {
       .eq("created_by", user.id)
       .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error(error.message);
-    }
+    if (error) console.error(error.message);
 
     setSessions(data ?? []);
     setLoading(false);
   }
 
-  // -------------------------
-  // SAVE
-  // -------------------------
   async function handleSave() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
@@ -74,7 +67,12 @@ export default function SessionsPage() {
 
     const { data, error } = await supabase
       .from("sessions")
-      .insert([{ ...form, created_by: user.id }])
+      .insert([
+        {
+          ...form,
+          created_by: user.id,
+        },
+      ])
       .select()
       .single();
 
@@ -83,46 +81,23 @@ export default function SessionsPage() {
       return;
     }
 
-    if (data) {
-      setSessions((prev) => [data, ...prev]);
-    }
-
-    // reset
-    setForm({
-      staff_member: "",
-      client_name: "",
-      date: "",
-      location: "",
-      duration: "",
-      people_present: "",
-      programs_targeted: "",
-      behaviors_observed: "",
-      interventions_used: "",
-      client_response: "",
-      next_session_plan: "",
-    });
+    if (data) setSessions((prev) => [data, ...prev]);
+    setForm(emptyForm);
   }
 
-  // -------------------------
-  // UI
-  // -------------------------
   return (
     <div className="bg-white rounded-2xl shadow p-6 border">
-
-      <h2 className="text-2xl font-bold mb-2">
-        Session Notes
-      </h2>
+      <h2 className="text-2xl font-bold mb-2">Session Notes</h2>
 
       <p className="text-gray-600 mb-6">
-        Create clear ABA session notes from structured session details.
+        Create structured ABA session documentation.
       </p>
 
       <div className="flex flex-col gap-4">
-
-        {Object.entries(form).map(([key, value]) => (
+        {(Object.keys(form) as (keyof typeof form)[]).map((key) => (
           <input
             key={key}
-            value={value}
+            value={form[key]}
             onChange={(e) =>
               setForm({ ...form, [key]: e.target.value })
             }
@@ -135,11 +110,9 @@ export default function SessionsPage() {
           onClick={handleSave}
           className="bg-black text-white rounded-lg p-3 font-medium"
         >
-          Generate Session Note
+          Save Session
         </button>
-
       </div>
-
     </div>
   );
 }

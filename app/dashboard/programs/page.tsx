@@ -15,22 +15,27 @@ type Program = {
   notes: string;
 };
 
-export default function ProgramsPage() {
+const emptyForm = {
+  staff_member: "",
+  program_name: "",
+  goal: "",
+  targets: "",
+  prompt_level: "",
+  mastery_criteria: "",
+  trial_data: "",
+  notes: "",
+};
+
+export default function ProgramsPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const clientId = params.id;
+
   const [programs, setPrograms] = useState<Program[]>([]);
+  const [form, setForm] = useState(emptyForm);
 
-  // FORM STATE
-  const [staffMember, setStaffMember] = useState("");
-  const [programName, setProgramName] = useState("");
-  const [goal, setGoal] = useState("");
-  const [targets, setTargets] = useState("");
-  const [promptLevel, setPromptLevel] = useState("");
-  const [masteryCriteria, setMasteryCriteria] = useState("");
-  const [trialData, setTrialData] = useState("");
-  const [notes, setNotes] = useState("");
-
-  // -------------------------
-  // LOAD PROGRAMS
-  // -------------------------
   useEffect(() => {
     fetchPrograms();
   }, []);
@@ -38,111 +43,67 @@ export default function ProgramsPage() {
   async function fetchPrograms() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
-
     if (!user) return;
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("programs")
       .select("*")
       .eq("created_by", user.id)
+      .eq("client_id", clientId)
       .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Fetch programs error:", error.message);
-      return;
-    }
 
     setPrograms(data ?? []);
   }
 
-  // -------------------------
-  // SAVE PROGRAM
-  // -------------------------
-  async function handleSaveProgram() {
+  async function handleSave() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
-
     if (!user) return;
 
     const { data, error } = await supabase
       .from("programs")
       .insert([
         {
-          staff_member: staffMember,
-          program_name: programName,
-          goal,
-          targets,
-          prompt_level: promptLevel,
-          mastery_criteria: masteryCriteria,
-          trial_data: trialData,
-          notes,
+          ...form,
+          client_id: clientId,
           created_by: user.id,
         },
       ])
       .select()
       .single();
 
-    if (error) {
-      console.error("Save program error:", error.message);
-      return;
-    }
+    if (error) return console.error(error.message);
 
-    if (data) {
-      setPrograms((prev) => [data, ...prev]);
-    }
+    if (data) setPrograms((prev) => [data, ...prev]);
 
-    // reset
-    setStaffMember("");
-    setProgramName("");
-    setGoal("");
-    setTargets("");
-    setPromptLevel("");
-    setMasteryCriteria("");
-    setTrialData("");
-    setNotes("");
+    setForm(emptyForm);
   }
 
-  // -------------------------
-  // UI (UNCHANGED DESIGN)
-  // -------------------------
   return (
     <div className="bg-white rounded-2xl shadow p-6 border">
-      <h2 className="text-2xl font-bold mb-2">
-        Skill Programs
-      </h2>
-
-      <p className="text-gray-600 mb-6">
-        Create teaching programs with targets, prompting, mastery criteria, trial data, and notes.
-      </p>
+      <h2 className="text-2xl font-bold mb-2">Skill Programs</h2>
 
       <div className="flex flex-col gap-4">
-
-        <input value={staffMember} onChange={(e) => setStaffMember(e.target.value)} placeholder="Staff Member" className="border rounded-lg p-3" />
-        <input value={programName} onChange={(e) => setProgramName(e.target.value)} placeholder="Program Name" className="border rounded-lg p-3" />
-
-        <textarea value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="Goal" className="border rounded-lg p-3 min-h-[100px]" />
-        <textarea value={targets} onChange={(e) => setTargets(e.target.value)} placeholder="Targets" className="border rounded-lg p-3 min-h-[100px]" />
-
-        <input value={promptLevel} onChange={(e) => setPromptLevel(e.target.value)} placeholder="Prompt Level" className="border rounded-lg p-3" />
-        <input value={masteryCriteria} onChange={(e) => setMasteryCriteria(e.target.value)} placeholder="Mastery Criteria" className="border rounded-lg p-3" />
-
-        <textarea value={trialData} onChange={(e) => setTrialData(e.target.value)} placeholder="Trial Data" className="border rounded-lg p-3 min-h-[120px]" />
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes" className="border rounded-lg p-3 min-h-[120px]" />
-
-        <div className="border rounded-xl p-4 bg-gray-50">
-          <h3 className="font-bold text-lg mb-2">Graph</h3>
-          <p className="text-gray-600">
-            Graphing will be added later. For now, enter trial data above.
-          </p>
-        </div>
+        {(Object.entries(form) as [keyof typeof form, string][]).map(
+          ([key, value]) => (
+            <textarea
+              key={key}
+              value={value}
+              onChange={(e) =>
+                setForm({ ...form, [key]: e.target.value })
+              }
+              placeholder={key.replaceAll("_", " ")}
+              className="border rounded-lg p-3"
+            />
+          )
+        )}
 
         <button
-          onClick={handleSaveProgram}
+          onClick={handleSave}
           className="bg-black text-white rounded-lg p-3 font-medium"
         >
           Save Skill Program
         </button>
-
       </div>
     </div>
   );
