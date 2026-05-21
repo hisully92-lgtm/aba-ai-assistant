@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 
-import ClientCard from "@/components/clients/ClientCard";
-import ClientForm from "@/components/clients/ClientForm";
+import ClientCard from "../../components/client/ClientCard";
+import ClientForm from "../../components/client/ClientForm";
 
-import Button from "@/components/ui/Button";
-import Section from "@/components/ui/Section";
-import PageHeader from "@/components/layout/PageHeader";
+import Button from "../../components/ui/Button";
+import Section from "../../components/ui/Section";
+import PageHeader from "../../components/layout/PageHeader";
 
-import { useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 
 export default function ClientsPage() {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Card from "@/components/ui/Card";
+import Card from "../ui/Card";
 
 type Client = {
   id: string;
