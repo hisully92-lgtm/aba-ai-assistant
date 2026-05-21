@@ -21,36 +21,18 @@ export default function ReportsPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-          <input
-            type="text"
-            placeholder="Client Name"
-            className="border rounded-lg p-3"
-          />
+          <input type="text" placeholder="Client Name" className="border rounded-lg p-3" />
+          <input type="date" className="border rounded-lg p-3" />
 
-          <input
-            type="date"
-            className="border rounded-lg p-3"
-          />
-
-          <select
-            className="border rounded-lg p-3 bg-white"
-            defaultValue=""
-          >
-            <option value="" disabled>
-              Select Report Type
-            </option>
-
+          <select className="border rounded-lg p-3 bg-white" defaultValue="">
+            <option value="" disabled>Select Report Type</option>
             <option>Session Summary</option>
             <option>Behavior Report</option>
             <option>Skill Acquisition Report</option>
             <option>Progress Summary</option>
           </select>
 
-          <input
-            type="text"
-            placeholder="Staff Member"
-            className="border rounded-lg p-3"
-          />
+          <input type="text" placeholder="Staff Member" className="border rounded-lg p-3" />
 
         </div>
 

@@ -21,39 +21,12 @@ export default function SchedulePage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-          <input
-            type="text"
-            placeholder="Client Name"
-            className="border rounded-lg p-3"
-          />
-
-          <input
-            type="text"
-            placeholder="Staff Member"
-            className="border rounded-lg p-3"
-          />
-
-          <input
-            type="date"
-            className="border rounded-lg p-3"
-          />
-
-          <input
-            type="time"
-            className="border rounded-lg p-3"
-          />
-
-          <input
-            type="text"
-            placeholder="Location"
-            className="border rounded-lg p-3"
-          />
-
-          <input
-            type="text"
-            placeholder="Session Duration"
-            className="border rounded-lg p-3"
-          />
+          <input type="text" placeholder="Client Name" className="border rounded-lg p-3" />
+          <input type="text" placeholder="Staff Member" className="border rounded-lg p-3" />
+          <input type="date" className="border rounded-lg p-3" />
+          <input type="time" className="border rounded-lg p-3" />
+          <input type="text" placeholder="Location" className="border rounded-lg p-3" />
+          <input type="text" placeholder="Session Duration" className="border rounded-lg p-3" />
 
         </div>
 
