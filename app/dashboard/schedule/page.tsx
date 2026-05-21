@@ -4,6 +4,7 @@ export default function SchedulePage() {
   return (
     <div className="space-y-6">
 
+      {/* HEADER */}
       <div className="bg-white rounded-2xl shadow p-6 border">
         <h1 className="text-3xl font-bold mb-2">
           Schedule
@@ -14,6 +15,7 @@ export default function SchedulePage() {
         </p>
       </div>
 
+      {/* SCHEDULER */}
       <div className="bg-white rounded-2xl shadow p-6 border">
         <h2 className="text-2xl font-bold mb-4">
           Schedule Session
@@ -23,11 +25,12 @@ export default function SchedulePage() {
 
           <input type="text" placeholder="Client Name" className="border rounded-lg p-3" />
           <input type="text" placeholder="Staff Member" className="border rounded-lg p-3" />
+
           <input type="date" className="border rounded-lg p-3" />
           <input type="time" className="border rounded-lg p-3" />
+
           <input type="text" placeholder="Location" className="border rounded-lg p-3" />
           <input type="text" placeholder="Session Duration" className="border rounded-lg p-3" />
-
         </div>
 
         <textarea
@@ -40,6 +43,7 @@ export default function SchedulePage() {
         </button>
       </div>
 
+      {/* UPCOMING */}
       <div className="bg-white rounded-2xl shadow p-6 border">
         <h2 className="text-2xl font-bold mb-4">
           Upcoming Sessions

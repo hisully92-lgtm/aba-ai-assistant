@@ -4,6 +4,7 @@ export default function ReportsPage() {
   return (
     <div className="space-y-6">
 
+      {/* HEADER */}
       <div className="bg-white rounded-2xl shadow p-6 border">
         <h1 className="text-3xl font-bold mb-2">
           Reports
@@ -14,6 +15,7 @@ export default function ReportsPage() {
         </p>
       </div>
 
+      {/* BUILDER */}
       <div className="bg-white rounded-2xl shadow p-6 border">
         <h2 className="text-2xl font-bold mb-4">
           Report Builder
@@ -24,8 +26,8 @@ export default function ReportsPage() {
           <input type="text" placeholder="Client Name" className="border rounded-lg p-3" />
           <input type="date" className="border rounded-lg p-3" />
 
-          <select className="border rounded-lg p-3 bg-white" defaultValue="">
-            <option value="" disabled>Select Report Type</option>
+          <select className="border rounded-lg p-3 bg-white">
+            <option value="">Select Report Type</option>
             <option>Session Summary</option>
             <option>Behavior Report</option>
             <option>Skill Acquisition Report</option>
@@ -33,7 +35,6 @@ export default function ReportsPage() {
           </select>
 
           <input type="text" placeholder="Staff Member" className="border rounded-lg p-3" />
-
         </div>
 
         <textarea
@@ -46,6 +47,7 @@ export default function ReportsPage() {
         </button>
       </div>
 
+      {/* HISTORY */}
       <div className="bg-white rounded-2xl shadow p-6 border">
         <h2 className="text-2xl font-bold mb-4">
           Previous Reports

@@ -1,12 +1,18 @@
 type SectionProps = {
+  title?: string;
   children: React.ReactNode;
-  className?: string;
 };
 
-export default function Section({ children, className = "" }: SectionProps) {
+export default function Section({ title, children }: SectionProps) {
   return (
-    <section className={`p-4 ${className}`}>
+    <div className="bg-white rounded-2xl shadow p-6 border mb-6">
+      {title && (
+        <h2 className="text-xl font-bold mb-4">
+          {title}
+        </h2>
+      )}
+
       {children}
-    </section>
+    </div>
   );
 }

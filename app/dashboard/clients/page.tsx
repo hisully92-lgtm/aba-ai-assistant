@@ -1,61 +1,127 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase/client";
+
+import ClientCard from "@/components/clients/ClientCard";
+import ClientForm from "@/components/clients/ClientForm";
+import Button from "@/components/ui/Button";
+import Section from "@/components/ui/Section";
+import PageHeader from "@/components/layout/PageHeader";
+
+type Client = {
+  id: string;
+  name: string;
+  age: number;
+  diagnosis: string;
+  caregiver_name?: string;
+  goals?: string;
+  behaviors?: string;
+  skill_programs?: string;
+};
+
 export default function ClientsPage() {
+  const [clients, setClients] = useState<Client[]>([]);
+  const [showForm, setShowForm] = useState(false);
+
+  // -------------------------
+  // LOAD CLIENTS
+  // -------------------------
+  useEffect(() => {
+    fetchClients();
+  }, []);
+
+  async function fetchClients() {
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth?.user;
+
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("created_by", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Fetch clients error:", error.message);
+      return;
+    }
+
+    setClients(data ?? []);
+  }
+
+  // -------------------------
+  // ADD CLIENT
+  // -------------------------
+  async function handleAddClient(client: any) {
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth?.user;
+
+    if (!user) {
+      console.error("No authenticated user");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("clients")
+      .insert([
+        {
+          name: client.name,
+          age: client.age,
+          diagnosis: client.diagnosis,
+          caregiver_name: client.caregiver_name,
+          goals: client.goals,
+          behaviors: client.behaviors,
+          skill_programs: client.skill_programs,
+          created_by: user.id,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Insert client error:", error.message);
+      return;
+    }
+
+    if (data) {
+      setClients((prev) => [data, ...prev]);
+    }
+
+    setShowForm(false);
+  }
+
+  // -------------------------
+  // UI
+  // -------------------------
   return (
-    <div className="bg-white rounded-2xl shadow p-6 border">
-      <h2 className="text-2xl font-bold mb-2">
-        Clients/Learners
-      </h2>
+    <div>
+      <PageHeader title="Clients">
+        <Button onClick={() => setShowForm((v) => !v)}>
+          {showForm ? "Close" : "+ Add Client"}
+        </Button>
+      </PageHeader>
 
-      <p className="text-gray-600 mb-6">
-        Create and manage learner profiles for goals, behaviors, programs, and session history.
-      </p>
+      {showForm && (
+        <Section title="Add Client">
+          <ClientForm onAdd={handleAddClient} />
+        </Section>
+      )}
 
-      <div className="flex flex-col gap-4">
-
-        <input
-          type="text"
-          placeholder="Client Name"
-          className="border rounded-lg p-3"
-        />
-
-        <input
-          type="date"
-          className="border rounded-lg p-3"
-        />
-
-        <input
-          type="text"
-          placeholder="Diagnosis"
-          className="border rounded-lg p-3"
-        />
-
-        <input
-          type="text"
-          placeholder="Caregiver Name"
-          className="border rounded-lg p-3"
-        />
-
-        <textarea
-          placeholder="Goals"
-          className="border rounded-lg p-3 min-h-[100px]"
-        />
-
-        <textarea
-          placeholder="Behaviors"
-          className="border rounded-lg p-3 min-h-[100px]"
-        />
-
-        <textarea
-          placeholder="Skill Programs"
-          className="border rounded-lg p-3 min-h-[120px]"
-        />
-
-        <button className="bg-black text-white rounded-lg p-3 font-medium">
-          Save Client
-        </button>
-
-      </div>
+      <Section title="Client List">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {clients.length === 0 ? (
+            <p className="text-gray-500">
+              No clients yet. Add your first client.
+            </p>
+          ) : (
+            clients.map((client) => (
+              <ClientCard key={client.id} client={client} />
+            ))
+          )}
+        </div>
+      </Section>
     </div>
   );
 }
