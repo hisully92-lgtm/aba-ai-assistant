@@ -1,14 +1,19 @@
-export default function PageHeader({
-  title,
-  children,
-}: {
+import { ReactNode } from "react";
+
+type PageHeaderProps = {
   title: string;
-  children?: React.ReactNode;
-}) {
+  subtitle?: string;
+  children?: ReactNode;
+};
+
+export default function PageHeader({ title, subtitle, children }: PageHeaderProps) {
   return (
-    <div className="flex justify-between items-center mb-4">
-      <h1 className="text-xl font-bold">{title}</h1>
-      {children}
+    <div className="flex items-center justify-between mb-6">
+      <div>
+        <h1 className="text-2xl font-bold">{title}</h1>
+        {subtitle && <p className="text-gray-500">{subtitle}</p>}
+      </div>
+      {children && <div>{children}</div>}
     </div>
   );
 }

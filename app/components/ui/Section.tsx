@@ -1,7 +1,12 @@
-export default function Section({
-  children,
-}: {
+type SectionProps = {
   children: React.ReactNode;
-}) {
-  return <div className="p-4">{children}</div>;
+  className?: string;
+};
+
+export default function Section({ children, className = "" }: SectionProps) {
+  return (
+    <section className={`p-4 ${className}`}>
+      {children}
+    </section>
+  );
 }
