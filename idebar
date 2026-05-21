@@ -2,7 +2,7 @@
 ^d35ed94 (Heidi Sullivan 2026-05-17 11:57:23 -0400   2) 
 ^d35ed94 (Heidi Sullivan 2026-05-17 11:57:23 -0400   3) import { useEffect, useState } from "react";
 ^d35ed94 (Heidi Sullivan 2026-05-17 11:57:23 -0400   4) import { useRouter } from "next/navigation";
-^d35ed94 (Heidi Sullivan 2026-05-17 11:57:23 -0400   5) import { supabase } from "@/lib/supabaseClient";
+^d35ed94 (Heidi Sullivan 2026-05-17 11:57:23 -0400   5) import { supabase } from "@/lib/supabase/client";
 ^d35ed94 (Heidi Sullivan 2026-05-17 11:57:23 -0400   6) 
 ^d35ed94 (Heidi Sullivan 2026-05-17 11:57:23 -0400   7) type Mode =
 ^d35ed94 (Heidi Sullivan 2026-05-17 11:57:23 -0400   8)   | "notes"
