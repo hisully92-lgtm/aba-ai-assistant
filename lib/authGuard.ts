@@ -1,6 +1,6 @@
 "use client";
 
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/lib/supabase/client";
 import type { UserRole } from "@/lib/roles";
 
 export async function requireAuth(allowedRoles?: UserRole[]) {

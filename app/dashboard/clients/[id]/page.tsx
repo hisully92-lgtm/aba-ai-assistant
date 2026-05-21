@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { supabase } from "@/lib/supabase/client";
-import ClientOverview from "@/components/client/ClientOverview";
+import ClientOverview from "@/components/clients/ClientOverview";
 
 type Client = {
   id: string;

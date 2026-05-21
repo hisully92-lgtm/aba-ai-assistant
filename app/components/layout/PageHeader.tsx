@@ -1,25 +1,13 @@
-import { ReactNode } from "react";
-
-interface PageHeaderProps {
-  title: string;
-  children?: ReactNode;
-}
-
 export default function PageHeader({
   title,
   children,
-}: PageHeaderProps) {
+}: {
+  title: string;
+  children?: React.ReactNode;
+}) {
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: 24,
-      }}
-    >
-      <h1>{title}</h1>
-
+    <div className="flex justify-between items-center mb-4">
+      <h1 className="text-xl font-bold">{title}</h1>
       {children}
     </div>
   );
