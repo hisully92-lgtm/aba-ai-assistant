@@ -1,69 +1,76 @@
-"use client";
-import { useState, useEffect } from "react";
-import Section from "@/components/ui/Section";
-import Button from "@/components/ui/Button";
-import PageHeader from "@/components/layout/PageHeader";
-import { supabase } from "@/lib/supabase/client";
-type Session = {
-  id: string;
-  client_name: string;
-  notes: string;
-  created_at: string;
-};
-export default function SessionsPage() {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [showForm, setShowForm] = useState(false);
-  const [clientName, setClientName] = useState("");
-  const [notes, setNotes] = useState("");
-  useEffect(() => {
-    async function fetchSessions() {
-      const { data, error } = await supabase
-        .from("sessions")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) { console.error(error); return; }
-      setSessions(data || []);
-    }
-    fetchSessions();
-  }, []);
-  async function handleAddSession() {
-    if (!clientName || !notes) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { console.error("No user logged in"); return; }
-    const { data, error } = await supabase
-      .from("sessions")
-      .insert([{ client_name: clientName, notes, created_by: user.id }])
-      .select();
-    if (error) { console.error(error); return; }
-    if (data) setSessions((prev) => [...data, ...prev]);
-    setClientName("");
-    setNotes("");
-    setShowForm(false);
-  }
-  return (
-    <div>
-      <PageHeader title="Sessions" />
-      <Section>
-        <Button onClick={() => setShowForm(!showForm)}>
-          {showForm ? "Cancel" : "Add Session"}
-        </Button>
-        {showForm && (
-          <div className="mt-4 space-y-2">
-            <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client name" />
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes" />
-            <Button onClick={handleAddSession}>Save</Button>
-          </div>
-        )}
-        <div className="mt-6 space-y-3">
-          {sessions.map((session) => (
-            <div key={session.id} className="border p-3 rounded">
-              <h3 className="font-bold">{session.client_name}</h3>
-              <p>{session.notes}</p>
-              <small>{session.created_at}</small>
-            </div>
-          ))}
-        </div>
-      </Section>
-    </div>
-  );
-}
+<div className="bg-white rounded-2xl shadow p-6 border">
+  <h2 className="text-2xl font-bold mb-2">
+    Session Notes
+  </h2>
+
+  <p className="text-gray-600 mb-6">
+    Create clear ABA session notes from structured session details.
+  </p>
+
+  <div className="flex flex-col gap-4">
+
+    <input
+      type="text"
+      placeholder="Staff Member"
+      className="border rounded-lg p-3"
+    />
+
+    <input
+      type="text"
+      placeholder="Client"
+      className="border rounded-lg p-3"
+    />
+
+    <input
+      type="date"
+      className="border rounded-lg p-3"
+    />
+
+    <input
+      type="text"
+      placeholder="Location"
+      className="border rounded-lg p-3"
+    />
+
+    <input
+      type="text"
+      placeholder="Session Duration"
+      className="border rounded-lg p-3"
+    />
+
+    <textarea
+      placeholder="People Present"
+      className="border rounded-lg p-3 min-h-[80px]"
+    />
+
+    <textarea
+      placeholder="Programs Targeted"
+      className="border rounded-lg p-3 min-h-[100px]"
+    />
+
+    <textarea
+      placeholder="Behaviors Observed"
+      className="border rounded-lg p-3 min-h-[100px]"
+    />
+
+    <textarea
+      placeholder="Interventions Used"
+      className="border rounded-lg p-3 min-h-[100px]"
+    />
+
+    <textarea
+      placeholder="Client Response"
+      className="border rounded-lg p-3 min-h-[100px]"
+    />
+
+    <textarea
+      placeholder="Plan for Next Session"
+      className="border rounded-lg p-3 min-h-[100px]"
+    />
+
+    <button className="bg-black text-white rounded-lg p-3 font-medium">
+      Generate Session Note
+    </button>
+
+  </div>
+</div>

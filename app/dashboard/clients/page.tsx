@@ -1,55 +1,55 @@
-"use client";
+<div className="bg-white rounded-2xl shadow p-6 border">
+  <h2 className="text-2xl font-bold mb-2">
+    Clients/Learners
+  </h2>
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
+  <p className="text-gray-600 mb-6">
+    Create and manage learner profiles for goals, behaviors, programs, and session history.
+  </p>
 
-export default function Dashboard() {
-  const router = useRouter();
-  const [prompt, setPrompt] = useState("");
-  const [result, setResult] = useState("");
-  const [loading, setLoading] = useState(false);
+  <div className="flex flex-col gap-4">
 
-  useEffect(() => {
-    async function checkSession() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) router.replace("/login");
-    }
-    checkSession();
+    <input
+      type="text"
+      placeholder="Client Name"
+      className="border rounded-lg p-3"
+    />
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) router.replace("/login");
-    });
+    <input
+      type="date"
+      className="border rounded-lg p-3"
+    />
 
-    return () => subscription.unsubscribe();
-  }, [router]);
+    <input
+      type="text"
+      placeholder="Diagnosis"
+      className="border rounded-lg p-3"
+    />
 
-  async function generateAI() {
-    setLoading(true);
-    const res = await fetch("/api/generate-note", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: "notes", prompt }),
-    });
-    const data = await res.json();
-    setResult(data.result);
-    setLoading(false);
-  }
+    <input
+      type="text"
+      placeholder="Caregiver Name"
+      className="border rounded-lg p-3"
+    />
 
-  return (
-    <div>
-      <h1 className="text-2xl font-bold mb-2">Session Notes</h1>
-      <p className="text-gray-500 mb-6">Create clear ABA session notes from structured session details.</p>
-      <textarea
-        placeholder="Enter prompt..."
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-        className="w-full h-32 border rounded p-2 mb-4"
-      />
-      <button onClick={generateAI} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-        {loading ? "Generating..." : "Generate"}
-      </button>
-      {result && <pre className="mt-6 whitespace-pre-wrap">{result}</pre>}
-    </div>
-  );
-}
+    <textarea
+      placeholder="Goals"
+      className="border rounded-lg p-3 min-h-[100px]"
+    />
+
+    <textarea
+      placeholder="Behaviors"
+      className="border rounded-lg p-3 min-h-[100px]"
+    />
+
+    <textarea
+      placeholder="Skill Programs"
+      className="border rounded-lg p-3 min-h-[120px]"
+    />
+
+    <button className="bg-black text-white rounded-lg p-3 font-medium">
+      Save Client
+    </button>
+
+  </div>
+</div>
