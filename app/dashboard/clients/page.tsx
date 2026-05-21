@@ -1,94 +1,55 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-import ClientCard from "@/components/clients/ClientCard";
-import ClientForm from "@/components/clients/ClientForm";
-import Button from "@/components/ui/Button";
-import Section from "@/components/ui/Section";
-import PageHeader from "@/components/layout/PageHeader";
-
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 
-type Client = {
-  id: string;
-  name: string;
-  age: number;
-  diagnosis: string;
-  created_by?: string;
-};
-
-type Props = {
-  onAdd: (client: Client) => void | Promise<void>;
-};
-
-export default function ClientsPage() {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [showForm, setShowForm] = useState(false);
+export default function Dashboard() {
+  const router = useRouter();
+  const [prompt, setPrompt] = useState("");
+  const [result, setResult] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    async function fetchClients() {
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError || !userData?.user) return;
-
-      const { data, error } = await supabase
-        .from("clients")
-        .select("*")
-        .eq("created_by", userData.user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) { console.error(error); return; }
-      setClients((data as Client[]) || []);
+    async function checkSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) router.replace("/login");
     }
+    checkSession();
 
-    fetchClients();
-  }, []);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) router.replace("/login");
+    });
 
-  const handleAddClient: Props["onAdd"] = async (client) => {
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError || !userData?.user) return;
+    return () => subscription.unsubscribe();
+  }, [router]);
 
-    const { data, error } = await supabase
-      .from("clients")
-      .insert([{
-        name: client.name,
-        age: client.age,
-        diagnosis: client.diagnosis,
-        created_by: userData.user.id,
-      }])
-      .select()
-      .single();
-
-    if (error) { console.error(error); return; }
-    if (data) setClients((prev) => [data as Client, ...prev]);
-    setShowForm(false);
-  };
+  async function generateAI() {
+    setLoading(true);
+    const res = await fetch("/api/generate-note", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "notes", prompt }),
+    });
+    const data = await res.json();
+    setResult(data.result);
+    setLoading(false);
+  }
 
   return (
     <div>
-      <PageHeader title="Clients">
-        <Button onClick={() => setShowForm((prev) => !prev)}>
-          {showForm ? "Close" : "+ Add Client"}
-        </Button>
-      </PageHeader>
-
-      {showForm && (
-        <Section>
-          <ClientForm onAdd={handleAddClient} />
-        </Section>
-      )}
-
-      <Section>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {clients.length === 0 ? (
-            <p className="text-gray-500">No clients yet. Add your first client.</p>
-          ) : (
-            clients.map((client) => (
-              <ClientCard key={client.id} client={client} />
-            ))
-          )}
-        </div>
-      </Section>
+      <h1 className="text-2xl font-bold mb-2">Session Notes</h1>
+      <p className="text-gray-500 mb-6">Create clear ABA session notes from structured session details.</p>
+      <textarea
+        placeholder="Enter prompt..."
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
+        className="w-full h-32 border rounded p-2 mb-4"
+      />
+      <button onClick={generateAI} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+        {loading ? "Generating..." : "Generate"}
+      </button>
+      {result && <pre className="mt-6 whitespace-pre-wrap">{result}</pre>}
     </div>
   );
 }
