@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import jsPDF from "jspdf";
+import { getWeeklySummary } from "@/lib/services/weeklySummaryService";
 
 type Client = {
   id: string;
@@ -27,7 +28,10 @@ export default function ReportsPage() {
   const [notes, setNotes] = useState<SessionNote[]>([]);
   const [behaviors, setBehaviors] = useState<BehaviorLog[]>([]);
 
-  // LOAD CLIENTS (based on assignments or all for admin)
+  // NEW: weekly summary state
+  const [summary, setSummary] = useState<string>("");
+  const [loadingSummary, setLoadingSummary] = useState(false);
+
   async function loadClients() {
     const { data } = await supabase.from("clients").select("*");
     setClients(data || []);
@@ -52,6 +56,12 @@ export default function ReportsPage() {
 
     setNotes(notesData || []);
     setBehaviors(behaviorData || []);
+
+    // NEW: load AI summary when client is selected
+    setLoadingSummary(true);
+    const result = await getWeeklySummary();
+    setSummary(result);
+    setLoadingSummary(false);
   }
 
   function exportPDF() {
@@ -117,6 +127,7 @@ export default function ReportsPage() {
         <div style={{ marginTop: 20 }}>
           <h2>Report Preview</h2>
 
+          {/* SESSION NOTES */}
           <h3>Session Notes</h3>
           <ul>
             {notes.map((n, i) => (
@@ -124,6 +135,7 @@ export default function ReportsPage() {
             ))}
           </ul>
 
+          {/* BEHAVIOR LOGS */}
           <h3>Behavior Logs</h3>
           <ul>
             {behaviors.map((b, i) => (
@@ -133,6 +145,18 @@ export default function ReportsPage() {
             ))}
           </ul>
 
+          {/* NEW: WEEKLY SUMMARY */}
+          <h3 style={{ marginTop: 20 }}>AI Weekly Summary</h3>
+
+          {loadingSummary ? (
+            <p>Generating summary...</p>
+          ) : (
+            <pre style={{ whiteSpace: "pre-wrap", padding: 10, border: "1px solid #ddd" }}>
+              {summary}
+            </pre>
+          )}
+
+          {/* EXPORT */}
           <button
             onClick={exportPDF}
             style={{

@@ -1,20 +1,29 @@
-import { useEffect, useState } from "react";
-import { generateWeeklySummary } from "@/lib/ai/generateWeeklySummary";
+export type ExportItem = {
+  risk: "low" | "medium" | "high";
+  forecastScore: number;
+  escalationWarning: string | null;
+};
 
-const [summary, setSummary] = useState<string | null>(null);
+export function generateWeeklySummary(data: ExportItem[]): string {
+  const total = data.length;
 
-useEffect(() => {
-  if (!exportsData || exportsData.length === 0) return;
+  const highRisk = data.filter((x) => x.risk === "high").length;
+  const mediumRisk = data.filter((x) => x.risk === "medium").length;
 
-  async function buildSummary() {
-    try {
-      const result = await generateWeeklySummary(exportsData);
-      setSummary(result);
-    } catch (error) {
-      console.error("Weekly summary error:", error);
-      setSummary("Unable to generate summary.");
-    }
-  }
+  const avgScore =
+    data.reduce((sum, x) => sum + x.forecastScore, 0) / (total || 1);
 
-  buildSummary();
-}, [exportsData]);
+  const escalationCount = data.filter((x) => x.escalationWarning).length;
+
+  return `
+Weekly Clinical Summary
+
+Total exports: ${total}
+High risk: ${highRisk}
+Medium risk: ${mediumRisk}
+Average score: ${avgScore.toFixed(1)}
+Escalations: ${escalationCount}
+
+System status: ${highRisk > 3 ? "Elevated risk" : "Stable"}
+  `.trim();
+}
