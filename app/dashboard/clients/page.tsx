@@ -9,6 +9,9 @@ import Button from "@/components/ui/Button";
 import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 
+import { usePlan } from "@/lib/hooks/usePlan";
+import { useFeatureAccess } from "@/lib/hooks/useFeatureAccess";
+
 type Client = {
   id: string;
   name: string;
@@ -23,6 +26,9 @@ type Client = {
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [showForm, setShowForm] = useState(false);
+
+  const { isPro } = usePlan();
+  const { hasAccess } = useFeatureAccess("clients");
 
   useEffect(() => {
     fetchClients();
@@ -53,19 +59,46 @@ export default function ClientsPage() {
       .select()
       .single();
 
-    if (error) return console.error(error.message);
+    if (error) {
+      console.error(error.message);
+      return;
+    }
 
-    if (data) setClients((prev) => [data, ...prev]);
+    if (data) {
+      setClients((prev) => [data, ...prev]);
+    }
+
     setShowForm(false);
   }
+
+  // 🔒 GATE
+  if (hasAccess === false) {
+    return (
+      <div style={{ padding: 20 }}>
+        <h2>Clients Locked</h2>
+        <p>Upgrade to Pro to access client management.</p>
+      </div>
+    );
+  }
+
+  const isLimitReached = !isPro && clients.length >= 5;
 
   return (
     <div>
       <PageHeader title="Clients">
-        <Button onClick={() => setShowForm((v) => !v)}>
+        <Button
+          onClick={() => setShowForm((v) => !v)}
+          disabled={isLimitReached}
+        >
           {showForm ? "Close" : "+ Add Client"}
         </Button>
       </PageHeader>
+
+      {isLimitReached && (
+        <div style={{ padding: 10, color: "red" }}>
+          Free plan limit reached. Upgrade to Pro to add more clients.
+        </div>
+      )}
 
       {showForm && (
         <Section title="Add Client">

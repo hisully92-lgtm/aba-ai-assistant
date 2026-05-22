@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { useFeatureAccess } from "@/lib/hooks/useFeatureAccess";
+import Button from "@/components/ui/Button";
 
 type Session = {
   id: string;
@@ -38,13 +40,18 @@ export default function SessionsPage({
 }: {
   params?: { id: string };
 }) {
-  const clientId = params?.id; // safe optional
+  const clientId = params?.id;
+
+  // 🔒 FEATURE GATING (Step 5 system)
+  const { hasAccess } = useFeatureAccess("sessions");
+
   const [sessions, setSessions] = useState<Session[]>([]);
   const [form, setForm] = useState(emptyForm);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetchSessions();
-  }, []);
+    if (hasAccess) fetchSessions();
+  }, [hasAccess]);
 
   async function fetchSessions() {
     const { data: auth } = await supabase.auth.getUser();
@@ -70,6 +77,8 @@ export default function SessionsPage({
   }
 
   async function handleSave() {
+    setLoading(true);
+
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
@@ -88,36 +97,75 @@ export default function SessionsPage({
 
     if (error) {
       console.error(error.message);
+      setLoading(false);
       return;
     }
 
     if (data) setSessions((prev) => [data, ...prev]);
+
     setForm(emptyForm);
+    setLoading(false);
+  }
+
+  // 🔒 ACCESS BLOCK
+  if (!hasAccess) {
+    return (
+      <div style={{ padding: 20 }}>
+        <h2>Sessions Locked</h2>
+        <p>Upgrade to Pro to access session notes.</p>
+      </div>
+    );
   }
 
   return (
     <div className="bg-white rounded-2xl shadow p-6 border">
-      <h2 className="text-2xl font-bold mb-2">Session Notes</h2>
+      <h2 className="text-2xl font-bold mb-4">
+        Session Notes
+      </h2>
 
+      {/* FORM */}
       <div className="flex flex-col gap-4">
-        {(Object.keys(form) as (keyof typeof form)[]).map((key) => (
-          <input
-            key={key}
-            value={form[key]}
-            onChange={(e) =>
-              setForm({ ...form, [key]: e.target.value })
-            }
-            placeholder={key.replaceAll("_", " ")}
-            className="border rounded-lg p-3"
-          />
-        ))}
+        {(Object.keys(form) as (keyof typeof form)[]).map(
+          (key) => (
+            <input
+              key={key}
+              value={form[key]}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  [key]: e.target.value,
+                })
+              }
+              placeholder={key.replaceAll("_", " ")}
+              className="border rounded-lg p-3"
+            />
+          )
+        )}
 
-        <button
+        <Button
           onClick={handleSave}
-          className="bg-black text-white rounded-lg p-3"
+          loading={loading}
+          fullWidth
         >
           Save Session
-        </button>
+        </Button>
+      </div>
+
+      {/* SESSION LIST (READY FOR NEXT STEP) */}
+      <div className="mt-6 space-y-3">
+        {sessions.map((s) => (
+          <div
+            key={s.id}
+            className="border rounded-lg p-3"
+          >
+            <p className="font-semibold">
+              {s.client_name}
+            </p>
+            <p className="text-sm text-gray-500">
+              {s.date} • {s.location}
+            </p>
+          </div>
+        ))}
       </div>
     </div>
   );
