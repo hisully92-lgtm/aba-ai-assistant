@@ -14,3 +14,11 @@ export const PLAN_FEATURES: Record<string, string[]> = {
     FEATURES.client_timeline,
   ],
 };
+
+/**
+ * Check if a plan has access to a feature
+ */
+export function hasFeature(plan: string, feature: string): boolean {
+  const features = PLAN_FEATURES[plan] ?? [];
+  return features.includes(feature);
+}
