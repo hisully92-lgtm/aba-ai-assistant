@@ -1,24 +1,31 @@
-// lib/rate-limit.ts
-
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const memory = new Map<string, { count: number; ts: number }>();
 
 export function rateLimit(
-  req: { headers: { get: (key: string) => string | null } },
-  { limit = 20, windowMs = 60_000 } = {}
-): { success: boolean } {
-  const ip = req.headers.get("x-forwarded-for") ?? "unknown";
+  key: string,
+  limit: number,
+  windowMs: number
+) {
   const now = Date.now();
-  const entry = rateLimitMap.get(ip);
+  const entry = memory.get(key);
 
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + windowMs });
-    return { success: true };
+  if (!entry) {
+    memory.set(key, { count: 1, ts: now });
+    return true;
   }
 
-  entry.count++;
-  if (entry.count > limit) {
-    return { success: false };
+  const isExpired = now - entry.ts > windowMs;
+
+  if (isExpired) {
+    memory.set(key, { count: 1, ts: now });
+    return true;
   }
 
-  return { success: true };
+  if (entry.count >= limit) {
+    return false;
+  }
+
+  entry.count += 1;
+  memory.set(key, entry);
+
+  return true;
 }
