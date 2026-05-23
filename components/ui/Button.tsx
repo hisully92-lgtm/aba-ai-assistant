@@ -5,8 +5,6 @@ type ButtonProps = {
   className?: string;
   variant?: "primary" | "secondary" | "danger" | "outline";
   disabled?: boolean;
-
-  // 🔥 NEW (SaaS FEATURE SUPPORT)
   loading?: boolean;
   fullWidth?: boolean;
 };
@@ -21,19 +19,17 @@ export default function Button({
   loading = false,
   fullWidth = false,
 }: ButtonProps) {
-  const baseStyles =
+  const base =
     "px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2";
 
-  const variants = {
+  const styles = {
     primary: "bg-black text-white hover:bg-gray-800",
     secondary: "bg-blue-600 text-white hover:bg-blue-700",
     danger: "bg-red-600 text-white hover:bg-red-700",
-    outline:
-      "border border-gray-300 text-gray-700 hover:bg-gray-100",
+    outline: "border border-gray-300 text-gray-700 hover:bg-gray-100",
   };
 
-  const disabledStyles =
-    "opacity-50 cursor-not-allowed pointer-events-none";
+  const disabledStyle = "opacity-50 cursor-not-allowed";
 
   return (
     <button
@@ -41,9 +37,9 @@ export default function Button({
       onClick={onClick}
       disabled={disabled || loading}
       className={`
-        ${baseStyles}
-        ${variants[variant]}
-        ${disabled || loading ? disabledStyles : ""}
+        ${base}
+        ${styles[variant]}
+        ${disabled || loading ? disabledStyle : ""}
         ${fullWidth ? "w-full" : ""}
         ${className}
       `}

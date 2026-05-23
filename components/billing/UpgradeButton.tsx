@@ -2,17 +2,16 @@
 
 export default function UpgradeButton() {
   async function handleUpgrade() {
-    const res = await fetch("/api/stripe/create-checkout", {
+    const res = await fetch("/api/checkout", {
       method: "POST",
-      body: JSON.stringify({
-        priceId: "price_xxx_replace_me",
-      }),
     });
 
     const data = await res.json();
 
     if (data.url) {
       window.location.href = data.url;
+    } else {
+      alert(data.message);
     }
   }
 

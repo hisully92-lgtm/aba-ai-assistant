@@ -9,8 +9,7 @@ import Button from "@/components/ui/Button";
 import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 
-import { usePlan } from "@/lib/hooks/usePlan";
-import { useFeatureAccess } from "@/lib/hooks/useFeatureAccess";
+import { usePlan } from "@/lib/billing/usePlan";
 
 type Client = {
   id: string;
@@ -26,18 +25,25 @@ type Client = {
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const { isPro } = usePlan();
-  const { hasAccess } = useFeatureAccess("clients");
+  const { plan } = usePlan();
+  const isPro = plan === "pro";
 
   useEffect(() => {
     fetchClients();
   }, []);
 
   async function fetchClients() {
+    setLoading(true);
+
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
-    if (!user) return;
+
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     const { data } = await supabase
       .from("clients")
@@ -46,11 +52,13 @@ export default function ClientsPage() {
       .order("created_at", { ascending: false });
 
     setClients(data ?? []);
+    setLoading(false);
   }
 
   async function handleAddClient(client: any) {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
+
     if (!user) return;
 
     const { data, error } = await supabase
@@ -71,17 +79,10 @@ export default function ClientsPage() {
     setShowForm(false);
   }
 
-  // 🔒 GATE
-  if (hasAccess === false) {
-    return (
-      <div style={{ padding: 20 }}>
-        <h2>Clients Locked</h2>
-        <p>Upgrade to Pro to access client management.</p>
-      </div>
-    );
-  }
-
+  // 🔒 PLAN LIMIT (FREE TIER)
   const isLimitReached = !isPro && clients.length >= 5;
+
+  if (loading) return <div>Loading clients...</div>;
 
   return (
     <div>
@@ -94,18 +95,21 @@ export default function ClientsPage() {
         </Button>
       </PageHeader>
 
+      {/* LIMIT WARNING */}
       {isLimitReached && (
-        <div style={{ padding: 10, color: "red" }}>
+        <div className="p-3 text-red-600">
           Free plan limit reached. Upgrade to Pro to add more clients.
         </div>
       )}
 
+      {/* FORM */}
       {showForm && (
         <Section title="Add Client">
           <ClientForm onAdd={handleAddClient} />
         </Section>
       )}
 
+      {/* LIST */}
       <Section title="Client List">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {clients.length === 0 ? (

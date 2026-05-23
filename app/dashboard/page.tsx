@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
+import BillingCard from "@/components/billing/BillingCard";
 
 export default function DashboardHome() {
   const [stats, setStats] = useState({
@@ -21,10 +22,25 @@ export default function DashboardHome() {
     if (!user) return;
 
     const [clients, sessions, behaviors, programs] = await Promise.all([
-      supabase.from("clients").select("*", { count: "exact", head: true }).eq("created_by", user.id),
-      supabase.from("sessions").select("*", { count: "exact", head: true }).eq("created_by", user.id),
-      supabase.from("behaviors").select("*", { count: "exact", head: true }).eq("created_by", user.id),
-      supabase.from("programs").select("*", { count: "exact", head: true }).eq("created_by", user.id),
+      supabase
+        .from("clients")
+        .select("*", { count: "exact", head: true })
+        .eq("created_by", user.id),
+
+      supabase
+        .from("sessions")
+        .select("*", { count: "exact", head: true })
+        .eq("created_by", user.id),
+
+      supabase
+        .from("behaviors")
+        .select("*", { count: "exact", head: true })
+        .eq("created_by", user.id),
+
+      supabase
+        .from("programs")
+        .select("*", { count: "exact", head: true })
+        .eq("created_by", user.id),
     ]);
 
     setStats({
@@ -36,28 +52,35 @@ export default function DashboardHome() {
   }
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div className="space-y-6">
 
-      <div className="p-4 border rounded-xl bg-white shadow">
-        <p className="text-gray-500">Clients</p>
-        <p className="text-2xl font-bold">{stats.clients}</p>
+      {/* BILLING SECTION (NEW) */}
+      <BillingCard />
+
+      {/* STATS GRID */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+        <div className="p-4 border rounded-xl bg-white shadow">
+          <p className="text-gray-500">Clients</p>
+          <p className="text-2xl font-bold">{stats.clients}</p>
+        </div>
+
+        <div className="p-4 border rounded-xl bg-white shadow">
+          <p className="text-gray-500">Sessions</p>
+          <p className="text-2xl font-bold">{stats.sessions}</p>
+        </div>
+
+        <div className="p-4 border rounded-xl bg-white shadow">
+          <p className="text-gray-500">Behaviors</p>
+          <p className="text-2xl font-bold">{stats.behaviors}</p>
+        </div>
+
+        <div className="p-4 border rounded-xl bg-white shadow">
+          <p className="text-gray-500">Programs</p>
+          <p className="text-2xl font-bold">{stats.programs}</p>
+        </div>
+
       </div>
-
-      <div className="p-4 border rounded-xl bg-white shadow">
-        <p className="text-gray-500">Sessions</p>
-        <p className="text-2xl font-bold">{stats.sessions}</p>
-      </div>
-
-      <div className="p-4 border rounded-xl bg-white shadow">
-        <p className="text-gray-500">Behaviors</p>
-        <p className="text-2xl font-bold">{stats.behaviors}</p>
-      </div>
-
-      <div className="p-4 border rounded-xl bg-white shadow">
-        <p className="text-gray-500">Programs</p>
-        <p className="text-2xl font-bold">{stats.programs}</p>
-      </div>
-
     </div>
   );
 }

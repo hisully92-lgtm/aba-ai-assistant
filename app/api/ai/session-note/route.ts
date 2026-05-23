@@ -1,15 +1,50 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import crypto from "crypto";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+import { rateLimit } from "@/lib/rate-limit";
+import { supabaseAdmin } from "@/lib/supabase/server";
+import { requirePro } from "@/lib/billing/requirePro";
+import { logEvent } from "@/lib/observability/logEvent";
+import { logAudit } from "@/lib/observability/logAudit";
+import { hasFeature } from "@/lib/features";
+import { getCache } from "@/lib/cache";
+import { createJob } from "@/lib/queue/createJob";
 
 export async function POST(req: Request) {
+  let user: any = null;
+
   try {
+    // 🔐 AUTH
+    const { data: auth } = await supabaseAdmin.auth.getUser();
+    user = auth?.user;
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // 💳 PRO CHECK
+    await requirePro(user.id);
+
+    // 🚀 FEATURE GATE
+    if (!hasFeature("pro", "ai_notes")) {
+      return NextResponse.json(
+        { error: "Feature not available" },
+        { status: 403 }
+      );
+    }
+
+    // 🚦 RATE LIMIT
+    if (!rateLimit(`ai:${user.id}`, 20, 60_000)) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded" },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
 
     const {
+      client_id,
       client_name,
       behaviors_observed,
       interventions_used,
@@ -19,6 +54,21 @@ export async function POST(req: Request) {
       staff_member,
     } = body;
 
+    // ⚡ CACHE KEY
+    const cacheKey = `ai:session-note:${
+      client_id || client_name || "unknown"
+    }:${date || "no-date"}`;
+
+    const cached = getCache(cacheKey);
+
+    if (cached) {
+      return NextResponse.json({
+        result: cached,
+        cached: true,
+      });
+    }
+
+    // 🧠 PROMPT
     const prompt = `
 You are an expert ABA clinical documentation assistant.
 
@@ -58,28 +108,63 @@ Programs Targeted:
 ${programs_targeted}
 `;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You generate ABA clinical documentation for therapy sessions.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      temperature: 0.4,
+    // 🧠 CREATE JOB
+    const jobId = crypto.randomUUID();
+
+    createJob({
+      id: jobId,
+      userId: user.id,
+      type: "session_note",
+      payload: {
+        client_id,
+        prompt,
+        cacheKey,
+      },
+      status: "pending",
     });
 
-    const result =
-      completion.choices[0]?.message?.content ||
-      "No response generated.";
+    // 📊 AUDIT LOG (NEW — REQUIRED MERGE)
+    await logAudit({
+      userId: user.id,
+      action: "ai_generated_note",
+      resource: client_id,
+      metadata: {
+        model: "gpt-4o-mini",
+      },
+    });
 
-    return NextResponse.json({ result });
-  } catch (err) {
+    // 📊 EVENT LOG
+    await logEvent({
+      userId: user.id,
+      type: "ai",
+      event: "ai_request_success",
+      metadata: {
+        route: "session-note",
+        mode: "queued",
+        jobId,
+      },
+    });
+
+    // 📊 USAGE TRACKING
+    await supabaseAdmin.from("usage_logs").insert({
+      user_id: user.id,
+      feature: "ai_notes",
+    });
+
+    return NextResponse.json({
+      jobId,
+    });
+  } catch (err: any) {
+    await logEvent({
+      userId: user?.id || "unknown",
+      type: "error",
+      event: "ai_request_failed",
+      metadata: {
+        route: "session-note",
+        message: err?.message || "Unknown error",
+      },
+    });
+
     return NextResponse.json(
       { error: "AI generation failed" },
       { status: 500 }
