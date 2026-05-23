@@ -9,7 +9,7 @@ import { logEvent } from "@/lib/observability/logEvent";
 import { logAudit } from "@/lib/observability/logAudit";
 import { hasFeature } from "@/lib/features";
 import { getCache } from "@/lib/cache";
-import { createJob } from "@/lib/queue/createJob";
+import { createJob } from "@/lib/queue";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -97,7 +97,7 @@ Programs: ${s.programs_targeted}
         )
         .join("\n") || "";
 
-    // 🧠 PROMPT (FIXED — WAS MISSING)
+    // 🧠 PROMPT
     const prompt = `
 You are an expert ABA clinical report generator.
 
@@ -117,29 +117,31 @@ SESSION DATA:
 ${history}
 `;
 
-    // 🧠 CREATE JOB
+    // 🧠 CREATE JOB (FIXED TYPE)
     const jobId = crypto.randomUUID();
 
     createJob({
       id: jobId,
       userId: user.id,
-      type: "export_report",
+      type: "ai_report", // ✅ FIXED (was: "export_report")
       payload: {
         client_id,
         prompt,
         cacheKey,
         sessions,
+        jobType: "export_report", // optional metadata for tracking
       },
       status: "pending",
     });
 
-    // 📊 AUDIT LOG (NEW — REQUIRED)
+    // 📊 AUDIT LOG
     await logAudit({
       userId: user.id,
       action: "ai_generated_note",
       resource: client_id,
       metadata: {
         model: "gpt-4o-mini",
+        feature: "export_report",
       },
     });
 

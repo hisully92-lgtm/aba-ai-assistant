@@ -8,7 +8,7 @@ import { logEvent } from "@/lib/observability/logEvent";
 import { logAudit } from "@/lib/observability/logAudit";
 import { hasFeature } from "@/lib/features";
 import { getCache } from "@/lib/cache";
-import { createJob } from "@/lib/queue/createJob";
+import { createJob } from "@/lib/queue";
 
 export async function POST(req: Request) {
   let user: any = null;
@@ -108,28 +108,30 @@ Programs Targeted:
 ${programs_targeted}
 `;
 
-    // 🧠 CREATE JOB
+    // 🧠 CREATE JOB (FIXED TYPE)
     const jobId = crypto.randomUUID();
 
     createJob({
       id: jobId,
       userId: user.id,
-      type: "session_note",
+      type: "ai_note", // ✅ FIXED (was: session_note)
       payload: {
         client_id,
         prompt,
         cacheKey,
+        jobType: "session_note",
       },
       status: "pending",
     });
 
-    // 📊 AUDIT LOG (NEW — REQUIRED MERGE)
+    // 📊 AUDIT LOG
     await logAudit({
       userId: user.id,
       action: "ai_generated_note",
       resource: client_id,
       metadata: {
         model: "gpt-4o-mini",
+        feature: "session_note",
       },
     });
 

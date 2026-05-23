@@ -10,7 +10,7 @@ import { logEvent } from "@/lib/observability/logEvent";
 import { logAudit } from "@/lib/observability/logAudit";
 import { hasFeature } from "@/lib/features";
 import { getCache } from "@/lib/cache";
-import { createJob } from "@/lib/queue/createJob";
+import { createJob } from "@/lib/queue";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
@@ -101,7 +101,7 @@ Programs: ${s.programs_targeted}
       )
       .join("\n");
 
-    // 🧠 PROMPT (FIXED — WAS MISSING)
+    // 🧠 PROMPT
     const prompt = `
 You are an expert ABA clinical analyst.
 
@@ -127,23 +127,25 @@ ${timelineData}
     createJob({
       id: jobId,
       userId: user.id,
-      type: "client_timeline",
+      type: "ai_summary", // ✅ FIXED (was invalid: client_timeline)
       payload: {
         client_id,
         prompt,
         cacheKey,
         sessions,
+        jobType: "client_timeline", // optional metadata (safe + useful)
       },
       status: "pending",
     });
 
-    // 📊 AUDIT LOG (NEW MERGED REQUIREMENT)
+    // 📊 AUDIT LOG
     await logAudit({
       userId: user.id,
       action: "ai_generated_note",
       resource: client_id,
       metadata: {
         model: "gpt-4o-mini",
+        feature: "client_timeline",
       },
     });
 
