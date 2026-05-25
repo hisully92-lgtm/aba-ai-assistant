@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-
     const { clientId, risk } = body;
 
     if (!clientId || !risk) {
@@ -16,9 +13,22 @@ export async function POST(req: Request) {
       );
     }
 
+    const apiKey = process.env.RESEND_API_KEY;
+    const alertEmail = process.env.ALERT_EMAIL;
+
+    if (!apiKey || !alertEmail) {
+      console.error("Missing env vars: RESEND_API_KEY or ALERT_EMAIL");
+      return NextResponse.json(
+        { error: "Server misconfigured" },
+        { status: 500 }
+      );
+    }
+
+    const resend = new Resend(apiKey);
+
     await resend.emails.send({
       from: "Clinical Alerts <alerts@yourapp.com>",
-      to: process.env.ALERT_EMAIL!,
+      to: alertEmail,
       subject: `🚨 High Risk Alert: Client ${clientId}`,
       html: `
         <h2>Risk Alert Triggered</h2>
@@ -29,6 +39,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ success: true });
+
   } catch (err) {
     console.error(err);
     return NextResponse.json(

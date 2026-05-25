@@ -1,5 +1,9 @@
 import jsPDF from "jspdf";
-import { ClinicalReport } from "@/lib/ai/generateClinicalReport";
+
+type ClinicalReport = {
+  date: string;
+  report: string;
+};
 
 export function generateClinicalPDF(
   clientName: string,
