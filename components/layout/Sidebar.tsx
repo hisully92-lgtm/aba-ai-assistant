@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { useRole } from "@/lib/hooks/useRole";
+import { clearCompanyCache } from "@/lib/hooks/useCompany";
 
 type NavChild = { label: string; href: string };
 type NavItem = { label: string; href: string; icon: string; children: NavChild[] };
@@ -14,6 +15,7 @@ export default function Sidebar() {
   const { isAdmin, isSupervisor, isClinician } = useRole();
 
   async function handleLogout() {
+    clearCompanyCache();
     await supabase.auth.signOut();
     window.location.href = "/login";
   }
@@ -76,6 +78,7 @@ export default function Sidebar() {
         { label: "Time Tracking", href: "/dashboard/timetracking" },
         { label: "Signatures", href: "/dashboard/signatures" },
         { label: "Geofence", href: "/dashboard/geofence" },
+        { label: "Reminders", href: "/dashboard/reminders" },
       ],
     },
     {
@@ -85,6 +88,7 @@ export default function Sidebar() {
       children: [
         { label: "Claims & Auth", href: "/dashboard/insurance" },
         { label: "Payroll Logs", href: "/dashboard/payroll" },
+        { label: "AI Compliance Check", href: "/dashboard/insurance/ai-check" },
       ],
     },
     {
@@ -103,6 +107,7 @@ export default function Sidebar() {
       icon: "💬",
       children: [
         { label: "Team Chat", href: "/dashboard/chat" },
+        { label: "Direct Messages", href: "/dashboard/direct-messages" },
         { label: "Notifications", href: "/dashboard/notifications" },
         { label: "Parent Portal", href: "/dashboard/parent-portal" },
       ],
@@ -128,6 +133,7 @@ export default function Sidebar() {
         { label: "Dashboard", href: "/dashboard/supervisor" },
         { label: "Export Queue", href: "/dashboard/supervisor" },
         { label: "Workload Heatmap", href: "/dashboard/supervisor" },
+        { label: "Error Reports", href: "/dashboard/session-errors" },
       ],
     }] : []),
     ...(isAdmin ? [{
@@ -158,6 +164,8 @@ export default function Sidebar() {
         { label: "My Profile", href: "/dashboard/settings" },
         { label: "Plan & Billing", href: "/dashboard/settings/billing" },
         { label: "Security", href: "/dashboard/settings/security" },
+        { label: "Notifications", href: "/dashboard/settings/notifications" },
+        { label: "SMS Alerts", href: "/dashboard/settings/sms" },
       ],
     },
     {

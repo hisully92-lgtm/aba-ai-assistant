@@ -1,14 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import type { EmailOtpType } from "@supabase/supabase-js";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const code = url.searchParams.get("code");
+  const token_hash = url.searchParams.get("token_hash");
+  const type = url.searchParams.get("type") as EmailOtpType | null;
   const next = url.searchParams.get("next") ?? "/dashboard";
 
-  if (!code) {
-    return NextResponse.redirect(new URL("/login?error=missing_code", url.origin));
+  if (!token_hash || !type) {
+    return NextResponse.redirect(new URL("/login?error=missing_token", url.origin));
   }
 
   const cookieStore = await cookies();
@@ -30,14 +32,14 @@ export async function GET(request: Request) {
     }
   );
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const { error } = await supabase.auth.verifyOtp({ token_hash, type });
 
   if (error) {
-    console.error("Auth callback error:", error.message);
-    return NextResponse.redirect(new URL("/login?error=auth", url.origin));
+    console.error("OTP confirm error:", error.message);
+    return NextResponse.redirect(new URL(`/login?error=${error.message}`, url.origin));
   }
 
-  // Check if user has a company — if yes go to dashboard, if no go to onboarding
+  // Check company membership after OTP verification
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
@@ -52,7 +54,7 @@ export async function GET(request: Request) {
     .single();
 
   if (companyUser?.company_id) {
-    return NextResponse.redirect(new URL("/dashboard", url.origin));
+    return NextResponse.redirect(new URL(next, url.origin));
   }
 
   return NextResponse.redirect(new URL("/onboarding", url.origin));
