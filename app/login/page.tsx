@@ -1,126 +1,122 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { supabase } from "@/lib/supabase/client";
-import type { UserRole } from "@/lib/roles";
+import Image from "next/image";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // STEP 5 — SAFE ROLE FETCH HELPER (SINGLE SOURCE OF TRUTH)
-  async function getUserRole(sessionUser: any): Promise<UserRole> {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", sessionUser.id)
-      .single();
+  async function handleSignIn() {
+    if (!email.trim()) { setError("Please enter your email."); return; }
+    setLoading(true);
+    setError(null);
 
-    return (profile?.role as UserRole) ?? "rbt";
-  }
-
-  useEffect(() => {
-    async function checkSession() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.user) return;
-
-      const role = await getUserRole(session.user);
-
-      if (role === "admin") router.replace("/admin");
-      else if (role === "supervisor") router.replace("/supervisor");
-      else if (role === "student_analyst") router.replace("/student");
-      else router.replace("/rbt");
-    }
-
-    checkSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!session?.user) return;
-
-      const role = await getUserRole(session.user);
-
-      if (role === "admin") router.replace("/admin");
-      else if (role === "supervisor") router.replace("/supervisor");
-      else if (role === "student_analyst") router.replace("/student");
-      else router.replace("/rbt");
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/confirm?type=magiclink`,
+      },
     });
 
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [router]);
-
-  // OTP login
-  const signInWithEmail = async () => {
-    if (!email) {
-      alert("Enter your email first.");
+    if (otpError) {
+      setError(otpError.message);
+      setLoading(false);
       return;
     }
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: "https://aba-ai-assistant-wtwd.vercel.app/dashboard",
-  },
-});
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    alert("Check your email to sign in.");
-  };
-
-  const createAccount = () => {
-    router.push("/signup");
-  };
+    setSent(true);
+    setLoading(false);
+  }
 
   return (
-    <main style={{ minHeight: "100vh", background: "#f3f4f6" }}>
-      <div
-        style={{
-          height: 240,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "white",
-          backgroundImage:
-            "linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url('/login-banner.jpg')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      >
-        <h1 style={{ fontSize: 52, fontWeight: 900 }}>ABA AI</h1>
+    <main className="min-h-screen bg-gray-50">
+      {/* BANNER */}
+      <div className="relative h-60 flex items-center justify-center overflow-hidden">
+        <Image
+          src="/login-banner.jpg"
+          alt="ABA AI"
+          fill
+          className="object-cover"
+          priority
+        />
+        <div className="absolute inset-0 bg-black/50" />
+        <h1 className="relative text-5xl font-black text-white z-10">ABA AI</h1>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "center", padding: 32 }}>
-        <section style={{ width: 420, background: "white", padding: 28 }}>
-          <h2>Sign in to ABA AI</h2>
+      {/* FORM */}
+      <div className="flex justify-center px-4 py-10">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-md p-8 space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">Sign in to ABA AI</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Enter your email and we'll send you a magic link to sign in.
+            </p>
+          </div>
 
-          <label>Email</label>
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            type="email"
-          />
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
 
-          <button onClick={signInWithEmail}>
-            Sign in with email
-          </button>
+          {sent ? (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-700 text-center space-y-2">
+              <p className="text-2xl">📧</p>
+              <p className="font-semibold">Check your email!</p>
+              <p>We sent a sign-in link to <strong>{email}</strong></p>
+              <button
+                onClick={() => { setSent(false); setEmail(""); }}
+                className="text-xs text-green-600 underline mt-2"
+              >
+                Use a different email
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                  Email address
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSignIn()}
+                  placeholder="you@clinic.com"
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                />
+              </div>
 
-          <hr />
+              <button
+                onClick={handleSignIn}
+                disabled={loading}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg text-sm transition-colors disabled:opacity-50"
+              >
+                {loading ? "Sending..." : "Send Magic Link"}
+              </button>
 
-          <button onClick={createAccount}>
-            Create account
-          </button>
-        </section>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200" />
+                </div>
+                <div className="relative flex justify-center text-xs text-gray-400 bg-white px-2">
+                  or
+                </div>
+              </div>
+
+              <button
+                onClick={() => window.location.href = "/signup"}
+                className="w-full border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-3 rounded-lg text-sm transition-colors"
+              >
+                Create account
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );
