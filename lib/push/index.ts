@@ -1,14 +1,3 @@
-// =========================
-// PUSH NOTIFICATION SCAFFOLD
-// =========================
-// To fully enable push notifications:
-// 1. Generate VAPID keys: npx web-push generate-vapid-keys
-// 2. Add to .env.local:
-//    NEXT_PUBLIC_VAPID_PUBLIC_KEY=your_public_key
-//    VAPID_PRIVATE_KEY=your_private_key
-// 3. Install: npm install web-push
-// 4. Uncomment the web-push code below
-
 export const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
 
 export async function subscribeToPush(): Promise<PushSubscription | null> {
@@ -44,9 +33,14 @@ export async function unsubscribeFromPush(): Promise<void> {
   if (subscription) await subscription.unsubscribe();
 }
 
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
+function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
   const rawData = window.atob(base64);
-  return new Uint8Array([...rawData].map((char) => char.charCodeAt(0)));
+  const buffer = new ArrayBuffer(rawData.length);
+  const view = new Uint8Array(buffer);
+  for (let i = 0; i < rawData.length; i++) {
+    view[i] = rawData.charCodeAt(i);
+  }
+  return view;
 }
