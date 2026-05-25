@@ -1,16 +1,11 @@
-export async function exportClientReport(clientId: string) {
-  const res = await fetch("/api/ai/export-report", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ client_id: clientId }),
-  });
+import { aiClient } from "@/lib/ai/aiClient";
 
-  if (!res.ok) {
-    throw new Error("Export failed");
+export async function exportClientReport(clientId: string) {
+  const res = await aiClient.report({ client_id: clientId });
+
+  if (res.error) {
+    throw new Error(res.error);
   }
 
-  const data = await res.json();
-  return data.report;
+  return res.result;
 }

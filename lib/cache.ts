@@ -1,18 +1,49 @@
-const cache = new Map<string, { data: any; ts: number }>();
+import { Redis } from "@upstash/redis";
 
-export function getCache(key: string) {
-  const entry = cache.get(key);
-  if (!entry) return null;
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
 
-  const expired = Date.now() - entry.ts > 5 * 60_000;
-  if (expired) return null;
-
-  return entry.data;
+// =========================
+// GET CACHE
+// =========================
+export async function getCache<T = any>(key: string): Promise<T | null> {
+  try {
+    const value = await redis.get<T>(key);
+    return value ?? null;
+  } catch {
+    return null;
+  }
 }
 
-export function setCache(key: string, data: any) {
-  cache.set(key, {
-    data,
-    ts: Date.now(),
-  });
+// =========================
+// SET CACHE
+// =========================
+export async function setCache<T = any>(
+  key: string,
+  value: T,
+  ttlSeconds = 300
+): Promise<void> {
+  try {
+    await redis.set(key, value, { ex: ttlSeconds });
+  } catch {}
+}
+
+// =========================
+// DELETE CACHE
+// =========================
+export async function deleteCache(key: string): Promise<void> {
+  try {
+    await redis.del(key);
+  } catch {}
+}
+
+// =========================
+// CLEAR CACHE (dev only)
+// =========================
+export async function clearCache(): Promise<void> {
+  try {
+    await redis.flushall();
+  } catch {}
 }

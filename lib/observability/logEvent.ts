@@ -2,7 +2,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 
 export async function logEvent(event: {
   userId?: string;
-  type: "ai" | "billing" | "webhook" | "error";
+  type: "ai" | "billing" | "webhook" | "error" | "queue";
   event: string;
   metadata?: any;
 }) {

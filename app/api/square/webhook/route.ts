@@ -1,36 +1,52 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/server";
-import { logAudit } from "@/lib/observability/logAudit";
-import { rateLimit } from "@/lib/rate-limit";
 import crypto from "crypto";
 
+import { supabaseAdmin } from "@/lib/supabase/server";
+import { logAudit } from "@/lib/observability/logAudit";
+import { logBillingAudit } from "@/lib/observability/logBillingAudit";
+import { rateLimit } from "@/lib/rate-limit";
+
 // =========================
-// 🔐 SIGNATURE VERIFICATION
+// SAFE LOGGING
+// =========================
+async function safe(fn: any, ...args: any[]) {
+  try {
+    await fn(...args);
+  } catch {}
+}
+
+// =========================
+// SIGNATURE VERIFICATION
 // =========================
 function verifySquareSignature(
   body: string,
   signature: string,
   secret: string
-) {
+): boolean {
   const hash = crypto
     .createHmac("sha256", secret)
     .update(body)
     .digest("base64");
 
-  // ⚠️ timing-safe comparison
-  return crypto.timingSafeEqual(
-    Buffer.from(hash),
-    Buffer.from(signature || "")
-  );
+  const hashBuf = Buffer.from(hash);
+  const sigBuf = Buffer.from(signature || "");
+
+  if (hashBuf.length !== sigBuf.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(hashBuf, sigBuf);
 }
 
+// =========================
+// MAIN ROUTE
+// =========================
 export async function POST(req: Request) {
   let bodyText = "";
+  let userId = "unknown";
 
   try {
-    // =========================
     // RAW BODY
-    // =========================
     bodyText = await req.text();
 
     let body: any;
@@ -40,34 +56,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
 
-    // =========================
     // EXTRACT DATA
-    // =========================
     const eventId = body?.id;
     const eventType = body?.type;
     const payment = body?.data?.object?.payment;
 
-    const userId =
+    userId =
       payment?.metadata?.userId ||
-      body?.data?.object?.customer?.reference_id;
+      body?.data?.object?.customer?.reference_id ||
+      "unknown";
 
     const ip =
       (req.headers.get("x-forwarded-for") ?? "")
         .split(",")[0]
         .trim() || "unknown";
 
-    // =========================
     // RATE LIMIT
-    // =========================
     const rateKey = `webhook:${eventId || "no-event"}:${ip}`;
+    const allowed = await rateLimit(rateKey, 1, 60_000);
 
-    if (!rateLimit(rateKey, 1, 60_000)) {
+    if (!allowed) {
       return NextResponse.json({ received: true });
     }
 
-    // =========================
     // SIGNATURE CHECK
-    // =========================
     const signature =
       req.headers.get("x-square-hmacsha256-signature") || "";
 
@@ -78,12 +90,25 @@ export async function POST(req: Request) {
     );
 
     if (!isValid) {
+      await safe(logAudit, {
+        userId,
+        action: "webhook_invalid_signature",
+        resource: "square",
+        metadata: { eventId, eventType, ip },
+      });
+
+      await safe(logBillingAudit, {
+        userId,
+        action: "webhook_invalid_signature",
+        resource: "square",
+        metadata: { eventId, eventType },
+        ip,
+      });
+
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
-    // =========================
     // IDEMPOTENCY CHECK
-    // =========================
     const { data: existing } = await supabaseAdmin
       .from("billing_events")
       .select("event_id")
@@ -91,8 +116,8 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (existing) {
-      await logAudit({
-        userId: userId || "unknown",
+      await safe(logAudit, {
+        userId,
         action: "webhook_duplicate",
         resource: "square",
         metadata: { eventId, eventType },
@@ -101,21 +126,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true });
     }
 
-    // =========================
     // MARK EVENT PROCESSED
-    // =========================
     await supabaseAdmin.from("billing_events").insert({
       event_id: eventId,
+      event_type: eventType,
+      user_id: userId !== "unknown" ? userId : null,
+      created_at: new Date().toISOString(),
     });
 
-    // =========================
-    // 🔵 PAYMENT SUCCESS → UPGRADE
-    // =========================
+    // PAYMENT SUCCESS → UPGRADE
     if (
       eventType === "payment.created" ||
       eventType === "payment.updated"
     ) {
-      if (!userId) {
+      if (!userId || userId === "unknown") {
         return NextResponse.json(
           { error: "Missing userId" },
           { status: 400 }
@@ -130,25 +154,27 @@ export async function POST(req: Request) {
         })
         .eq("id", userId);
 
-      // 📊 UNIFIED AUDIT LOG
-      await logAudit({
+      await safe(logAudit, {
         userId,
         action: "subscription_upgraded",
         resource: "square",
-        metadata: {
-          eventType,
-          payment_id: payment?.id,
-        },
+        metadata: { eventType, eventId, payment_id: payment?.id },
+      });
+
+      await safe(logBillingAudit, {
+        userId,
+        action: "subscription_upgraded",
+        resource: "square",
+        metadata: { eventType, eventId, payment_id: payment?.id },
+        ip,
       });
 
       return NextResponse.json({ received: true });
     }
 
-    // =========================
-    // 🔴 PAYMENT FAILED
-    // =========================
+    // PAYMENT FAILED
     if (eventType === "payment.failed") {
-      if (userId) {
+      if (userId && userId !== "unknown") {
         await supabaseAdmin
           .from("profiles")
           .update({
@@ -156,27 +182,31 @@ export async function POST(req: Request) {
           })
           .eq("id", userId);
 
-        await logAudit({
+        await safe(logAudit, {
           userId,
           action: "payment_failed",
           resource: "square",
-          metadata: {
-            payment_id: payment?.id,
-          },
+          metadata: { eventId, payment_id: payment?.id },
+        });
+
+        await safe(logBillingAudit, {
+          userId,
+          action: "payment_failed",
+          resource: "square",
+          metadata: { eventId, payment_id: payment?.id },
+          ip,
         });
       }
 
       return NextResponse.json({ received: true });
     }
 
-    // =========================
-    // ⚠️ GRACE / CANCELLATION EVENTS
-    // =========================
+    // GRACE / CANCELLATION
     if (
       eventType === "subscription.canceled" ||
       eventType === "payment.declined"
     ) {
-      if (userId) {
+      if (userId && userId !== "unknown") {
         await supabaseAdmin
           .from("profiles")
           .update({
@@ -184,26 +214,38 @@ export async function POST(req: Request) {
           })
           .eq("id", userId);
 
-        await logAudit({
+        await safe(logAudit, {
           userId,
           action: "subscription_grace_period",
           resource: "square",
-          metadata: {
-            eventType,
-          },
+          metadata: { eventId, eventType },
+        });
+
+        await safe(logBillingAudit, {
+          userId,
+          action: "subscription_grace_period",
+          resource: "square",
+          metadata: { eventId, eventType },
+          ip,
         });
       }
 
       return NextResponse.json({ received: true });
     }
 
-    // =========================
-    // DEFAULT ACK
-    // =========================
+    // UNRECOGNIZED EVENT
+    await safe(logAudit, {
+      userId,
+      action: "webhook_unrecognized_event",
+      resource: "square",
+      metadata: { eventId, eventType },
+    });
+
     return NextResponse.json({ received: true });
+
   } catch (err) {
-    await logAudit({
-      userId: "unknown",
+    await safe(logAudit, {
+      userId,
       action: "webhook_error",
       resource: "square",
       metadata: {
@@ -211,7 +253,14 @@ export async function POST(req: Request) {
       },
     });
 
-    console.error("Webhook error:", err);
+    await safe(logBillingAudit, {
+      userId,
+      action: "webhook_error",
+      resource: "square",
+      metadata: {
+        message: err instanceof Error ? err.message : "Unknown error",
+      },
+    });
 
     return NextResponse.json(
       { error: "Webhook failed" },

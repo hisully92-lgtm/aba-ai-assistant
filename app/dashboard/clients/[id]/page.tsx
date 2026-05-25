@@ -1,179 +1,129 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-
 import { supabase } from "@/lib/supabase/client";
-
-import ClientOverview from "@/components/clients/ClientOverview";
+import { telemetry } from "@/lib/telemetry";
 import Button from "@/components/ui/Button";
+import Section from "@/components/ui/Section";
 
-import { generateClientSummary } from "@/lib/ai/generateClientSummary";
-import { exportClientReport } from "@/lib/ai/exportClientReport";
-import { generateClientTimeline } from "@/lib/ai/generateClientTimeline";
+export default function ClientDetailPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const clientId = params.id;
 
-import ClientProgressSection from "@/components/analytics/ClientProgressSection";
-
-type Client = {
-  id: string;
-  name: string;
-  age: number;
-  diagnosis: string;
-};
-
-export default function ClientDetailPage() {
-  const params = useParams();
-  const id = params?.id as string | undefined;
-
-  const [client, setClient] = useState<Client | null>(null);
+  const [client, setClient] = useState<any>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // 🧠 AI STATES
-  const [aiLoading, setAiLoading] = useState(false);
-  const [summary, setSummary] = useState("");
-
-  const [exportLoading, setExportLoading] = useState(false);
-  const [report, setReport] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!id) return;
+    async function init() {
+      const { data: auth } = await supabase.auth.getUser();
+      const user = auth?.user;
+      if (!user) return;
+      setUserId(user.id);
 
-    async function fetchClient() {
-      setLoading(true);
-
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("clients")
-        .select("id, name, age, diagnosis")
-        .eq("id", id)
+        .select("*")
+        .eq("id", clientId)
         .single();
 
-      if (error) {
-        console.error(error);
-        setClient(null);
-      } else {
-        setClient(data as Client);
-      }
-
+      setClient(data);
       setLoading(false);
     }
+    init();
+  }, [clientId]);
 
-    fetchClient();
-  }, [id]);
-
-  // 🧠 AI SUMMARY
   async function handleGenerateSummary() {
-    if (!id) return;
+    if (!userId) return;
+    setGenerating(true);
+    setError(null);
+    setSummary(null);
 
     try {
-      setAiLoading(true);
-      const result = await generateClientSummary(id);
-      setSummary(result);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to generate AI summary");
+      const res = await telemetry.ai.summary(
+        { type: "summary", client_id: clientId },
+        userId
+      );
+
+      if (res.error) {
+        setError(res.error);
+        return;
+      }
+
+      setSummary("AI summary queued successfully. Check back shortly for results.");
+    } catch (err: any) {
+      setError(err?.message || "AI generation failed");
     } finally {
-      setAiLoading(false);
+      setGenerating(false);
     }
   }
 
-  // 🟣 EXPORT REPORT
-  async function handleExportReport() {
-    if (!id) return;
-
-    try {
-      setExportLoading(true);
-      const result = await exportClientReport(id);
-      setReport(result);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to export report");
-    } finally {
-      setExportLoading(false);
-    }
+  function navigate(path: string) {
+    window.location.href = path;
   }
 
-  if (loading) return <p>Loading client...</p>;
-  if (!client) return <p>Client not found</p>;
+  if (loading) return <div className="p-6">Loading client...</div>;
+
+  if (!client) return <div className="p-6 text-red-500">Client not found.</div>;
 
   return (
-    <div style={{ padding: 20 }}>
-      {/* CLIENT OVERVIEW */}
-      <ClientOverview client={client} />
+    <div className="space-y-6">
+      <Section title={client.name}>
+        <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+          {client.age && <p>Age: {client.age}</p>}
+          {client.diagnosis && <p>Diagnosis: {client.diagnosis}</p>}
+          {client.caregiver_name && <p>Caregiver: {client.caregiver_name}</p>}
+        </div>
+      </Section>
 
-      {/* 🧠 AI SUMMARY */}
-      <section style={{ marginTop: 24 }}>
-        <h2 style={{ marginBottom: 12 }}>
-          AI Clinical Insights
-        </h2>
-
-        <Button onClick={handleGenerateSummary} loading={aiLoading}>
-          Generate Client Progress Summary
-        </Button>
+      <Section title="AI Clinical Summary">
+        {error && (
+          <p className="text-red-500 text-sm mb-3">{error}</p>
+        )}
 
         {summary && (
-          <div style={{ marginTop: 16 }}>
-            <pre
-              style={{
-                whiteSpace: "pre-wrap",
-                padding: 16,
-                border: "1px solid #ddd",
-                borderRadius: 8,
-                background: "#fafafa",
-              }}
-            >
-              {summary}
-            </pre>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 mb-3">
+            {summary}
           </div>
         )}
-      </section>
-
-      {/* 🟣 EXPORT */}
-      <section style={{ marginTop: 32 }}>
-        <h2 style={{ marginBottom: 12 }}>
-          Clinical Export Report
-        </h2>
 
         <Button
-          onClick={handleExportReport}
-          loading={exportLoading}
+          onClick={handleGenerateSummary}
+          loading={generating}
           variant="secondary"
         >
-          Export Clinical Report
+          Generate AI Summary
         </Button>
+      </Section>
 
-        {report && (
-          <div style={{ marginTop: 16 }}>
-            <pre
-              style={{
-                whiteSpace: "pre-wrap",
-                padding: 16,
-                border: "1px solid #ddd",
-                borderRadius: 8,
-                background: "#f9f9f9",
-              }}
-            >
-              {report}
-            </pre>
-          </div>
-        )}
-      </section>
-
-      {/* 📊 TIMELINE + GRAPH SYSTEM */}
-      <section style={{ marginTop: 32 }}>
-        <h2 style={{ marginBottom: 12 }}>
-          Client Timeline Insights
-        </h2>
-
-        <Button
-          onClick={() => generateClientTimeline(id!)}
-          variant="primary"
-        >
-          Generate Timeline Analysis
-        </Button>
-
-        {/* REAL GRAPH COMPONENT */}
-        <ClientProgressSection />
-      </section>
+      <Section title="Client Records">
+        <div className="flex gap-3">
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/dashboard/clients/${clientId}/timeline`)}
+          >
+            View Timeline
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/dashboard/clients/${clientId}/report`)}
+          >
+            Export Report
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/dashboard/sessions?client_id=${clientId}`)}
+          >
+            View Sessions
+          </Button>
+        </div>
+      </Section>
     </div>
   );
 }

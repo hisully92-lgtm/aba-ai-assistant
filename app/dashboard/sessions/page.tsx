@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { useFeatureAccess } from "@/lib/hooks/useFeatureAccess";
-import Button from "@/components/ui/Button";
+import SessionNoteForm from "./components/SessionNoteForm";
 
 type Session = {
   id: string;
@@ -21,149 +21,77 @@ type Session = {
   client_id?: string;
 };
 
-const emptyForm: Omit<Session, "id"> = {
-  staff_member: "",
-  client_name: "",
-  date: "",
-  location: "",
-  duration: "",
-  people_present: "",
-  programs_targeted: "",
-  behaviors_observed: "",
-  interventions_used: "",
-  client_response: "",
-  next_session_plan: "",
-};
-
 export default function SessionsPage({
   params,
 }: {
   params?: { id: string };
 }) {
   const clientId = params?.id;
-
-  // 🔒 FEATURE GATING (Step 5 system)
   const { hasAccess } = useFeatureAccess("sessions");
 
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [form, setForm] = useState(emptyForm);
-  const [loading, setLoading] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (hasAccess) fetchSessions();
+    async function init() {
+      const { data: auth } = await supabase.auth.getUser();
+      const user = auth?.user;
+      if (!user) return;
+      setUserId(user.id);
+      if (hasAccess) fetchSessions(user.id);
+    }
+    init();
   }, [hasAccess]);
 
-  async function fetchSessions() {
-    const { data: auth } = await supabase.auth.getUser();
-    const user = auth?.user;
-    if (!user) return;
+  async function fetchSessions(uid: string) {
+    const res = await fetch(
+      `/api/sessions${clientId ? `?client_id=${clientId}` : ""}`,
+      { method: "GET" }
+    );
 
-    let query = supabase
-      .from("sessions")
-      .select("*")
-      .eq("created_by", user.id);
-
-    if (clientId) {
-      query = query.eq("client_id", clientId);
-    }
-
-    const { data, error } = await query.order("created_at", {
-      ascending: false,
-    });
-
-    if (error) console.error(error.message);
-
-    setSessions(data ?? []);
+    const data = await res.json();
+    if (res.ok) setSessions(data.data ?? []);
   }
 
-  async function handleSave() {
-    setLoading(true);
-
-    const { data: auth } = await supabase.auth.getUser();
-    const user = auth?.user;
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from("sessions")
-      .insert([
-        {
-          ...form,
-          created_by: user.id,
-          client_id: clientId ?? null,
-        },
-      ])
-      .select()
-      .single();
-
-    if (error) {
-      console.error(error.message);
-      setLoading(false);
-      return;
-    }
-
-    if (data) setSessions((prev) => [data, ...prev]);
-
-    setForm(emptyForm);
-    setLoading(false);
-  }
-
-  // 🔒 ACCESS BLOCK
+  // ACCESS BLOCK
   if (!hasAccess) {
     return (
-      <div style={{ padding: 20 }}>
-        <h2>Sessions Locked</h2>
-        <p>Upgrade to Pro to access session notes.</p>
+      <div className="bg-white rounded-2xl shadow p-6 border">
+        <h2 className="text-2xl font-bold mb-2">Sessions Locked</h2>
+        <p className="text-gray-500">Upgrade to Pro to access session notes.</p>
       </div>
     );
   }
 
   return (
     <div className="bg-white rounded-2xl shadow p-6 border">
-      <h2 className="text-2xl font-bold mb-4">
-        Session Notes
-      </h2>
+      <h2 className="text-2xl font-bold mb-6">Session Notes</h2>
 
-      {/* FORM */}
-      <div className="flex flex-col gap-4">
-        {(Object.keys(form) as (keyof typeof form)[]).map(
-          (key) => (
-            <input
-              key={key}
-              value={form[key]}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  [key]: e.target.value,
-                })
-              }
-              placeholder={key.replaceAll("_", " ")}
-              className="border rounded-lg p-3"
-            />
-          )
+      {/* SESSION NOTE FORM */}
+      {userId && (
+        <SessionNoteForm
+          clientId={clientId}
+          userId={userId}
+          onSaved={() => fetchSessions(userId)}
+        />
+      )}
+
+      {/* SESSION LIST */}
+      <div className="mt-8 space-y-3">
+        {sessions.length === 0 && (
+          <p className="text-gray-400 text-sm">No sessions yet.</p>
         )}
-
-        <Button
-          onClick={handleSave}
-          loading={loading}
-          fullWidth
-        >
-          Save Session
-        </Button>
-      </div>
-
-      {/* SESSION LIST (READY FOR NEXT STEP) */}
-      <div className="mt-6 space-y-3">
         {sessions.map((s) => (
-          <div
-            key={s.id}
-            className="border rounded-lg p-3"
-          >
-            <p className="font-semibold">
-              {s.client_name}
-            </p>
+          <div key={s.id} className="border rounded-lg p-4">
+            <p className="font-semibold">{s.client_name}</p>
             <p className="text-sm text-gray-500">
               {s.date} • {s.location}
             </p>
+            {s.behaviors_observed && (
+              <p className="text-sm text-gray-600 mt-1">
+                Behaviors: {s.behaviors_observed}
+              </p>
+            )}
           </div>
         ))}
       </div>

@@ -1,7 +1,7 @@
 type Job = {
   id: string;
   userId: string;
-  type: "ai_note" | "ai_summary" | "ai_report";
+  type: "ai_note" | "ai_summary" | "ai_report" | "ai_weekly_summary";
   payload: any;
   status: "pending" | "processing" | "done" | "failed";
 };

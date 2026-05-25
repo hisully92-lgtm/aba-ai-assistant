@@ -9,26 +9,32 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.98.0",
     "@react-pdf/renderer": "^4.5.1",
     "@stripe/stripe-js": "^9.6.0",
     "@supabase/auth-helpers-nextjs": "^0.15.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.1",
+    "@upstash/redis": "^1.38.0",
     "jspdf": "^4.2.1",
     "jszip": "^3.10.1",
     "next": "^16.2.6",
+    "next-swagger-doc": "^0.4.1",
     "openai": "^6.39.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "recharts": "^3.8.1",
     "resend": "^6.12.3",
-    "square": "^34.0.0"
+    "square": "^34.0.0",
+    "swagger-ui-react": "^5.32.6",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/swagger-ui-react": "^5.18.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",

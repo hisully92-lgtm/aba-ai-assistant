@@ -22,14 +22,20 @@ type BehaviorLog = {
   recorded_at: string;
 };
 
+type WeeklySummary = {
+  total: number;
+  highRisk: number;
+  mediumRisk: number;
+  avgForecastScore: number;
+  escalationCount: number;
+};
+
 export default function ReportsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState("");
   const [notes, setNotes] = useState<SessionNote[]>([]);
   const [behaviors, setBehaviors] = useState<BehaviorLog[]>([]);
-
-  // NEW: weekly summary state
-  const [summary, setSummary] = useState<string>("");
+  const [summary, setSummary] = useState<WeeklySummary | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
 
   async function loadClients() {
@@ -57,9 +63,8 @@ export default function ReportsPage() {
     setNotes(notesData || []);
     setBehaviors(behaviorData || []);
 
-    // NEW: load AI summary when client is selected
     setLoadingSummary(true);
-    const result = await getWeeklySummary();
+    const result = await getWeeklySummary(clientId);
     setSummary(result);
     setLoadingSummary(false);
   }
@@ -96,6 +101,17 @@ export default function ReportsPage() {
       y += 8;
     });
 
+    if (summary) {
+      y += 10;
+      doc.text("Weekly Summary:", 20, y);
+      y += 8;
+      doc.text(`Total: ${summary.total}`, 20, y); y += 8;
+      doc.text(`High Risk: ${summary.highRisk}`, 20, y); y += 8;
+      doc.text(`Medium Risk: ${summary.mediumRisk}`, 20, y); y += 8;
+      doc.text(`Avg Forecast: ${summary.avgForecastScore.toFixed(1)}%`, 20, y); y += 8;
+      doc.text(`Escalations: ${summary.escalationCount}`, 20, y);
+    }
+
     doc.save("clinical-report.pdf");
   }
 
@@ -103,31 +119,23 @@ export default function ReportsPage() {
     <div style={{ padding: 20 }}>
       <h1>Clinical Reporting System</h1>
 
-      {/* CLIENT SELECT */}
       <div style={{ marginBottom: 20 }}>
         <h2>Select Client</h2>
-
         {clients.map((c) => (
           <button
             key={c.id}
             onClick={() => loadReportData(c.id)}
-            style={{
-              marginRight: 10,
-              padding: 8,
-              border: "1px solid #ccc",
-            }}
+            style={{ marginRight: 10, padding: 8, border: "1px solid #ccc" }}
           >
             {c.full_name}
           </button>
         ))}
       </div>
 
-      {/* REPORT PREVIEW */}
       {selectedClient && (
         <div style={{ marginTop: 20 }}>
           <h2>Report Preview</h2>
 
-          {/* SESSION NOTES */}
           <h3>Session Notes</h3>
           <ul>
             {notes.map((n, i) => (
@@ -135,7 +143,6 @@ export default function ReportsPage() {
             ))}
           </ul>
 
-          {/* BEHAVIOR LOGS */}
           <h3>Behavior Logs</h3>
           <ul>
             {behaviors.map((b, i) => (
@@ -145,18 +152,22 @@ export default function ReportsPage() {
             ))}
           </ul>
 
-          {/* NEW: WEEKLY SUMMARY */}
           <h3 style={{ marginTop: 20 }}>AI Weekly Summary</h3>
-
           {loadingSummary ? (
             <p>Generating summary...</p>
-          ) : (
-            <pre style={{ whiteSpace: "pre-wrap", padding: 10, border: "1px solid #ddd" }}>
-              {summary}
-            </pre>
-          )}
+          ) : summary ? (
+            <div style={{ padding: 10, border: "1px solid #ddd" }}>
+              <p>Total exports: {summary.total}</p>
+              <p>High risk: {summary.highRisk}</p>
+              <p>Medium risk: {summary.mediumRisk}</p>
+              <p>Avg forecast score: {summary.avgForecastScore.toFixed(1)}%</p>
+              <p>Escalations: {summary.escalationCount}</p>
+              <p style={{ marginTop: 8, fontWeight: 600 }}>
+                Status: {summary.highRisk > 3 ? "⚠️ Elevated risk" : "✅ Stable"}
+              </p>
+            </div>
+          ) : null}
 
-          {/* EXPORT */}
           <button
             onClick={exportPDF}
             style={{

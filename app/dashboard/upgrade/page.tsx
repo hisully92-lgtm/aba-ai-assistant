@@ -9,27 +9,40 @@ export default function UpgradePage() {
   async function handleUpgrade() {
     setLoading(true);
 
-    const { data: auth } = await supabase.auth.getUser();
-    const user = auth?.user;
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      const user = auth?.user;
 
-    if (!user) {
-      alert("Not logged in");
-      return;
+      if (!user) {
+        alert("Not logged in");
+        return;
+      }
+
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Checkout failed");
+      }
+
+      if (data?.url) {
+        window.location.href = data.url;
+        return;
+      }
+
+      throw new Error("No checkout URL returned");
+    } catch (err: any) {
+      console.error("Upgrade error:", err.message);
+      alert(err.message || "Something went wrong");
+    } finally {
+      setLoading(false);
     }
-
-    const res = await fetch("/api/checkout", {
-      method: "POST",
-    });
-
-    const data = await res.json();
-
-    if (data.url) {
-      window.location.href = data.url;
-    } else {
-      alert("Failed to start checkout");
-    }
-
-    setLoading(false);
   }
 
   return (

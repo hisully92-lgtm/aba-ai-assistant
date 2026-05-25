@@ -11,6 +11,29 @@ type Profile = {
   role: string;
 };
 
+// ✅ API LAYER (clean separation)
+async function createUserApi(payload: {
+  email: string;
+  full_name: string;
+  role: string;
+}) {
+  const res = await fetch("/api/admin/create-user", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data?.error || "Failed to create user");
+  }
+
+  return data;
+}
+
 export default function AdminPage() {
   const router = useRouter();
 
@@ -21,7 +44,7 @@ export default function AdminPage() {
   const [newEmail, setNewEmail] = useState("");
   const [newRole, setNewRole] = useState("rbt");
 
-  // 🔐 ROLE GUARD (ADDED)
+  // 🔐 ROLE GUARD
   useEffect(() => {
     async function check() {
       const {
@@ -70,10 +93,10 @@ export default function AdminPage() {
   }, []);
 
   // UPDATE ROLE
-  async function updateRole(userId: string, newRole: string) {
+  async function updateRole(userId: string, role: string) {
     const { error } = await supabase
       .from("profiles")
-      .update({ role: newRole })
+      .update({ role })
       .eq("id", userId);
 
     if (error) {
@@ -91,30 +114,23 @@ export default function AdminPage() {
       return;
     }
 
-    const res = await fetch("/api/admin/create-user", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    try {
+      await createUserApi({
         email: newEmail,
         full_name: newName,
         role: newRole,
-      }),
-    });
+      });
 
-    const data = await res.json();
+      alert("User invited successfully!");
 
-    if (!res.ok) {
-      alert(data.error || "Something went wrong");
-      return;
+      setNewName("");
+      setNewEmail("");
+      setNewRole("rbt");
+
+      loadUsers();
+    } catch (err: any) {
+      alert(err.message);
     }
-
-    alert("User invited successfully!");
-
-    setNewName("");
-    setNewEmail("");
-    setNewRole("rbt");
-
-    loadUsers();
   }
 
   return (
@@ -183,9 +199,7 @@ export default function AdminPage() {
                 <td>
                   <select
                     value={user.role}
-                    onChange={(e) =>
-                      updateRole(user.id, e.target.value)
-                    }
+                    onChange={(e) => updateRole(user.id, e.target.value)}
                   >
                     <option value="admin">admin</option>
                     <option value="supervisor">supervisor</option>

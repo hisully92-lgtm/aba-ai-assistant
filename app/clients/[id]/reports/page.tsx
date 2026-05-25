@@ -1,14 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { supabase } from "@/lib/supabase/client";
+import { telemetry } from "@/lib/telemetry";
 import Button from "@/components/ui/Button";
-
-import { getClientTimeline } from "@/lib/timeline/getClientTimeline";
-import { buildClinicalSummary } from "@/lib/ai/buildClinicalSummary";
-import { generateClinicalReport } from "@/lib/ai/generateClinicalReport";
-import { generateClinicalPDF } from "@/lib/pdf/generateClinicalPDF";
-import { saveClinicalReport } from "@/lib/reports/saveClinicalReport";
 import { generateMonthlyClinicalReport } from "@/lib/reports/generateMonthlyClinicalReport";
+import { saveClinicalReport } from "@/lib/reports/saveClinicalReport";
 
 export default function ClientReportsPage({
   params,
@@ -19,145 +16,128 @@ export default function ClientReportsPage({
 
   const [loading, setLoading] = useState(false);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
-
-  const [reports, setReports] = useState<any[]>([]);
-  const [summaries, setSummaries] = useState<any[]>([]);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const [monthlyReport, setMonthlyReport] = useState<any | null>(null);
+  const [aiResult, setAiResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // =========================
-  // DAILY / FULL REPORTS
-  // =========================
-  async function generateDailyReports() {
+  // AI REPORT via unified engine
+  async function handleGenerateReport() {
     setLoading(true);
+    setError(null);
+    setAiResult(null);
 
     try {
-      const timeline = await getClientTimeline(clientId);
+      const { data: auth } = await supabase.auth.getUser();
+      const user = auth?.user;
+      if (!user) return;
 
-      const summaryData = buildClinicalSummary(timeline);
-      const reportData = await generateClinicalReport(
-        timeline,
-        summaryData
+      const res = await telemetry.ai.report(
+        { type: "report", client_id: clientId },
+        user.id
       );
 
-      setSummaries(summaryData);
-      setReports(reportData);
+      if (res.error) {
+        setError(res.error);
+        return;
+      }
 
-      await Promise.all(
-        reportData.map((r) =>
-          saveClinicalReport({
-            clientId,
-            reportDate: r.date,
-            reportText: r.report,
-            summaryText:
-              summaryData.find((s) => s.date === r.date)?.summaryText ??
-              "",
-          })
-        )
-      );
-    } catch (err) {
-      console.error("Daily report error:", err);
+      setAiResult("AI clinical report queued. Check back shortly for results.");
+
+      await saveClinicalReport({
+        clientId,
+        reportDate: new Date().toISOString().split("T")[0],
+        reportText: "AI report queued via telemetry pipeline.",
+        summaryText: "Queued",
+      });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Report generation failed");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
-  // =========================
   // MONTHLY REPORT
-  // =========================
   async function handleGenerateMonthly() {
     setMonthlyLoading(true);
+    setError(null);
 
     try {
-      const month = new Date().toISOString().slice(0, 7); // YYYY-MM
-
-      const data = await generateMonthlyClinicalReport(
-        clientId,
-        month
-      );
-
+      const month = new Date().toISOString().slice(0, 7);
+      const data = await generateMonthlyClinicalReport(clientId, month);
       setMonthlyReport(data);
-    } catch (err) {
-      console.error("Monthly report error:", err);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Monthly report failed");
+    } finally {
+      setMonthlyLoading(false);
     }
+  }
 
-    setMonthlyLoading(false);
+  // PDF DOWNLOAD via /api/reports
+  async function handleDownloadPDF() {
+    setPdfLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client_id: clientId }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        setError(err.error ?? "PDF generation failed");
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `report-${clientId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "PDF download failed");
+    } finally {
+      setPdfLoading(false);
+    }
   }
 
   return (
     <div className="bg-white rounded-2xl shadow p-6 border">
-      {/* HEADER */}
       <h2 className="text-2xl font-bold mb-2">Clinical Reports</h2>
-
       <p className="text-gray-600 mb-6">
-        Daily ABA summaries + monthly insurance-ready reports.
+        AI-generated clinical reports and monthly summaries.
       </p>
 
-      {/* ACTIONS */}
+      {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+
       <div className="flex flex-col gap-3 mb-6">
-        <Button onClick={generateDailyReports}>
-          {loading ? "Generating Daily Reports..." : "Generate Daily Reports"}
+        <Button onClick={handleGenerateReport} loading={loading}>
+          Generate AI Clinical Report
         </Button>
 
-        <Button
-          onClick={handleGenerateMonthly}
-          variant="secondary"
-        >
-          {monthlyLoading
-            ? "Generating Monthly Report..."
-            : "Generate Monthly Report"}
+        <Button onClick={handleGenerateMonthly} loading={monthlyLoading} variant="secondary">
+          Generate Monthly Report
         </Button>
 
-        {reports.length > 0 && (
-          <Button
-            onClick={() => generateClinicalPDF(clientId, reports)}
-            variant="outline"
-          >
-            Download PDF Report
-          </Button>
-        )}
+        <Button onClick={handleDownloadPDF} loading={pdfLoading} variant="outline">
+          Download PDF Report
+        </Button>
       </div>
 
-      {/* DAILY REPORT OUTPUT */}
-      {!loading && reports.length > 0 && (
-        <div className="space-y-6">
-          {reports.map((r, index) => (
-            <div
-              key={index}
-              className="border rounded-lg p-4 bg-gray-50"
-            >
-              <h3 className="font-semibold mb-2">{r.date}</h3>
-
-              <p className="text-gray-700 whitespace-pre-line">
-                {r.report}
-              </p>
-            </div>
-          ))}
+      {aiResult && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 mb-4">
+          {aiResult}
         </div>
       )}
 
-      {/* MONTHLY REPORT OUTPUT */}
       {monthlyReport && (
-        <div className="border rounded-lg p-4 bg-blue-50 mt-8">
-          <h3 className="font-semibold mb-2">
-            Monthly Clinical Summary
-          </h3>
-
-          <p className="text-sm whitespace-pre-line">
-            {monthlyReport.summary}
-          </p>
-        </div>
-      )}
-
-      {/* DEBUG SUMMARIES (optional) */}
-      {summaries.length > 0 && (
-        <div className="mt-10 border-t pt-6">
-          <h3 className="font-bold mb-2">Daily Summaries</h3>
-
-          {summaries.map((s, i) => (
-            <div key={i} className="text-sm text-gray-600 mb-2">
-              {s.date}: {s.summaryText}
-            </div>
-          ))}
+        <div className="border rounded-lg p-4 bg-blue-50 mt-4">
+          <h3 className="font-semibold mb-2">Monthly Clinical Summary</h3>
+          <p className="text-sm whitespace-pre-line">{monthlyReport.summary}</p>
         </div>
       )}
     </div>
