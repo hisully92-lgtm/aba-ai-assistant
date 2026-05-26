@@ -1,587 +1,458 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
 import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer
-} from "recharts";
 
-type DBCard = {
-  id: string;
-  deck_id: string;
-  front: string;
-  back: string;
-  category: string | null;
-};
-
+type Card = { front: string; back: string };
 type Deck = {
   id: string;
-  name: string;
-  description: string | null;
+  deck_name: string;
+  category: string;
+  cards: Card[];
+  created_at: string;
 };
-
-type Attempt = {
+type SessionResult = {
   id: string;
-  card_id: string;
-  correct: boolean;
-  duration_seconds: number | null;
+  deck_id: string;
+  correct: number;
+  incorrect: number;
+  duration_seconds: number;
+  session_date: string;
   created_at: string;
 };
 
-type LeaderboardEntry = {
-  user_id: string;
-  name: string;
-  accuracy: number;
-  total: number;
-};
-
-const DEFAULT_CARDS = [
-  { front: "ABA", back: "Applied Behavior Analysis — the science of behavior change through antecedents and consequences", category: "Definitions" },
-  { front: "Reinforcement", back: "A consequence that increases the future frequency of a behavior", category: "Definitions" },
-  { front: "Punishment", back: "A consequence that decreases the future frequency of a behavior", category: "Definitions" },
-  { front: "Extinction", back: "Withholding reinforcement for a previously reinforced behavior, reducing its frequency", category: "Definitions" },
-  { front: "Antecedent", back: "Any stimulus that precedes and influences a behavior", category: "ABC" },
-  { front: "Behavior", back: "Any observable and measurable action of an organism", category: "ABC" },
-  { front: "Consequence", back: "Any stimulus that follows a behavior and affects its future frequency", category: "ABC" },
-  { front: "FBA", back: "Functional Behavior Assessment — process to identify the function of a behavior", category: "Assessments" },
-  { front: "Mand", back: "A verbal operant where the speaker requests something", category: "Verbal Operants" },
-  { front: "Tact", back: "A verbal operant where the speaker labels something in the environment", category: "Verbal Operants" },
-  { front: "Intraverbal", back: "A verbal operant controlled by prior verbal behavior", category: "Verbal Operants" },
-  { front: "LRFFC", back: "Listener Responding by Function, Feature, and Class", category: "Verbal Operants" },
-  { front: "DTT", back: "Discrete Trial Training — structured teaching with clear beginning, middle, and end", category: "Teaching Methods" },
-  { front: "NET", back: "Natural Environment Training — teaching in everyday contexts", category: "Teaching Methods" },
-  { front: "Prompt", back: "Supplemental stimulus that helps produce a correct response", category: "Prompting" },
-  { front: "Prompt Fading", back: "Systematically reducing assistance to promote independence", category: "Prompting" },
-  { front: "Chaining", back: "Teaching a sequence of behaviors as links in a chain", category: "Teaching Methods" },
-  { front: "Shaping", back: "Reinforcing successive approximations toward a target behavior", category: "Teaching Methods" },
-  { front: "Generalization", back: "A behavior occurring in situations beyond original training", category: "Definitions" },
-  { front: "VB-MAPP", back: "Verbal Behavior Milestones Assessment and Placement Program", category: "Assessments" },
+const DEFAULT_DECKS = [
+  {
+    deck_name: "RBT Exam Prep — ABA Basics",
+    category: "RBT",
+    cards: [
+      { front: "What is reinforcement?", back: "A consequence that increases the future frequency of a behavior" },
+      { front: "What is punishment?", back: "A consequence that decreases the future frequency of a behavior" },
+      { front: "What is extinction?", back: "Withholding reinforcement for a previously reinforced behavior" },
+      { front: "What is an SD?", back: "Discriminative stimulus — a signal that reinforcement is available" },
+      { front: "What is shaping?", back: "Reinforcing successive approximations toward a target behavior" },
+      { front: "What is chaining?", back: "Teaching a sequence of behaviors that form a complex skill" },
+      { front: "What is prompting?", back: "Supplementary stimuli used to occasion a correct response" },
+      { front: "What is fading?", back: "Gradually reducing prompts to promote independence" },
+      { front: "What is generalization?", back: "Behavior occurring across untrained settings, people, or stimuli" },
+      { front: "What is a mand?", back: "A verbal operant controlled by motivating operations — a request" },
+      { front: "What is a tact?", back: "A verbal operant controlled by a non-verbal stimulus — a label" },
+      { front: "What is an intraverbal?", back: "A verbal operant controlled by another verbal stimulus" },
+      { front: "What is an echoic?", back: "Repeating exactly what was said by another person" },
+      { front: "What is a motivating operation?", back: "A variable that alters the value of a reinforcer and evokes behavior" },
+      { front: "What is ABA?", back: "Applied Behavior Analysis — science of behavior and its application" },
+    ],
+  },
+  {
+    deck_name: "BCBA Exam Prep — Measurement",
+    category: "BCBA",
+    cards: [
+      { front: "What is frequency?", back: "Count of how many times a behavior occurs" },
+      { front: "What is rate?", back: "Frequency divided by observation time" },
+      { front: "What is duration?", back: "Total time a behavior occurs" },
+      { front: "What is latency?", back: "Time between SD and response" },
+      { front: "What is IRT?", back: "Interresponse time — time between two consecutive responses" },
+      { front: "What is whole interval recording?", back: "Behavior must occur entire interval to be scored" },
+      { front: "What is partial interval recording?", back: "Behavior scored if it occurs at any point in interval" },
+      { front: "What is momentary time sampling?", back: "Behavior scored only if occurring at end of interval" },
+      { front: "What is permanent product?", back: "Recording outcomes of behavior rather than behavior itself" },
+      { front: "What is IOA?", back: "Interobserver agreement — reliability measure between two observers" },
+    ],
+  },
+  {
+    deck_name: "Ethics & Professional Conduct",
+    category: "BCBA",
+    cards: [
+      { front: "What is the BACB?", back: "Behavior Analyst Certification Board — certifying body for BCBAs and RBTs" },
+      { front: "What are the core principles of the BACB Ethics Code?", back: "Benefit others, treat with compassion, act with integrity, ensure competence" },
+      { front: "What is dual relationship?", back: "Having a personal or professional relationship with a client outside therapy" },
+      { front: "What is informed consent?", back: "Client/guardian agreement to treatment after full disclosure of risks and benefits" },
+      { front: "What is confidentiality?", back: "Protecting client information from unauthorized disclosure" },
+      { front: "What is scope of competence?", back: "Practicing only within areas of expertise and training" },
+      { front: "What is supervision in ABA?", back: "Oversight of RBTs and others by qualified BCBAs per BACB standards" },
+    ],
+  },
 ];
 
 export default function SAFMEDSPage() {
   const [decks, setDecks] = useState<Deck[]>([]);
-  const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
-  const [cards, setCards] = useState<DBCard[]>([]);
-  const [attempts, setAttempts] = useState<Attempt[]>([]);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<SessionResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeView, setActiveView] = useState<"decks" | "study" | "results" | "create">("decks");
+  const [activeDeck, setActiveDeck] = useState<Deck | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  // Study state
-  const [shuffled, setShuffled] = useState<DBCard[]>([]);
+  // Study session state
+  const [shuffledCards, setShuffledCards] = useState<Card[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [flipped, setFlipped] = useState(false);
-  const [correct, setCorrect] = useState<string[]>([]);
-  const [incorrect, setIncorrect] = useState<string[]>([]);
-  const [mode, setMode] = useState<"select" | "study" | "timed" | "results" | "history" | "leaderboard">("select");
+  const [showBack, setShowBack] = useState(false);
+  const [correct, setCorrect] = useState(0);
+  const [incorrect, setIncorrect] = useState(0);
   const [timeLeft, setTimeLeft] = useState(60);
-  const [timerActive, setTimerActive] = useState(false);
-  const [sessionStart, setSessionStart] = useState<number>(0);
+  const [sessionActive, setSessionActive] = useState(false);
+  const [sessionDone, setSessionDone] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // New deck form
-  const [showNewDeck, setShowNewDeck] = useState(false);
+  // Create deck state
   const [newDeckName, setNewDeckName] = useState("");
-  const [newDeckDesc, setNewDeckDesc] = useState("");
-  const [savingDeck, setSavingDeck] = useState(false);
-
-  // New card form
-  const [showNewCard, setShowNewCard] = useState(false);
-  const [newCardFront, setNewCardFront] = useState("");
-  const [newCardBack, setNewCardBack] = useState("");
-  const [newCardCategory, setNewCardCategory] = useState("");
+  const [newCategory, setNewCategory] = useState("RBT");
+  const [newCards, setNewCards] = useState<Card[]>([{ front: "", back: "" }]);
 
   useEffect(() => { init(); }, []);
 
   useEffect(() => {
-    if (!timerActive) return;
-    if (timeLeft <= 0) { setTimerActive(false); setMode("results"); return; }
-    const t = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
-    return () => clearTimeout(t);
-  }, [timerActive, timeLeft]);
+    if (sessionActive && timeLeft > 0) {
+      timerRef.current = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
+    } else if (sessionActive && timeLeft === 0) {
+      endSession();
+    }
+    return () => clearTimeout(timerRef.current!);
+  }, [sessionActive, timeLeft]);
+
+  // Enter key support
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (activeView === "study" && sessionActive) {
+        if (e.key === " " || e.key === "Enter") { e.preventDefault(); setShowBack((s) => !s); }
+        if (e.key === "ArrowRight" || e.key === "l") markCard(true);
+        if (e.key === "ArrowLeft" || e.key === "a") markCard(false);
+      }
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [activeView, sessionActive, currentIndex]);
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
-    setUserId(user.id);
 
-    const { data: deckData } = await supabase
-      .from("safmeds_decks")
-      .select("id, name, description")
-      .eq("created_by", user.id)
-      .order("created_at", { ascending: false });
+    const [{ data: deckData }, { data: sessionData }] = await Promise.all([
+      supabase.from("safmeds_decks").select("*").eq("created_by", user.id).order("created_at", { ascending: false }),
+      supabase.from("safmeds_sessions").select("*").eq("created_by", user.id).order("created_at", { ascending: false }),
+    ]);
 
-    // Create default deck if none exist
     if (!deckData || deckData.length === 0) {
-      const { data: newDeck } = await supabase
-        .from("safmeds_decks")
-        .insert({ name: "ABA Core Concepts", description: "Default ABA terminology deck", created_by: user.id })
-        .select()
-        .single();
-
-      if (newDeck) {
-        await supabase.from("safmeds_cards").insert(
-          DEFAULT_CARDS.map((c) => ({ deck_id: newDeck.id, ...c }))
-        );
-        setDecks([newDeck]);
-      }
+      await seedDefaultDecks(user.id);
     } else {
-      setDecks(deckData);
+      setDecks(deckData.map((d: any) => ({ ...d, cards: Array.isArray(d.cards) ? d.cards : JSON.parse(d.cards || "[]") })));
     }
-
+    setSessions(sessionData ?? []);
     setLoading(false);
   }
 
-  async function loadDeck(deckId: string) {
-    setSelectedDeckId(deckId);
-
-    const [{ data: cardData }, { data: attemptData }] = await Promise.all([
-      supabase.from("safmeds_cards").select("*").eq("deck_id", deckId),
-      supabase.from("safmeds_attempts").select("*").eq("deck_id", deckId).eq("user_id", userId!).order("created_at", { ascending: false }).limit(200),
-    ]);
-
-    setCards(cardData ?? []);
-    setAttempts(attemptData ?? []);
-
-    const s = [...(cardData ?? [])].sort(() => Math.random() - 0.5);
-    setShuffled(s);
-    setCurrentIndex(0);
-    setFlipped(false);
-    setCorrect([]);
-    setIncorrect([]);
-    setMode("study");
+  async function seedDefaultDecks(userId: string) {
+    const { data } = await supabase.from("safmeds_decks").insert(
+      DEFAULT_DECKS.map((d) => ({ ...d, cards: JSON.stringify(d.cards), created_by: userId }))
+    ).select();
+    setDecks((data ?? []).map((d: any) => ({ ...d, cards: Array.isArray(d.cards) ? d.cards : JSON.parse(d.cards || "[]") })));
   }
 
-  async function handleAnswer(isCorrect: boolean) {
-    const card = shuffled[currentIndex];
-    if (!card || !userId || !selectedDeckId) return;
+  function startStudy(deck: Deck) {
+    const shuffled = [...deck.cards].sort(() => Math.random() - 0.5);
+    setShuffledCards(shuffled);
+    setActiveDeck(deck);
+    setCurrentIndex(0);
+    setShowBack(false);
+    setCorrect(0);
+    setIncorrect(0);
+    setTimeLeft(60);
+    setSessionActive(true);
+    setSessionDone(false);
+    setActiveView("study");
+  }
 
-    const duration = Math.round((Date.now() - sessionStart) / 1000);
-
-    await supabase.from("safmeds_attempts").insert({
-      user_id: userId,
-      deck_id: selectedDeckId,
-      card_id: card.id,
-      correct: isCorrect,
-      duration_seconds: duration,
-    });
-
-    if (isCorrect) setCorrect((prev) => [...prev, card.id]);
-    else setIncorrect((prev) => [...prev, card.id]);
-
-    setSessionStart(Date.now());
-
-    if (currentIndex < shuffled.length - 1) {
+  function markCard(isCorrect: boolean) {
+    if (!sessionActive || sessionDone) return;
+    if (isCorrect) setCorrect((c) => c + 1);
+    else setIncorrect((i) => i + 1);
+    if (currentIndex + 1 >= shuffledCards.length) {
+      setShuffledCards((prev) => [...prev].sort(() => Math.random() - 0.5));
+      setCurrentIndex(0);
+    } else {
       setCurrentIndex((i) => i + 1);
-      setFlipped(false);
-    } else {
-      setMode("results");
-      setTimerActive(false);
     }
+    setShowBack(false);
   }
 
-  function startStudy(timed = false) {
-    const s = [...cards].sort(() => Math.random() - 0.5);
-    setShuffled(s);
-    setCurrentIndex(0);
-    setFlipped(false);
-    setCorrect([]);
-    setIncorrect([]);
-    setSessionStart(Date.now());
+  async function endSession() {
+    clearTimeout(timerRef.current!);
+    setSessionActive(false);
+    setSessionDone(true);
 
-    if (timed) {
-      setTimeLeft(60);
-      setTimerActive(true);
-      setMode("timed");
-    } else {
-      setMode("study");
-    }
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth?.user;
+    if (!user || !activeDeck) return;
+
+    const { data } = await supabase.from("safmeds_sessions").insert([{
+      deck_id: activeDeck.id,
+      correct,
+      incorrect,
+      duration_seconds: 60,
+      session_date: new Date().toISOString().split("T")[0],
+      created_by: user.id,
+    }]).select().single();
+
+    if (data) setSessions((prev) => [data, ...prev]);
+    setActiveView("results");
   }
 
-  async function loadLeaderboard() {
-    if (!selectedDeckId) return;
+  async function handleCreateDeck() {
+    if (!newDeckName || newCards.filter((c) => c.front).length === 0) return;
+    setSaving(true);
 
-    const { data } = await supabase
-      .from("safmeds_attempts")
-      .select("user_id, correct")
-      .eq("deck_id", selectedDeckId);
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth?.user;
+    if (!user) return;
 
-    if (!data) return;
+    const validCards = newCards.filter((c) => c.front.trim());
+    const { data } = await supabase.from("safmeds_decks").insert([{
+      deck_name: newDeckName,
+      category: newCategory,
+      cards: JSON.stringify(validCards),
+      created_by: user.id,
+    }]).select().single();
 
-    const userStats = new Map<string, { correct: number; total: number }>();
-    data.forEach((a: { user_id: string; correct: boolean }) => {
-      const s = userStats.get(a.user_id) ?? { correct: 0, total: 0 };
-      userStats.set(a.user_id, {
-        correct: s.correct + (a.correct ? 1 : 0),
-        total: s.total + 1,
-      });
-    });
-
-    const entries: LeaderboardEntry[] = Array.from(userStats.entries()).map(([uid, s]) => ({
-      user_id: uid,
-      name: uid === userId ? "You" : `User ${uid.slice(0, 6)}`,
-      accuracy: s.total ? Math.round((s.correct / s.total) * 100) : 0,
-      total: s.total,
-    })).sort((a, b) => b.accuracy - a.accuracy);
-
-    setLeaderboard(entries);
-    setMode("leaderboard");
+    if (data) setDecks((prev) => [{ ...data, cards: validCards }, ...prev]);
+    setNewDeckName(""); setNewCategory("RBT"); setNewCards([{ front: "", back: "" }]);
+    setActiveView("decks");
+    setSaving(false);
   }
 
-  async function createDeck() {
-    if (!newDeckName.trim() || !userId) return;
-    setSavingDeck(true);
-
-    const { data: deck } = await supabase
-      .from("safmeds_decks")
-      .insert({ name: newDeckName, description: newDeckDesc, created_by: userId })
-      .select()
-      .single();
-
-    if (deck) {
-      setDecks((prev) => [deck, ...prev]);
-      setNewDeckName("");
-      setNewDeckDesc("");
-      setShowNewDeck(false);
-    }
-
-    setSavingDeck(false);
+  async function handleDeleteDeck(id: string) {
+    await supabase.from("safmeds_decks").delete().eq("id", id);
+    setDecks((prev) => prev.filter((d) => d.id !== id));
   }
 
-  async function addCard() {
-    if (!newCardFront.trim() || !newCardBack.trim() || !selectedDeckId) return;
-
-    const { data } = await supabase
-      .from("safmeds_cards")
-      .insert({ deck_id: selectedDeckId, front: newCardFront, back: newCardBack, category: newCardCategory || null })
-      .select()
-      .single();
-
-    if (data) {
-      setCards((prev) => [...prev, data]);
-      setNewCardFront("");
-      setNewCardBack("");
-      setNewCardCategory("");
-      setShowNewCard(false);
-    }
+  function addCard() { setNewCards((prev) => [...prev, { front: "", back: "" }]); }
+  function updateCard(i: number, field: "front" | "back", value: string) {
+    setNewCards((prev) => prev.map((c, idx) => idx === i ? { ...c, [field]: value } : c));
   }
+  function removeCard(i: number) { setNewCards((prev) => prev.filter((_, idx) => idx !== i)); }
 
-  // MASTERY CHART — accuracy over last 10 sessions
-  const chartData = attempts
-    .slice(0, 50)
-    .reverse()
-    .reduce((acc: { session: string; accuracy: number }[], attempt, i) => {
-      const last = acc[acc.length - 1];
-      if (!last || i % 5 === 0) {
-        acc.push({ session: `S${Math.floor(i / 5) + 1}`, accuracy: attempt.correct ? 100 : 0 });
-      } else {
-        last.accuracy = Math.round((last.accuracy + (attempt.correct ? 100 : 0)) / 2);
-      }
-      return acc;
-    }, []);
+  const deckSessionMap = sessions.reduce((acc, s) => {
+    acc[s.deck_id] = acc[s.deck_id] ?? [];
+    acc[s.deck_id].push(s);
+    return acc;
+  }, {} as Record<string, SessionResult[]>);
 
-  const total = correct.length + incorrect.length;
-  const accuracy = total ? Math.round((correct.length / total) * 100) : 0;
-  const currentCard = shuffled[currentIndex];
-  const allTimeCorrect = attempts.filter((a) => a.correct).length;
-  const allTimeTotal = attempts.length;
-  const allTimeAccuracy = allTimeTotal ? Math.round((allTimeCorrect / allTimeTotal) * 100) : 0;
-
-  if (loading) return <div className="p-6 text-gray-400">Loading SAFMEDS...</div>;
+  const currentCard = shuffledCards[currentIndex];
 
   return (
     <div className="space-y-6">
       <PageHeader title="SAFMEDS">
-        <p className="text-gray-500 text-sm">Say All Fast Minute Every Day Shuffled</p>
+        <div className="flex gap-2">
+          {activeView !== "decks" && (
+            <Button variant="outline" onClick={() => { setActiveView("decks"); setSessionActive(false); }}>← Back to Decks</Button>
+          )}
+          {activeView === "decks" && (
+            <Button onClick={() => setActiveView("create")}>+ Create Deck</Button>
+          )}
+        </div>
       </PageHeader>
 
-      {/* DECK SELECTION */}
-      {mode === "select" && (
-        <>
-          <Section title="My Decks">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-              {decks.map((deck) => (
-                <div
-                  key={deck.id}
-                  onClick={() => loadDeck(deck.id)}
-                  className="border border-gray-200 rounded-xl p-4 bg-white cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all"
-                >
-                  <p className="font-semibold text-gray-800">{deck.name}</p>
-                  {deck.description && <p className="text-xs text-gray-400 mt-0.5">{deck.description}</p>}
-                </div>
-              ))}
-            </div>
-            <Button variant="outline" onClick={() => setShowNewDeck(!showNewDeck)}>
-              + Create Deck
-            </Button>
-          </Section>
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
+        ⚡ Say All Fast a Minute Every Day Shuffled — build fluency and rapid recall for RBT & BCBA exams.
+        <span className="ml-2 text-blue-500">Keyboard: Space/Enter = flip · → = correct · ← = incorrect</span>
+      </div>
 
-          {showNewDeck && (
-            <Section title="Create New Deck">
-              <div className="space-y-3 max-w-md">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Deck Name</label>
-                  <input
-                    type="text"
-                    value={newDeckName}
-                    onChange={(e) => setNewDeckName(e.target.value)}
-                    placeholder="e.g. BCBA Exam Prep"
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Description</label>
-                  <input
-                    type="text"
-                    value={newDeckDesc}
-                    onChange={(e) => setNewDeckDesc(e.target.value)}
-                    placeholder="Optional description..."
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button onClick={createDeck} loading={savingDeck}>Create</Button>
-                  <Button variant="outline" onClick={() => setShowNewDeck(false)}>Cancel</Button>
-                </div>
-              </div>
-            </Section>
-          )}
-        </>
-      )}
-
-      {/* STUDY MODE */}
-      {(mode === "study" || mode === "timed") && selectedDeckId && (
+      {/* DECKS VIEW */}
+      {activeView === "decks" && (
         <>
-          {/* DECK CONTROLS */}
-          <div className="flex flex-wrap gap-2 items-center">
-            <Button variant="outline" onClick={() => setMode("select")}>← Decks</Button>
-            <Button variant="outline" onClick={() => startStudy(false)}>Shuffle</Button>
-            <Button variant="outline" onClick={() => startStudy(true)}>⏱ Timed (60s)</Button>
-            <Button variant="outline" onClick={() => setMode("history")}>History</Button>
-            <Button variant="outline" onClick={loadLeaderboard}>🏆 Leaderboard</Button>
-            <Button variant="outline" onClick={() => setShowNewCard(!showNewCard)}>+ Add Card</Button>
-            <p className="text-sm text-gray-400 ml-auto">{cards.length} cards</p>
+          {loading && <p className="text-gray-400 text-sm">Loading decks...</p>}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {decks.map((deck) => {
+              const deckSessions = deckSessionMap[deck.id] ?? [];
+              const bestScore = deckSessions.length ? Math.max(...deckSessions.map((s) => s.correct)) : 0;
+              const lastSession = deckSessions[0];
+              return (
+                <div key={deck.id} className="border border-gray-100 rounded-xl p-4 bg-white">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <p className="font-semibold text-gray-800">{deck.deck_name}</p>
+                      <div className="flex gap-2 mt-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${deck.category === "BCBA" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
+                          {deck.category}
+                        </span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                          {deck.cards.length} cards
+                        </span>
+                      </div>
+                    </div>
+                    <button onClick={() => handleDeleteDeck(deck.id)} className="text-gray-300 hover:text-red-400 text-xs">✕</button>
+                  </div>
+                  {deckSessions.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2 mb-3 text-center">
+                      <div className="border rounded-lg p-2">
+                        <p className="text-sm font-bold text-blue-600">{deckSessions.length}</p>
+                        <p className="text-xs text-gray-400">Sessions</p>
+                      </div>
+                      <div className="border rounded-lg p-2">
+                        <p className="text-sm font-bold text-green-600">{bestScore}</p>
+                        <p className="text-xs text-gray-400">Best Score</p>
+                      </div>
+                      <div className="border rounded-lg p-2">
+                        <p className="text-sm font-bold text-purple-600">
+                          {lastSession ? `${lastSession.correct}/${lastSession.correct + lastSession.incorrect}` : "—"}
+                        </p>
+                        <p className="text-xs text-gray-400">Last</p>
+                      </div>
+                    </div>
+                  )}
+                  <Button onClick={() => startStudy(deck)} className="w-full">
+                    ▶ Start SAFMEDS (60s)
+                  </Button>
+                </div>
+              );
+            })}
           </div>
-
-          {/* ALL-TIME STATS */}
-          {allTimeTotal > 0 && (
-            <div className="grid grid-cols-3 gap-3">
-              <div className="border rounded-lg p-3 text-center">
-                <p className="text-xl font-bold text-blue-600">{allTimeAccuracy}%</p>
-                <p className="text-xs text-gray-500">All-time accuracy</p>
-              </div>
-              <div className="border rounded-lg p-3 text-center">
-                <p className="text-xl font-bold text-green-600">{allTimeCorrect}</p>
-                <p className="text-xs text-gray-500">Correct</p>
-              </div>
-              <div className="border rounded-lg p-3 text-center">
-                <p className="text-xl font-bold text-gray-700">{allTimeTotal}</p>
-                <p className="text-xs text-gray-500">Attempts</p>
-              </div>
-            </div>
-          )}
-
-          {/* ADD CARD */}
-          {showNewCard && (
-            <Section title="Add Card">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-lg">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Front (Term)</label>
-                  <input
-                    type="text"
-                    value={newCardFront}
-                    onChange={(e) => setNewCardFront(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Category</label>
-                  <input
-                    type="text"
-                    value={newCardCategory}
-                    onChange={(e) => setNewCardCategory(e.target.value)}
-                    placeholder="e.g. Definitions"
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Back (Definition)</label>
-                  <textarea
-                    value={newCardBack}
-                    onChange={(e) => setNewCardBack(e.target.value)}
-                    rows={2}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button onClick={addCard}>Add</Button>
-                  <Button variant="outline" onClick={() => setShowNewCard(false)}>Cancel</Button>
-                </div>
-              </div>
-            </Section>
-          )}
-
-          {/* FLASHCARD */}
-          {currentCard && (
-            <Section title={
-              mode === "timed"
-                ? `⏱ ${timeLeft}s · Card ${currentIndex + 1}/${shuffled.length}`
-                : `Card ${currentIndex + 1} of ${shuffled.length}`
-            }>
-              <div className="w-full bg-gray-100 rounded-full h-1.5 mb-4">
-                <div
-                  className="bg-blue-500 h-1.5 rounded-full transition-all"
-                  style={{ width: `${(currentIndex / shuffled.length) * 100}%` }}
-                />
-              </div>
-              <div className="flex gap-3 mb-4">
-                <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">✓ {correct.length}</span>
-                <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700">✗ {incorrect.length}</span>
-                {currentCard.category && (
-                  <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">{currentCard.category}</span>
-                )}
-              </div>
-
-              <div
-                onClick={() => setFlipped(!flipped)}
-                className="border-2 border-gray-200 rounded-2xl p-8 text-center cursor-pointer hover:border-blue-300 transition-all min-h-48 flex flex-col items-center justify-center bg-white"
-              >
-                {!flipped ? (
-                  <div>
-                    <p className="text-2xl font-bold text-gray-800">{currentCard.front}</p>
-                    <p className="text-xs text-gray-400 mt-4">Click to reveal</p>
-                  </div>
-                ) : (
-                  <div>
-                    <p className="text-sm font-medium text-blue-600 mb-2">{currentCard.front}</p>
-                    <p className="text-lg text-gray-700">{currentCard.back}</p>
-                  </div>
-                )}
-              </div>
-
-              {flipped && (
-                <div className="flex gap-3 mt-4 justify-center">
-                  <Button variant="danger" onClick={() => handleAnswer(false)}>✗ Incorrect</Button>
-                  <Button onClick={() => handleAnswer(true)}>✓ Correct</Button>
-                </div>
-              )}
-              {!flipped && (
-                <div className="flex gap-2 mt-4 justify-center">
-                  <Button variant="outline" onClick={() => setFlipped(true)}>Flip</Button>
-                  <Button variant="outline" onClick={() => startStudy(false)}>Restart</Button>
-                </div>
-              )}
-            </Section>
-          )}
         </>
       )}
 
-      {/* RESULTS */}
-      {mode === "results" && (
-        <Section title="Session Results">
-          <div className="text-center space-y-4 py-4">
-            <p className="text-5xl font-bold text-blue-600">{accuracy}%</p>
-            <p className="text-gray-500">Session Accuracy</p>
+      {/* STUDY VIEW */}
+      {activeView === "study" && currentCard && (
+        <Section title={`${activeDeck?.deck_name} — ${timeLeft}s remaining`}>
+          <div className="text-center space-y-6 py-4">
+            {/* TIMER BAR */}
+            <div className="w-full bg-gray-100 rounded-full h-3">
+              <div className={`h-3 rounded-full transition-all ${timeLeft > 30 ? "bg-green-500" : timeLeft > 10 ? "bg-yellow-500" : "bg-red-500"}`}
+                style={{ width: `${(timeLeft / 60) * 100}%` }} />
+            </div>
+
+            {/* STATS */}
             <div className="flex justify-center gap-8">
-              <div>
-                <p className="text-2xl font-bold text-green-600">{correct.length}</p>
-                <p className="text-xs text-gray-500">Correct</p>
+              <div className="text-center">
+                <p className="text-3xl font-bold text-green-600">{correct}</p>
+                <p className="text-xs text-gray-400">Correct</p>
               </div>
-              <div>
-                <p className="text-2xl font-bold text-red-500">{incorrect.length}</p>
-                <p className="text-xs text-gray-500">Incorrect</p>
+              <div className="text-center">
+                <p className="text-3xl font-bold text-gray-400">{currentIndex + 1}/{shuffledCards.length}</p>
+                <p className="text-xs text-gray-400">Card</p>
+              </div>
+              <div className="text-center">
+                <p className="text-3xl font-bold text-red-500">{incorrect}</p>
+                <p className="text-xs text-gray-400">Incorrect</p>
               </div>
             </div>
-            <p className="text-sm text-gray-500">
-              {accuracy >= 90 ? "🎉 Mastery level achieved!" :
-               accuracy >= 70 ? "👍 Good job! Keep practicing." :
-               "📚 Keep studying!"}
-            </p>
-            <div className="flex gap-2 justify-center">
-              <Button onClick={() => startStudy(false)}>Study Again</Button>
-              <Button variant="outline" onClick={() => setMode("history")}>View History</Button>
-              <Button variant="outline" onClick={loadLeaderboard}>🏆 Leaderboard</Button>
-            </div>
-          </div>
 
-          {/* MASTERY CHART */}
-          {chartData.length >= 2 && (
-            <div className="mt-6">
-              <p className="text-sm font-medium text-gray-700 mb-3">Accuracy Over Time</p>
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="session" tick={{ fontSize: 11 }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
-                  <Tooltip formatter={(v) => [`${v}%`, "Accuracy"]} />
-                  <Line type="monotone" dataKey="accuracy" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} />
-                </LineChart>
-              </ResponsiveContainer>
+            {/* CARD */}
+            <div
+              onClick={() => setShowBack((s) => !s)}
+              className="cursor-pointer border-2 border-blue-200 rounded-2xl p-8 bg-white shadow-lg min-h-40 flex items-center justify-center transition-all hover:shadow-xl active:scale-98"
+            >
+              <div className="text-center">
+                <p className="text-xs text-gray-400 mb-3 uppercase tracking-wide">
+                  {showBack ? "Answer" : "Question"} — tap or press Space to flip
+                </p>
+                <p className="text-xl font-semibold text-gray-800">
+                  {showBack ? currentCard.back : currentCard.front}
+                </p>
+              </div>
             </div>
-          )}
+
+            {/* BUTTONS */}
+            <div className="flex gap-4 justify-center">
+              <button onClick={() => markCard(false)}
+                className="w-36 h-16 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg transition-transform active:scale-95">
+                ✗ Incorrect (←)
+              </button>
+              <button onClick={() => markCard(true)}
+                className="w-36 h-16 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-lg transition-transform active:scale-95">
+                ✓ Correct (→)
+              </button>
+            </div>
+
+            <Button variant="danger" onClick={endSession}>End Session Early</Button>
+          </div>
         </Section>
       )}
 
-      {/* HISTORY */}
-      {mode === "history" && (
-        <Section title="Attempt History">
-          <div className="flex gap-2 mb-4">
-            <Button variant="outline" onClick={() => startStudy(false)}>← Back to Study</Button>
+      {/* RESULTS VIEW */}
+      {activeView === "results" && (
+        <Section title="Session Complete!">
+          <div className="text-center space-y-6 py-4">
+            <div className="text-6xl">🎉</div>
+            <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto">
+              <div className="border rounded-xl p-4 text-center">
+                <p className="text-3xl font-bold text-green-600">{correct}</p>
+                <p className="text-xs text-gray-400 mt-1">Correct</p>
+              </div>
+              <div className="border rounded-xl p-4 text-center">
+                <p className="text-3xl font-bold text-red-500">{incorrect}</p>
+                <p className="text-xs text-gray-400 mt-1">Incorrect</p>
+              </div>
+              <div className="border rounded-xl p-4 text-center">
+                <p className="text-3xl font-bold text-blue-600">
+                  {correct + incorrect > 0 ? Math.round((correct / (correct + incorrect)) * 100) : 0}%
+                </p>
+                <p className="text-xs text-gray-400 mt-1">Accuracy</p>
+              </div>
+            </div>
+            <div className="flex gap-3 justify-center">
+              {activeDeck && <Button onClick={() => startStudy(activeDeck)}>🔄 Study Again</Button>}
+              <Button variant="outline" onClick={() => setActiveView("decks")}>← Back to Decks</Button>
+            </div>
           </div>
-          <div className="space-y-2">
-            {attempts.slice(0, 50).map((a) => (
-              <div key={a.id} className="border border-gray-100 rounded-lg p-3 bg-white flex justify-between items-center">
+        </Section>
+      )}
+
+      {/* CREATE DECK VIEW */}
+      {activeView === "create" && (
+        <Section title="Create New Deck">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Deck Name *</label>
+              <input type="text" value={newDeckName} onChange={(e) => setNewDeckName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && document.getElementById("category-select")?.focus()}
+                placeholder="e.g. My RBT Flashcards"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Category</label>
+              <select id="category-select" value={newCategory} onChange={(e) => setNewCategory(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                {["RBT", "BCBA", "BCaBA", "Ethics", "Measurement", "Other"].map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-3 mb-4">
+            <div className="flex justify-between items-center">
+              <label className="text-sm font-medium text-gray-700">Cards ({newCards.filter((c) => c.front).length} valid)</label>
+              <Button variant="outline" onClick={addCard}>+ Add Card</Button>
+            </div>
+            {newCards.map((card, i) => (
+              <div key={i} className="grid grid-cols-2 gap-3 border border-gray-100 rounded-lg p-3 bg-gray-50">
                 <div>
-                  <p className="text-xs text-gray-400">{new Date(a.created_at).toLocaleString()}</p>
-                  {a.duration_seconds && (
-                    <p className="text-xs text-gray-400">{a.duration_seconds}s</p>
-                  )}
+                  <label className="text-xs text-gray-400 mb-1 block">Front (Question)</label>
+                  <textarea value={card.front} onChange={(e) => updateCard(i, "front", e.target.value)}
+                    placeholder="Question or term..." rows={2}
+                    className="w-full border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" />
                 </div>
-                <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                  a.correct ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                }`}>
-                  {a.correct ? "✓ Correct" : "✗ Incorrect"}
-                </span>
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Back (Answer)</label>
+                  <textarea value={card.back} onChange={(e) => updateCard(i, "back", e.target.value)}
+                    placeholder="Answer or definition..." rows={2}
+                    className="w-full border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" />
+                </div>
+                {newCards.length > 1 && (
+                  <button onClick={() => removeCard(i)} className="text-xs text-red-400 hover:text-red-600 col-span-2 text-right">Remove card</button>
+                )}
               </div>
             ))}
           </div>
-        </Section>
-      )}
 
-      {/* LEADERBOARD */}
-      {mode === "leaderboard" && (
-        <Section title="🏆 Leaderboard">
-          <div className="flex gap-2 mb-4">
-            <Button variant="outline" onClick={() => startStudy(false)}>← Back to Study</Button>
+          <div className="flex gap-2">
+            <Button onClick={handleCreateDeck} loading={saving} disabled={!newDeckName || newCards.filter((c) => c.front).length === 0}>
+              Save Deck
+            </Button>
+            <Button variant="outline" onClick={() => setActiveView("decks")}>Cancel</Button>
           </div>
-          {leaderboard.length === 0 ? (
-            <p className="text-gray-400 text-sm">No attempts yet.</p>
-          ) : (
-            <div className="space-y-2">
-              {leaderboard.map((entry, i) => (
-                <div key={entry.user_id} className={`border rounded-lg p-3 flex justify-between items-center ${
-                  entry.user_id === userId ? "border-blue-200 bg-blue-50" : "border-gray-100 bg-white"
-                }`}>
-                  <div className="flex items-center gap-3">
-                    <span className={`text-lg font-bold ${
-                      i === 0 ? "text-yellow-500" : i === 1 ? "text-gray-400" : i === 2 ? "text-orange-500" : "text-gray-300"
-                    }`}>
-                      #{i + 1}
-                    </span>
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">{entry.name}</p>
-                      <p className="text-xs text-gray-400">{entry.total} attempts</p>
-                    </div>
-                  </div>
-                  <span className="text-sm font-bold text-blue-600">{entry.accuracy}%</span>
-                </div>
-              ))}
-            </div>
-          )}
         </Section>
       )}
     </div>

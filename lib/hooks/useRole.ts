@@ -1,57 +1,101 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
-import {
-  hasPermission,
-  hasMinimumRole,
-  type UserRole,
-} from "@/lib/auth/roles";
 
-type RoleState = {
-  role: UserRole | null;
-  loading: boolean;
-  hasPermission: (permission: string) => boolean;
-  hasMinimumRole: (minimumRole: UserRole) => boolean;
-  isAdmin: boolean;
-  isSupervisor: boolean;
-  isClinician: boolean;
+export type UserRole =
+  | "admin"
+  | "director"
+  | "supervisor"
+  | "clinician"
+  | "student_analyst"
+  | "rbt"
+  | "bt"
+  | "office"
+  | "accounting"
+  | "hr"
+  | "parent"
+  | null;
+
+export const ROLE_TIERS: Record<string, number> = {
+  admin: 10,
+  director: 9,
+  supervisor: 8,
+  clinician: 7,
+  student_analyst: 6,
+  rbt: 5,
+  bt: 4,
+  office: 3,
+  accounting: 3,
+  hr: 3,
+  parent: 1,
 };
 
-export function useRole(): RoleState {
-  const [role, setRole] = useState<UserRole | null>(null);
+export const ROLE_PERMISSIONS: Record<string, string[]> = {
+  admin: ["*"],
+  director: ["dashboard", "clients", "billing", "staff", "reports", "settings", "clinical", "supervisor"],
+  supervisor: ["dashboard", "clients", "clinical", "staff", "reports", "supervisor"],
+  clinician: ["dashboard", "clients", "clinical", "reports"],
+  student_analyst: ["dashboard", "clients", "clinical", "student_hub"],
+  rbt: ["dashboard", "clients", "clinical"],
+  bt: ["dashboard", "clients", "clinical"],
+  office: ["dashboard", "clients", "billing", "insurance"],
+  accounting: ["dashboard", "billing", "insurance", "reports"],
+  hr: ["dashboard", "staff", "credentials"],
+  parent: ["parent_portal"],
+};
+
+export function useRole() {
+  const [role, setRole] = useState<UserRole>(null);
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadRole() {
+    async function fetchRole() {
       const { data: auth } = await supabase.auth.getUser();
       const user = auth?.user;
+      if (!user) { setLoading(false); return; }
 
-      if (!user) {
-        setLoading(false);
-        return;
-      }
+      setUserId(user.id);
 
-      const { data: profile } = await supabase
+      const { data } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", user.id)
         .single();
 
-      setRole((profile?.role as UserRole) ?? "clinician");
+      setRole((data?.role as UserRole) ?? null);
       setLoading(false);
     }
-
-    loadRole();
+    fetchRole();
   }, []);
+
+  function hasPermission(permission: string): boolean {
+    if (!role) return false;
+    const perms = ROLE_PERMISSIONS[role] ?? [];
+    return perms.includes("*") || perms.includes(permission);
+  }
+
+  function meetsMinTier(minTier: number): boolean {
+    return (ROLE_TIERS[role ?? ""] ?? 0) >= minTier;
+  }
 
   return {
     role,
     loading,
-    hasPermission: (permission: string) =>
-      role ? hasPermission(role, permission) : false,
-    hasMinimumRole: (minimumRole: UserRole) =>
-      role ? hasMinimumRole(role, minimumRole) : false,
+    userId,
+    tier: ROLE_TIERS[role ?? ""] ?? 0,
+    hasPermission,
+    meetsMinTier,
     isAdmin: role === "admin",
-    isSupervisor: role === "supervisor" || role === "admin",
-    isClinician: role === "clinician" || role === "supervisor" || role === "admin",
+    isDirector: role === "director" || role === "admin",
+    isSupervisor: role === "supervisor" || role === "director" || role === "admin",
+    isClinician: ["clinician", "supervisor", "director", "admin"].includes(role ?? ""),
+    isRBT: role === "rbt" || role === "bt",
+    isStudentAnalyst: role === "student_analyst",
+    isOfficeStaff: ["office", "accounting", "hr"].includes(role ?? ""),
+    isParent: role === "parent",
+    canBill: ["admin", "director", "office", "accounting"].includes(role ?? ""),
+    canSupervise: ["admin", "director", "supervisor"].includes(role ?? ""),
+    canViewAllClients: ["admin", "director", "supervisor", "clinician"].includes(role ?? ""),
+    canEditTreatmentPlans: ["admin", "director", "supervisor", "clinician"].includes(role ?? ""),
   };
 }

@@ -12,7 +12,7 @@ type NavItem = { label: string; href: string; icon: string; children: NavChild[]
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { isAdmin, isSupervisor, isClinician } = useRole();
+  const { isAdmin, isSupervisor, isClinician, isStudentAnalyst } = useRole();
 
   async function handleLogout() {
     clearCompanyCache();
@@ -129,6 +129,8 @@ export default function Sidebar() {
         { label: "Parent Portal", href: "/dashboard/parent-portal" },
         { label: "Caregiver Training", href: "/dashboard/caregiver-training" },
         { label: "AI Parent Summary", href: "/dashboard/parent-portal/ai-summary" },
+        { label: "Parent Documents", href: "/dashboard/parent-portal/documents" },
+        { label: "Home Program Data", href: "/dashboard/parent-portal/home-program" },
       ],
     },
     ...(isClinician ? [{
@@ -143,6 +145,7 @@ export default function Sidebar() {
         { label: "Rate Data", href: "/dashboard/rate-data" },
         { label: "Program Fidelity", href: "/dashboard/fidelity" },
         { label: "Assessments", href: "/dashboard/assessments" },
+        { label: "Incident Reports", href: "/dashboard/incidents" },
         { label: "AI Assistant", href: "/dashboard/ai-chat" },
         { label: "AI Treatment Plans", href: "/dashboard/ai-treatment-plans" },
         { label: "Suggestions", href: "/dashboard/suggestions" },
@@ -150,6 +153,17 @@ export default function Sidebar() {
         { label: "Progress Reports", href: "/dashboard/progress-reports" },
         { label: "Report Templates", href: "/dashboard/report-templates" },
         { label: "Caregiver Training", href: "/dashboard/caregiver-training" },
+      ],
+    }] : []),
+    ...(isStudentAnalyst ? [{
+      label: "Student Hub",
+      href: "/dashboard/student-hub",
+      icon: "🎓",
+      children: [
+        { label: "Hour Tracker", href: "/dashboard/student-hub" },
+        { label: "SAFMEDS", href: "/dashboard/safmeds" },
+        { label: "Supervision Logs", href: "/dashboard/supervision" },
+        { label: "My Credentials", href: "/dashboard/credentials" },
       ],
     }] : []),
     ...(isSupervisor ? [{
@@ -163,6 +177,7 @@ export default function Sidebar() {
         { label: "Staff Performance", href: "/dashboard/staff-performance" },
         { label: "Competency Checks", href: "/dashboard/competency" },
         { label: "Program Fidelity", href: "/dashboard/fidelity" },
+        { label: "Incident Reports", href: "/dashboard/incidents" },
         { label: "Error Reports", href: "/dashboard/session-errors" },
         { label: "Progress Reports", href: "/dashboard/progress-reports" },
         { label: "Export Queue", href: "/dashboard/supervisor" },
@@ -173,11 +188,13 @@ export default function Sidebar() {
       href: "/dashboard/admin",
       icon: "🔐",
       children: [
+        { label: "Admin Panel", href: "/dashboard/admin" },
         { label: "Audit Logs", href: "/dashboard/admin/logs" },
         { label: "Billing Dashboard", href: "/dashboard/admin/billing" },
         { label: "Analytics", href: "/dashboard/analytics" },
         { label: "Revenue Cycle", href: "/dashboard/billing/rcm" },
         { label: "Staff Performance", href: "/dashboard/staff-performance" },
+        { label: "Incident Reports", href: "/dashboard/incidents" },
         { label: "Waitlist", href: "/dashboard/waitlist" },
         { label: "API Docs", href: "/dashboard/docs" },
       ],
@@ -202,12 +219,19 @@ export default function Sidebar() {
         { label: "My Credentials", href: "/dashboard/credentials" },
         { label: "My Availability", href: "/dashboard/staff-availability" },
         { label: "Student Analyst Hub", href: "/dashboard/student-hub" },
+        { label: "SAFMEDS", href: "/dashboard/safmeds" },
         { label: "Plan & Billing", href: "/dashboard/settings/billing" },
         { label: "Security", href: "/dashboard/settings/security" },
         { label: "Notifications", href: "/dashboard/settings/notifications" },
         { label: "SMS Alerts", href: "/dashboard/settings/sms" },
         { label: "Install App", href: "/dashboard/pwa" },
       ],
+    },
+    {
+      label: "Search",
+      href: "/dashboard/search",
+      icon: "🔍",
+      children: [],
     },
     {
       label: "Help",
