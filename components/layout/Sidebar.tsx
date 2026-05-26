@@ -64,9 +64,11 @@ export default function Sidebar() {
       children: [
         { label: "All Clients", href: "/dashboard/clients" },
         { label: "Add Client", href: "/dashboard/clients/new" },
+        { label: "Client Intake", href: "/dashboard/client-intake" },
+        { label: "Treatment Plans", href: "/dashboard/treatment-plans" },
         { label: "Case Drilldown", href: "/dashboard/clients" },
         { label: "Timeline", href: "/dashboard/clients" },
-        { label: "Export History", href: "/dashboard/clients" },
+        { label: "Exports", href: "/dashboard/clients" },
       ],
     },
     {
@@ -99,6 +101,8 @@ export default function Sidebar() {
         { label: "Members", href: "/dashboard/team" },
         { label: "Invite Member", href: "/dashboard/team/invite" },
         { label: "Locations", href: "/dashboard/team/locations" },
+        { label: "Supervision Logs", href: "/dashboard/supervision" },
+        { label: "My Credentials", href: "/dashboard/credentials" },
       ],
     },
     {
@@ -118,11 +122,12 @@ export default function Sidebar() {
       icon: "🏥",
       children: [
         { label: "Clinician View", href: "/dashboard/clinician" },
-        { label: "AI Summary", href: "/dashboard/clients" },
+        { label: "DTT Data Collection", href: "/dashboard/dtt" },
+        { label: "Task Analysis", href: "/dashboard/task-analysis" },
         { label: "AI Assistant", href: "/dashboard/ai-chat" },
         { label: "Suggestions", href: "/dashboard/suggestions" },
-        { label: "Reports", href: "/dashboard/clients" },
         { label: "SAFMEDS", href: "/dashboard/safmeds" },
+        { label: "Progress Reports", href: "/dashboard/progress-reports" },
       ],
     }] : []),
     ...(isSupervisor ? [{
@@ -131,9 +136,10 @@ export default function Sidebar() {
       icon: "📊",
       children: [
         { label: "Dashboard", href: "/dashboard/supervisor" },
-        { label: "Export Queue", href: "/dashboard/supervisor" },
-        { label: "Workload Heatmap", href: "/dashboard/supervisor" },
+        { label: "Supervision Logs", href: "/dashboard/supervision" },
         { label: "Error Reports", href: "/dashboard/session-errors" },
+        { label: "Progress Reports", href: "/dashboard/progress-reports" },
+        { label: "Export Queue", href: "/dashboard/supervisor" },
       ],
     }] : []),
     ...(isAdmin ? [{
@@ -152,6 +158,7 @@ export default function Sidebar() {
       icon: "📁",
       children: [
         { label: "Session History", href: "/dashboard/history" },
+        { label: "Progress Reports", href: "/dashboard/progress-reports" },
         { label: "Export History", href: "/dashboard/history/exports" },
         { label: "AI Request History", href: "/dashboard/history/ai" },
       ],
@@ -162,6 +169,7 @@ export default function Sidebar() {
       icon: "⚙️",
       children: [
         { label: "My Profile", href: "/dashboard/settings" },
+        { label: "My Credentials", href: "/dashboard/credentials" },
         { label: "Plan & Billing", href: "/dashboard/settings/billing" },
         { label: "Security", href: "/dashboard/settings/security" },
         { label: "Notifications", href: "/dashboard/settings/notifications" },
