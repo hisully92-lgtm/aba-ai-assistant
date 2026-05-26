@@ -1,35 +1,15 @@
-import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 const ADMIN_EMAILS = ["hisully92@gmail.com"];
 
-export async function isAdmin() {
-  const supabase = await createClient();
+export async function isAdmin(userId: string) {
+  const { data, error } = await supabaseAdmin.auth.admin.getUserById(
+    userId
+  );
 
-  // Get authenticated user
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
+  if (error || !data?.user?.email) {
     return false;
   }
 
-  // Quick developer/admin email bypass
-  if (ADMIN_EMAILS.includes(user.email ?? "")) {
-    return true;
-  }
-
-  // Database role check
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profileError || !profile) {
-    return false;
-  }
-
-  return profile.role === "admin";
+  return ADMIN_EMAILS.includes(data.user.email);
 }
