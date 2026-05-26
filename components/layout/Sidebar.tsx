@@ -90,6 +90,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
         { label: "Case Drilldown", href: "/dashboard/clients" },
         { label: "Timeline", href: "/dashboard/clients" },
         { label: "Exports", href: "/dashboard/clients" },
+        { label: "Authorizations", href: "/dashboard/authorizations" },
       ],
     },
     {
@@ -118,6 +119,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
         { label: "Revenue Cycle", href: "/dashboard/billing/rcm" },
         { label: "Payroll Logs", href: "/dashboard/payroll" },
         { label: "AI Compliance Check", href: "/dashboard/insurance/ai-check" },
+        { label: "Authorizations", href: "/dashboard/authorizations" },
       ],
     },
     {
@@ -204,6 +206,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
         { label: "Progress Reports", href: "/dashboard/progress-reports" },
         { label: "Export Queue", href: "/dashboard/supervisor" },
         { label: "Visual Analytics", href: "/dashboard/analytics/graphs" },
+        { label: "Authorizations", href: "/dashboard/authorizations" },
       ],
     }] : []),
     ...(isAdmin ? [{
