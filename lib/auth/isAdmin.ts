@@ -1,7 +1,16 @@
-const ADMIN_EMAILS = ["hisully92@gmail.com"];
+import { supabase } from "@/lib/supabase/client";
 
-export async function isAdmin(email?: string | null) {
+export async function isAdmin() {
+  const { data } = await supabase.auth.getUser();
+
+  const email = data.user?.email;
   if (!email) return false;
 
-  return ADMIN_EMAILS.includes(email);
+  const { data: profile } = await supabase
+    .from("users")
+    .select("role")
+    .eq("email", email)
+    .single();
+
+  return profile?.role === "admin";
 }
