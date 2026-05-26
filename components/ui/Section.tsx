@@ -6,13 +6,12 @@ type SectionProps = {
 
 export default function Section({ title, children, className = "" }: SectionProps) {
   return (
-    <div className={`bg-white rounded-2xl shadow p-6 border mb-6 ${className}`}>
+    <div className={`bg-white rounded-xl shadow-sm p-4 md:p-6 border border-gray-100 mb-4 md:mb-6 ${className}`}>
       {title && (
-        <h2 className="text-xl font-bold mb-4">
+        <h2 className="text-base md:text-lg font-bold mb-3 md:mb-4 text-gray-800">
           {title}
         </h2>
       )}
-
       {children}
     </div>
   );

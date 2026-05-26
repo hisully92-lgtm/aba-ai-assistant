@@ -1,50 +1,47 @@
-type ButtonProps = {
-  children: React.ReactNode;
-  onClick?: () => void;
-  type?: "button" | "submit" | "reset";
-  className?: string;
+import { ButtonHTMLAttributes } from "react";
+
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "danger" | "outline";
-  disabled?: boolean;
   loading?: boolean;
   fullWidth?: boolean;
-};
+}
 
 export default function Button({
   children,
-  onClick,
-  type = "button",
-  className = "",
   variant = "primary",
-  disabled = false,
   loading = false,
   fullWidth = false,
+  disabled,
+  className = "",
+  ...props
 }: ButtonProps) {
   const base =
-    "px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2";
+    "inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 touch-manipulation";
 
-  const styles = {
-    primary: "bg-black text-white hover:bg-gray-800",
-    secondary: "bg-blue-600 text-white hover:bg-blue-700",
-    danger: "bg-red-600 text-white hover:bg-red-700",
-    outline: "border border-gray-300 text-gray-700 hover:bg-gray-100",
+  const variants = {
+    primary: "bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-300",
+    secondary: "bg-gray-600 hover:bg-gray-700 text-white focus:ring-gray-300",
+    danger: "bg-red-500 hover:bg-red-600 text-white focus:ring-red-300",
+    outline: "border border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-gray-200 bg-white",
   };
-
-  const disabledStyle = "opacity-50 cursor-not-allowed";
 
   return (
     <button
-      type={type}
-      onClick={onClick}
+      {...props}
       disabled={disabled || loading}
       className={`
         ${base}
-        ${styles[variant]}
-        ${disabled || loading ? disabledStyle : ""}
+        ${variants[variant]}
         ${fullWidth ? "w-full" : ""}
         ${className}
       `}
     >
-      {loading ? "Loading..." : children}
+      {loading ? (
+        <>
+          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          <span>Loading...</span>
+        </>
+      ) : children}
     </button>
   );
 }
