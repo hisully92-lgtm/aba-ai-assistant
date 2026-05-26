@@ -48,6 +48,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
         { label: "Session Templates", href: "/dashboard/templates" },
         { label: "Session Error Log", href: "/dashboard/session-errors" },
         { label: "Data Collection Hub", href: "/dashboard/data-collection" },
+        { label: "Data Collection Hub", href: "/dashboard/data-collection" },
       ],
     },
     {
@@ -60,6 +61,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
         { label: "Intervention History", href: "/dashboard/behaviors/history" },
         { label: "Interval Recording", href: "/dashboard/interval-recording" },
         { label: "Rate Data", href: "/dashboard/rate-data" },
+        { label: "Visual Analytics", href: "/dashboard/analytics/graphs" },
       ],
     },
     {
@@ -71,6 +73,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
         { label: "Program Progress", href: "/dashboard/programs/progress" },
         { label: "Add Program", href: "/dashboard/programs/new" },
         { label: "Program Books", href: "/dashboard/program-books" },
+        { label: "Program Graphs", href: "/dashboard/analytics/graphs" },
       ],
     },
     {
@@ -200,6 +203,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
         { label: "Error Reports", href: "/dashboard/session-errors" },
         { label: "Progress Reports", href: "/dashboard/progress-reports" },
         { label: "Export Queue", href: "/dashboard/supervisor" },
+        { label: "Visual Analytics", href: "/dashboard/analytics/graphs" },
       ],
     }] : []),
     ...(isAdmin ? [{
@@ -217,6 +221,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
         { label: "Incident Reports", href: "/dashboard/incidents" },
         { label: "Waitlist", href: "/dashboard/waitlist" },
         { label: "API Docs", href: "/dashboard/docs" },
+        { label: "Visual Analytics", href: "/dashboard/analytics/graphs" },
       ],
     }] : []),
     {
