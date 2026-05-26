@@ -47,6 +47,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
         { label: "Recent Sessions", href: "/dashboard/history" },
         { label: "Session Templates", href: "/dashboard/templates" },
         { label: "Session Error Log", href: "/dashboard/session-errors" },
+        { label: "Data Collection Hub", href: "/dashboard/data-collection" },
       ],
     },
     {
