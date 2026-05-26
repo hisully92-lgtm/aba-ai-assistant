@@ -7,12 +7,27 @@ import { supabase } from "@/lib/supabase/client";
 import { useRole } from "@/lib/hooks/useRole";
 import { clearCompanyCache } from "@/lib/hooks/useCompany";
 
-type NavChild = { label: string; href: string };
-type NavItem = { label: string; href: string; icon: string; children: NavChild[] };
+type NavChild = {
+  label: string;
+  href: string;
+};
+
+type NavItem = {
+  label: string;
+  href: string;
+  icon: string;
+  children: NavChild[];
+};
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { isAdmin, isSupervisor, isClinician, isStudentAnalyst } = useRole();
+
+  const {
+    isAdmin,
+    isSupervisor,
+    isClinician,
+    isStudentAnalyst,
+  } = useRole();
 
   async function handleLogout() {
     clearCompanyCache();
@@ -22,6 +37,7 @@ export default function Sidebar() {
 
   function isActive(href: string) {
     if (!pathname) return false;
+
     return pathname === href || pathname.startsWith(href + "/");
   }
 
@@ -37,6 +53,7 @@ export default function Sidebar() {
         { label: "Session Error Log", href: "/dashboard/session-errors" },
       ],
     },
+
     {
       label: "Behavior Interventions",
       href: "/dashboard/behaviors",
@@ -49,6 +66,7 @@ export default function Sidebar() {
         { label: "Rate Data", href: "/dashboard/rate-data" },
       ],
     },
+
     {
       label: "Skill Programs",
       href: "/dashboard/programs",
@@ -60,6 +78,7 @@ export default function Sidebar() {
         { label: "Program Books", href: "/dashboard/program-books" },
       ],
     },
+
     {
       label: "Clients / Learners",
       href: "/dashboard/clients",
@@ -76,12 +95,14 @@ export default function Sidebar() {
         { label: "Exports", href: "/dashboard/clients" },
       ],
     },
+
     {
       label: "Schedule",
       href: "/dashboard/schedule",
       icon: "📅",
       children: [
         { label: "Calendar View", href: "/dashboard/schedule" },
+        { label: "Session Changes", href: "/dashboard/session-changes" },
         { label: "Telehealth", href: "/dashboard/telehealth" },
         { label: "Time Tracking", href: "/dashboard/timetracking" },
         { label: "Signatures", href: "/dashboard/signatures" },
@@ -89,20 +110,28 @@ export default function Sidebar() {
         { label: "Reminders", href: "/dashboard/reminders" },
       ],
     },
+
     {
       label: "Insurance & Billing",
       href: "/dashboard/insurance",
       icon: "🏦",
       children: [
         { label: "Claims & Auth", href: "/dashboard/insurance" },
-        { label: "Insurance Providers", href: "/dashboard/insurance-providers" },
+        {
+          label: "Insurance Providers",
+          href: "/dashboard/insurance-providers",
+        },
         { label: "ERA / EOB Posting", href: "/dashboard/billing/era-eob" },
         { label: "Superbills", href: "/dashboard/billing/superbills" },
         { label: "Revenue Cycle", href: "/dashboard/billing/rcm" },
         { label: "Payroll Logs", href: "/dashboard/payroll" },
-        { label: "AI Compliance Check", href: "/dashboard/insurance/ai-check" },
+        {
+          label: "AI Compliance Check",
+          href: "/dashboard/insurance/ai-check",
+        },
       ],
     },
+
     {
       label: "Team",
       href: "/dashboard/team",
@@ -118,6 +147,7 @@ export default function Sidebar() {
         { label: "My Availability", href: "/dashboard/staff-availability" },
       ],
     },
+
     {
       label: "Communication",
       href: "/dashboard/chat",
@@ -127,89 +157,189 @@ export default function Sidebar() {
         { label: "Direct Messages", href: "/dashboard/direct-messages" },
         { label: "Notifications", href: "/dashboard/notifications" },
         { label: "Parent Portal", href: "/dashboard/parent-portal" },
-        { label: "Caregiver Training", href: "/dashboard/caregiver-training" },
-        { label: "AI Parent Summary", href: "/dashboard/parent-portal/ai-summary" },
-        { label: "Parent Documents", href: "/dashboard/parent-portal/documents" },
-        { label: "Home Program Data", href: "/dashboard/parent-portal/home-program" },
+        {
+          label: "Caregiver Training",
+          href: "/dashboard/caregiver-training",
+        },
+        {
+          label: "AI Parent Summary",
+          href: "/dashboard/parent-portal/ai-summary",
+        },
+        {
+          label: "Parent Documents",
+          href: "/dashboard/parent-portal/documents",
+        },
+        {
+          label: "Home Program Data",
+          href: "/dashboard/parent-portal/home-program",
+        },
       ],
     },
-    ...(isClinician ? [{
-      label: "Clinical",
-      href: "/dashboard/clinician",
-      icon: "🏥",
-      children: [
-        { label: "Clinician View", href: "/dashboard/clinician" },
-        { label: "DTT Data Collection", href: "/dashboard/dtt" },
-        { label: "Task Analysis", href: "/dashboard/task-analysis" },
-        { label: "Interval Recording", href: "/dashboard/interval-recording" },
-        { label: "Rate Data", href: "/dashboard/rate-data" },
-        { label: "Program Fidelity", href: "/dashboard/fidelity" },
-        { label: "Assessments", href: "/dashboard/assessments" },
-        { label: "Incident Reports", href: "/dashboard/incidents" },
-        { label: "AI Assistant", href: "/dashboard/ai-chat" },
-        { label: "AI Treatment Plans", href: "/dashboard/ai-treatment-plans" },
-        { label: "Suggestions", href: "/dashboard/suggestions" },
-        { label: "SAFMEDS", href: "/dashboard/safmeds" },
-        { label: "Progress Reports", href: "/dashboard/progress-reports" },
-        { label: "Report Templates", href: "/dashboard/report-templates" },
-        { label: "Caregiver Training", href: "/dashboard/caregiver-training" },
-      ],
-    }] : []),
-    ...(isStudentAnalyst ? [{
-      label: "Student Hub",
-      href: "/dashboard/student-hub",
-      icon: "🎓",
-      children: [
-        { label: "Hour Tracker", href: "/dashboard/student-hub" },
-        { label: "SAFMEDS", href: "/dashboard/safmeds" },
-        { label: "Supervision Logs", href: "/dashboard/supervision" },
-        { label: "My Credentials", href: "/dashboard/credentials" },
-      ],
-    }] : []),
-    ...(isSupervisor ? [{
-      label: "Supervisor",
-      href: "/dashboard/supervisor",
-      icon: "📊",
-      children: [
-        { label: "Dashboard", href: "/dashboard/supervisor" },
-        { label: "Analytics", href: "/dashboard/analytics" },
-        { label: "Supervision Logs", href: "/dashboard/supervision" },
-        { label: "Staff Performance", href: "/dashboard/staff-performance" },
-        { label: "Competency Checks", href: "/dashboard/competency" },
-        { label: "Program Fidelity", href: "/dashboard/fidelity" },
-        { label: "Incident Reports", href: "/dashboard/incidents" },
-        { label: "Error Reports", href: "/dashboard/session-errors" },
-        { label: "Progress Reports", href: "/dashboard/progress-reports" },
-        { label: "Export Queue", href: "/dashboard/supervisor" },
-      ],
-    }] : []),
-    ...(isAdmin ? [{
-      label: "Admin",
-      href: "/dashboard/admin",
-      icon: "🔐",
-      children: [
-        { label: "Admin Panel", href: "/dashboard/admin" },
-        { label: "Audit Logs", href: "/dashboard/admin/logs" },
-        { label: "Billing Dashboard", href: "/dashboard/admin/billing" },
-        { label: "Analytics", href: "/dashboard/analytics" },
-        { label: "Revenue Cycle", href: "/dashboard/billing/rcm" },
-        { label: "Staff Performance", href: "/dashboard/staff-performance" },
-        { label: "Incident Reports", href: "/dashboard/incidents" },
-        { label: "Waitlist", href: "/dashboard/waitlist" },
-        { label: "API Docs", href: "/dashboard/docs" },
-      ],
-    }] : []),
+
+    ...(isClinician
+      ? [
+          {
+            label: "Clinical",
+            href: "/dashboard/clinician",
+            icon: "🏥",
+            children: [
+              { label: "Clinician View", href: "/dashboard/clinician" },
+              { label: "DTT Data Collection", href: "/dashboard/dtt" },
+              { label: "Task Analysis", href: "/dashboard/task-analysis" },
+              {
+                label: "Prompt Fading",
+                href: "/dashboard/prompt-fading",
+              },
+              {
+                label: "Visual Supports",
+                href: "/dashboard/visual-supports",
+              },
+              {
+                label: "Social Stories",
+                href: "/dashboard/social-stories",
+              },
+              {
+                label: "Interval Recording",
+                href: "/dashboard/interval-recording",
+              },
+              { label: "Rate Data", href: "/dashboard/rate-data" },
+              { label: "Program Fidelity", href: "/dashboard/fidelity" },
+              { label: "Assessments", href: "/dashboard/assessments" },
+              {
+                label: "Incident Reports",
+                href: "/dashboard/incidents",
+              },
+              { label: "AI Assistant", href: "/dashboard/ai-chat" },
+              {
+                label: "AI Treatment Plans",
+                href: "/dashboard/ai-treatment-plans",
+              },
+              { label: "Suggestions", href: "/dashboard/suggestions" },
+              { label: "SAFMEDS", href: "/dashboard/safmeds" },
+              {
+                label: "Progress Reports",
+                href: "/dashboard/progress-reports",
+              },
+              {
+                label: "Report Templates",
+                href: "/dashboard/report-templates",
+              },
+              {
+                label: "Caregiver Training",
+                href: "/dashboard/caregiver-training",
+              },
+            ],
+          },
+        ]
+      : []),
+
+    ...(isStudentAnalyst
+      ? [
+          {
+            label: "Student Hub",
+            href: "/dashboard/student-hub",
+            icon: "🎓",
+            children: [
+              { label: "Hour Tracker", href: "/dashboard/student-hub" },
+              { label: "SAFMEDS", href: "/dashboard/safmeds" },
+              { label: "Supervision Logs", href: "/dashboard/supervision" },
+              { label: "My Credentials", href: "/dashboard/credentials" },
+            ],
+          },
+        ]
+      : []),
+
+    ...(isSupervisor
+      ? [
+          {
+            label: "Supervisor",
+            href: "/dashboard/supervisor",
+            icon: "📊",
+            children: [
+              { label: "Dashboard", href: "/dashboard/supervisor" },
+              { label: "Analytics", href: "/dashboard/analytics" },
+              {
+                label: "Macro Trends",
+                href: "/dashboard/analytics/macro",
+              },
+              {
+                label: "Behavior Heatmap",
+                href: "/dashboard/analytics/heatmap",
+              },
+              { label: "Supervision Logs", href: "/dashboard/supervision" },
+              {
+                label: "Staff Performance",
+                href: "/dashboard/staff-performance",
+              },
+              { label: "Competency Checks", href: "/dashboard/competency" },
+              { label: "Program Fidelity", href: "/dashboard/fidelity" },
+              {
+                label: "Incident Reports",
+                href: "/dashboard/incidents",
+              },
+              {
+                label: "Error Reports",
+                href: "/dashboard/session-errors",
+              },
+              {
+                label: "Progress Reports",
+                href: "/dashboard/progress-reports",
+              },
+              { label: "Export Queue", href: "/dashboard/supervisor" },
+            ],
+          },
+        ]
+      : []),
+
+    ...(isAdmin
+      ? [
+          {
+            label: "Admin",
+            href: "/dashboard/admin",
+            icon: "🔐",
+            children: [
+              { label: "Admin Panel", href: "/dashboard/admin" },
+              { label: "Audit Logs", href: "/dashboard/admin/logs" },
+              {
+                label: "Billing Dashboard",
+                href: "/dashboard/admin/billing",
+              },
+              { label: "Analytics", href: "/dashboard/analytics" },
+              {
+                label: "Macro Trends",
+                href: "/dashboard/analytics/macro",
+              },
+              { label: "Revenue Cycle", href: "/dashboard/billing/rcm" },
+              {
+                label: "Staff Performance",
+                href: "/dashboard/staff-performance",
+              },
+              {
+                label: "Incident Reports",
+                href: "/dashboard/incidents",
+              },
+              { label: "Waitlist", href: "/dashboard/waitlist" },
+              { label: "API Docs", href: "/dashboard/docs" },
+            ],
+          },
+        ]
+      : []),
+
     {
       label: "History",
       href: "/dashboard/history",
       icon: "📁",
       children: [
         { label: "Session History", href: "/dashboard/history" },
-        { label: "Progress Reports", href: "/dashboard/progress-reports" },
+        {
+          label: "Progress Reports",
+          href: "/dashboard/progress-reports",
+        },
         { label: "Export History", href: "/dashboard/history/exports" },
         { label: "AI Request History", href: "/dashboard/history/ai" },
       ],
     },
+
     {
       label: "Profile / Settings",
       href: "/dashboard/settings",
@@ -222,23 +352,29 @@ export default function Sidebar() {
         { label: "SAFMEDS", href: "/dashboard/safmeds" },
         { label: "Plan & Billing", href: "/dashboard/settings/billing" },
         { label: "Security", href: "/dashboard/settings/security" },
-        { label: "Notifications", href: "/dashboard/settings/notifications" },
+        {
+          label: "Notifications",
+          href: "/dashboard/settings/notifications",
+        },
         { label: "SMS Alerts", href: "/dashboard/settings/sms" },
         { label: "Install App", href: "/dashboard/pwa" },
       ],
     },
+
     {
       label: "Search",
       href: "/dashboard/search",
       icon: "🔍",
       children: [],
     },
+
     {
       label: "Help",
       href: "/dashboard/help",
       icon: "❓",
       children: [],
     },
+
     {
       label: "Upgrade to Pro",
       href: "/dashboard/upgrade",
@@ -257,15 +393,20 @@ export default function Sidebar() {
           height={80}
           className="rounded-lg mb-2"
         />
-        <h1 className="text-white font-bold text-xl mb-6">ABA AI</h1>
+
+        <h1 className="text-white font-bold text-xl mb-6">
+          ABA AI
+        </h1>
 
         <nav className="flex flex-col gap-1">
           {nav.map((item) => (
-            <div key={item.href + item.label}>
+            <div key={`${item.href}-${item.label}`}>
               <Link
                 href={item.href}
                 className={`flex items-center gap-2 px-4 py-2 rounded text-white text-sm font-medium transition-colors ${
-                  isActive(item.href) ? "bg-[#2a3a54]" : "bg-[#243044] hover:bg-[#2a3a54]"
+                  isActive(item.href)
+                    ? "bg-[#2a3a54]"
+                    : "bg-[#243044] hover:bg-[#2a3a54]"
                 }`}
               >
                 <span>{item.icon}</span>
@@ -276,7 +417,7 @@ export default function Sidebar() {
                 <div className="ml-3 mt-1 flex flex-col gap-1 border-l border-[#2a3a54] pl-3">
                   {item.children.map((child) => (
                     <Link
-                      key={child.href + child.label}
+                      key={`${child.href}-${child.label}`}
                       href={child.href}
                       className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                         pathname === child.href
