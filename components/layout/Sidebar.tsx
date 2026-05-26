@@ -40,6 +40,9 @@ export default function Sidebar() {
 
     return pathname === href || pathname.startsWith(href + "/");
   }
+  function isChildActive(item: NavItem) {
+  return item.children.some((child) => isActive(child.href));
+}
 
   const nav: NavItem[] = [
     {
@@ -413,7 +416,7 @@ export default function Sidebar() {
                 <span>{item.label}</span>
               </Link>
 
-              {item.children.length > 0 && isActive(item.href) && (
+              {item.children.length > 0 && isChildActive(item) && (
                 <div className="ml-3 mt-1 flex flex-col gap-1 border-l border-[#2a3a54] pl-3">
                   {item.children.map((child) => (
                     <Link
