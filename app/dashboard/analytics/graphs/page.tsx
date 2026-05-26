@@ -220,23 +220,28 @@ export default function GraphsPage() {
   }
 
   function buildBarData() {
-    if (dataSource === "behavior") {
-      const byBehavior = new Map<string, number>();
-      behaviorData.forEach((b) => byBehavior.set(b.behavior, (byBehavior.get(b.behavior) ?? 0) + b.frequency));
-      return Array.from(byBehavior.entries()).map(([name, count]) => ({ name, count }));
-    } else {
-      const byProgram = new Map<string, number[]>();
-      programData.forEach((p) => {
-        const arr = byProgram.get(p.program) ?? [];
-        arr.push(p.accuracy);
-        byProgram.set(p.program, arr);
-      });
-      return Array.from(byProgram.entries()).map(([name, values]) => ({
-        name: name.length > 15 ? name.slice(0, 15) + "..." : name,
-        accuracy: Math.round(values.reduce((a, b) => a + b, 0) / values.length),
-      }));
-    }
+  if (dataSource === "behavior") {
+    const byBehavior = new Map<string, number>();
+    behaviorData.forEach((b) => byBehavior.set(b.behavior, (byBehavior.get(b.behavior) ?? 0) + b.frequency));
+    return Array.from(byBehavior.entries()).map(([name, count]) => ({
+      name,
+      count,
+      accuracy: 0,
+    }));
+  } else {
+    const byProgram = new Map<string, number[]>();
+    programData.forEach((p) => {
+      const arr = byProgram.get(p.program) ?? [];
+      arr.push(p.accuracy);
+      byProgram.set(p.program, arr);
+    });
+    return Array.from(byProgram.entries()).map(([name, values]) => ({
+      name: name.length > 15 ? name.slice(0, 15) + "..." : name,
+      count: 0,
+      accuracy: Math.round(values.reduce((a, b) => a + b, 0) / values.length),
+    }));
   }
+}
 
   function buildCumulativeData() {
     const lineData = buildLineData();
