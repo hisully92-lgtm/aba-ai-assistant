@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import CompanyBanner from "@/components/layout/CompanyBanner";
+import Link from "next/link";
 
 export default function DashboardLayout({
   children,
@@ -12,38 +13,46 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-gray-50">
       {/* MOBILE OVERLAY */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={() => setSidebarOpen(false)}
+          style={{ touchAction: "none" }}
         />
       )}
 
       {/* SIDEBAR */}
       <div
         className={`
-        fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
-        lg:relative lg:translate-x-0 lg:z-auto
-        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-      `}
+          fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
+          lg:relative lg:z-auto lg:translate-x-0 lg:flex-shrink-0
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+        `}
       >
         <Sidebar onClose={() => setSidebarOpen(false)} />
       </div>
 
       {/* MAIN CONTENT */}
-      <div className="flex-1 flex flex-col bg-gray-50 min-w-0">
+      <div
+        className="flex min-w-0 flex-1 flex-col overflow-x-hidden"
+        style={{
+          overflowY: "auto",
+          WebkitOverflowScrolling: "touch",
+          minHeight: "100vh",
+        }}
+      >
         {/* MOBILE HEADER */}
-        <div className="lg:hidden flex items-center gap-3 px-4 py-3 bg-[#1a2234] border-b border-[#2a3a54]">
+        <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-[#2a3a54] bg-[#1a2234] px-4 py-3 lg:hidden">
           <button
-            onClick={() => setSidebarOpen(true)}
-            className="text-white p-1.5 rounded-lg hover:bg-[#2a3a54] transition-colors"
-            aria-label="Open sidebar"
             type="button"
+            aria-label="Open sidebar"
+            onClick={() => setSidebarOpen(true)}
+            className="rounded-lg p-1.5 text-white transition-colors hover:bg-[#2a3a54]"
           >
             <svg
-              className="w-6 h-6"
+              className="h-6 w-6"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -57,22 +66,28 @@ export default function DashboardLayout({
             </svg>
           </button>
 
-          <h1 className="text-white font-bold text-lg">ABA AI</h1>
+          <h1 className="text-lg font-bold text-white">ABA AI</h1>
 
           <div className="ml-auto">
-            <a
+            <Link
               href="/dashboard/search"
-              className="text-white p-1.5 rounded-lg hover:bg-[#2a3a54] transition-colors inline-block"
               aria-label="Search"
+              className="inline-block rounded-lg p-1.5 text-white transition-colors hover:bg-[#2a3a54]"
             >
               🔍
-            </a>
+            </Link>
           </div>
         </div>
 
         <CompanyBanner />
 
-        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-x-hidden">
+        <main
+          className="flex-1 overflow-x-hidden p-4 md:p-6 lg:p-8"
+          style={{
+            touchAction: "pan-y",
+            overscrollBehavior: "contain",
+          }}
+        >
           {children}
         </main>
       </div>

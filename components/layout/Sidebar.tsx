@@ -16,7 +16,7 @@ interface SidebarProps {
 
 export default function Sidebar({ onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { isAdmin, isSupervisor, isClinician, isStudentAnalyst } = useRole();
+  const { isAdmin, isSupervisor, isClinician, isStudentAnalyst, isDeveloper } = useRole();
 
   async function handleLogout() {
     clearCompanyCache();
@@ -209,6 +209,23 @@ export default function Sidebar({ onClose }: SidebarProps) {
         { label: "Authorizations", href: "/dashboard/authorizations" },
       ],
     }] : []),
+    
+    
+    ...(isDeveloper ? [{
+  label: "Developer",
+  href: "/dashboard/developer",
+  icon: "🛠",
+  children: [
+    { label: "Dev Dashboard", href: "/dashboard/developer" },
+    { label: "All Companies", href: "/dashboard/developer" },
+    { label: "All Users", href: "/dashboard/developer" },
+    { label: "Integrations", href: "/dashboard/admin/integrations" },
+    { label: "Audit Logs", href: "/dashboard/developer" },
+    { label: "System Status", href: "/dashboard/developer" },
+    { label: "Accounting", href: "/dashboard/accounting" },
+  ],
+}] : []),
+    
     ...(isAdmin ? [{
   label: "Admin",
   href: "/dashboard/admin",
