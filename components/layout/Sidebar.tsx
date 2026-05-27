@@ -137,6 +137,7 @@ function isSectionOpenByKey(key: string) {
       href: "/dashboard/clients",
       icon: "👥",
       children: [
+        
         { label: "All Clients", href: "/dashboard/clients" },
         { label: "Add Client", href: "/dashboard/clients/new" },
         { label: "Client Intake", href: "/dashboard/client-intake" },
@@ -147,6 +148,9 @@ function isSectionOpenByKey(key: string) {
         { label: "Timeline", href: "/dashboard/clients" },
         { label: "Exports", href: "/dashboard/clients" },
         { label: "Authorizations", href: "/dashboard/authorizations" },
+        { label: "Goals Dashboard", href: "/dashboard/goals" },
+        { label: "Crisis Plans", href: "/dashboard/crisis-plans" },
+        { label: "Discharge Planning", href: "/dashboard/discharge" },
       ],
     },
 
@@ -155,6 +159,7 @@ function isSectionOpenByKey(key: string) {
       href: "/dashboard/schedule",
       icon: "📅",
       children: [
+        { label: "Signatures", href: "/dashboard/signatures" },
         { label: "Calendar View", href: "/dashboard/schedule" },
         { label: "Session Changes", href: "/dashboard/session-changes" },
         { label: "Telehealth", href: "/dashboard/telehealth" },
@@ -170,6 +175,9 @@ function isSectionOpenByKey(key: string) {
       href: "/dashboard/insurance",
       icon: "🏦",
       children: [
+        { label: "CMS-1500 Claims", href: "/dashboard/billing/cms1500" },
+        { label: "Eligibility Verification", href: "/dashboard/eligibility" },
+        { label: "Co-pay Tracking", href: "/dashboard/copay" },
         { label: "Claims & Auth", href: "/dashboard/insurance" },
         {
           label: "Insurance Providers",
@@ -247,6 +255,10 @@ function isSectionOpenByKey(key: string) {
             href: "/dashboard/clinician",
             icon: "🏥",
             children: [
+              { label: "Preference Assessment", href: "/dashboard/preference-assessment" },
+              { label: "Goals Dashboard", href: "/dashboard/goals" },
+              { label: "Crisis Plans", href: "/dashboard/crisis-plans" },
+              { label: "Discharge Planning", href: "/dashboard/discharge" },
               { label: "Training Library", href: "/dashboard/training" },
               { label: "Clinician View", href: "/dashboard/clinician" },
               { label: "DTT Data Collection", href: "/dashboard/dtt" },
@@ -510,6 +522,7 @@ function isSectionOpenByKey(key: string) {
       href: "/dashboard/settings",
       icon: "⚙️",
       children: [
+        { label: "Training Library", href: "/dashboard/training" },
         { 
           label: "Training Library", href: "/dashboard/training" 
         },
