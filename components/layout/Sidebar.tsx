@@ -293,8 +293,8 @@ export default function Sidebar({ onClose }: SidebarProps) {
   ];
 
   return (
-    <div className="w-64 min-h-screen bg-[#1a2234] flex flex-col">
-      <div className="p-4 flex-1 overflow-y-auto">
+    <div className="w-64 h-screen bg-[#1a2234] flex flex-col overflow-hidden">
+      <div className="p-4 flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}>
 
         {/* MOBILE HEADER — close button + title */}
         <div className="flex items-center justify-between mb-2 lg:hidden">
