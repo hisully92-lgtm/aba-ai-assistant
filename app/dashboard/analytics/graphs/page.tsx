@@ -29,9 +29,10 @@ type GoalLine = {
 };
 
 const GRAPH_TYPES = [
-  { key: "line", label: "Line Graph", icon: "📈", desc: "Track progress across sessions — industry standard" },
+  { key: "line", label: "Line Graph", icon: "📈", desc: "Equal-interval — sessions on X-axis, values on Y-axis. Industry standard." },
+  { key: "celeration", label: "Celeration Graph", icon: "📉", desc: "Semi-logarithmic chart showing rate of behavior change over time" },
   { key: "bar", label: "Bar Graph", icon: "📊", desc: "Compare frequencies across settings or therapists" },
-  { key: "cumulative", label: "Cumulative Record", icon: "📉", desc: "Show total growth over time" },
+  { key: "cumulative", label: "Cumulative Record", icon: "📉", desc: "Total growth over time — always slopes upward" },
   { key: "scatterplot", label: "Scatterplot", icon: "🔵", desc: "Visualize behavior patterns by time of day" },
   { key: "phase", label: "Phase Change Graph", icon: "📋", desc: "Baseline, intervention, and maintenance phases" },
   { key: "multi", label: "Multi-Behavior", icon: "🔀", desc: "Compare multiple behaviors on one graph" },
@@ -378,6 +379,38 @@ export default function GraphsPage() {
             ))}
           </div>
 
+          {/* CELERATION GRAPH */}
+{selectedGraphType === "celeration" && lineData.length > 0 && (
+  <Section title={`Celeration Graph — ${selectedClient?.full_name}`}>
+    <p className="text-xs text-gray-400 mb-4">
+      Semi-logarithmic chart — shows the rate of behavior change (celeration). Steeper slope = faster acceleration or deceleration of behavior.
+    </p>
+    <ResponsiveContainer width="100%" height={320}>
+      <LineChart data={lineData.map((d, i) => ({ ...d, session: i + 1 }))} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+        <XAxis dataKey="session" label={{ value: "Session", position: "insideBottom", offset: -5, fontSize: 11 }} tick={{ fontSize: 10 }} />
+        <YAxis scale="log" domain={["auto", "auto"]} tick={{ fontSize: 11 }}
+          label={{ value: "Count (log scale)", angle: -90, position: "insideLeft", fontSize: 11 }} />
+        <Tooltip />
+        {phases.map((phase) => (
+          <ReferenceLine key={phase.id} x={phase.start_date}
+            stroke={phase.phase_color} strokeWidth={2} strokeDasharray="5 5"
+            label={{ value: phase.phase_name, position: "top", fontSize: 10, fill: phase.phase_color }} />
+        ))}
+        {goals.map((goal) => (
+          <ReferenceLine key={goal.id} y={goal.goal_value}
+            stroke={goal.color} strokeWidth={2} strokeDasharray="8 4"
+            label={{ value: goal.target_name, position: "right", fontSize: 10, fill: goal.color }} />
+        ))}
+        <Line type="monotone" dataKey="value" stroke="#7c3aed" strokeWidth={2.5}
+          dot={{ r: 4, fill: "#7c3aed" }} activeDot={{ r: 6 }} name="Rate" />
+      </LineChart>
+    </ResponsiveContainer>
+    <p className="text-xs text-gray-400 mt-2">
+      Log scale Y-axis — equal distances represent equal multiplication factors (×2, ×10, etc.)
+    </p>
+  </Section>
+)}
           {/* PHASE + GOAL CONTROLS */}
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setShowPhaseEditor(!showPhaseEditor)}>

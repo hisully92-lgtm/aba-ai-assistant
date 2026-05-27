@@ -17,25 +17,12 @@ type CrisisPlan = {
   de_escalation_steps: string[];
   emergency_contacts: EmergencyContact[];
   safe_environment_checklist: string[];
-  physical_intervention_protocol: string;
-  post_crisis_steps: string;
+  physical_intervention_protocol: string | null;
+  post_crisis_steps: string | null;
   review_date: string | null;
   created_at: string;
 };
 type EmergencyContact = { name: string; relationship: string; phone: string };
-
-const emptyForm = {
-  client_id: "",
-  warning_signs: [] as string[],
-  triggers: [] as string[],
-  prevention_strategies: [] as string[],
-  de_escalation_steps: [] as string[],
-  emergency_contacts: [] as EmergencyContact[],
-  safe_environment_checklist: [] as string[],
-  physical_intervention_protocol: "",
-  post_crisis_steps: "",
-  review_date: "",
-};
 
 const DEFAULT_SAFE_ENV = [
   "Remove sharp objects from environment",
@@ -57,16 +44,27 @@ const DEFAULT_DE_ESCALATION = [
   "Redirect to alternative activity",
 ];
 
+const emptyForm = {
+  client_id: "",
+  warning_signs: [] as string[],
+  triggers: [] as string[],
+  prevention_strategies: [] as string[],
+  de_escalation_steps: [...DEFAULT_DE_ESCALATION],
+  emergency_contacts: [] as EmergencyContact[],
+  safe_environment_checklist: [...DEFAULT_SAFE_ENV],
+  physical_intervention_protocol: "",
+  post_crisis_steps: "",
+  review_date: "",
+};
+
 export default function CrisisPlansPage() {
   const [plans, setPlans] = useState<CrisisPlan[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
-  const [form, setForm] = useState({ ...emptyForm, safe_environment_checklist: [...DEFAULT_SAFE_ENV], de_escalation_steps: [...DEFAULT_DE_ESCALATION] });
+  const [form, setForm] = useState(emptyForm);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  // Input state
   const [newWarning, setNewWarning] = useState("");
   const [newTrigger, setNewTrigger] = useState("");
   const [newPrevention, setNewPrevention] = useState("");
@@ -108,7 +106,7 @@ export default function CrisisPlansPage() {
 
   function addContact() {
     if (!newContact.name) return;
-    setForm((f) => ({ ...f, emergency_contacts: [...f.emergency_contacts, newContact] }));
+    setForm((f) => ({ ...f, emergency_contacts: [...f.emergency_contacts, { ...newContact }] }));
     setNewContact({ name: "", relationship: "", phone: "" });
   }
 
@@ -128,14 +126,14 @@ export default function CrisisPlansPage() {
       de_escalation_steps: JSON.stringify(form.de_escalation_steps),
       emergency_contacts: JSON.stringify(form.emergency_contacts),
       safe_environment_checklist: JSON.stringify(form.safe_environment_checklist),
-      physical_intervention_protocol: form.physical_intervention_protocol,
-      post_crisis_steps: form.post_crisis_steps,
+      physical_intervention_protocol: form.physical_intervention_protocol || null,
+      post_crisis_steps: form.post_crisis_steps || null,
       review_date: form.review_date || null,
       created_by: user.id,
     }]).select().single();
 
     if (data) setPlans((prev) => [{ ...data, ...form }, ...prev]);
-    setForm({ ...emptyForm, safe_environment_checklist: [...DEFAULT_SAFE_ENV], de_escalation_steps: [...DEFAULT_DE_ESCALATION] });
+    setForm(emptyForm);
     setShowForm(false);
     setSaving(false);
   }
@@ -197,6 +195,10 @@ export default function CrisisPlansPage() {
       doc.text(lines, 20, y);
     }
 
+    doc.setFontSize(8);
+    doc.setTextColor(150);
+    doc.text("CONFIDENTIAL — Protected Health Information", 105, 290, { align: "center" });
+
     doc.save(`crisis-plan-${client?.full_name?.replace(/\s/g, "-")}.pdf`);
   }
 
@@ -228,7 +230,6 @@ export default function CrisisPlansPage() {
             </div>
           </div>
 
-          {/* WARNING SIGNS */}
           {[
             { label: "⚠️ Warning Signs", field: "warning_signs" as const, value: newWarning, setValue: setNewWarning, color: "bg-orange-100 text-orange-700" },
             { label: "🔥 Triggers", field: "triggers" as const, value: newTrigger, setValue: setNewTrigger, color: "bg-red-100 text-red-700" },
@@ -254,7 +255,6 @@ export default function CrisisPlansPage() {
             </div>
           ))}
 
-          {/* DE-ESCALATION */}
           <div className="mb-4">
             <label className="text-sm font-medium text-gray-700 mb-2 block">🔽 De-escalation Steps</label>
             <div className="space-y-1">
@@ -268,7 +268,6 @@ export default function CrisisPlansPage() {
             </div>
           </div>
 
-          {/* SAFE ENVIRONMENT */}
           <div className="mb-4">
             <label className="text-sm font-medium text-gray-700 mb-2 block">✅ Safe Environment Checklist</label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -282,7 +281,6 @@ export default function CrisisPlansPage() {
             </div>
           </div>
 
-          {/* EMERGENCY CONTACTS */}
           <div className="mb-4">
             <label className="text-sm font-medium text-gray-700 mb-2 block">📞 Emergency Contacts</label>
             <div className="grid grid-cols-3 gap-2 mb-2">
@@ -312,13 +310,13 @@ export default function CrisisPlansPage() {
           <div className="grid grid-cols-1 gap-3 mb-4">
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Physical Intervention Protocol</label>
-              <textarea value={form.physical_intervention_protocol} onChange={(e) => setForm({ ...form, physical_intervention_protocol: e.target.value })}
+              <textarea value={form.physical_intervention_protocol ?? ""} onChange={(e) => setForm({ ...form, physical_intervention_protocol: e.target.value })}
                 placeholder="If applicable — describe approved physical intervention procedures..." rows={3}
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Post-Crisis Steps</label>
-              <textarea value={form.post_crisis_steps} onChange={(e) => setForm({ ...form, post_crisis_steps: e.target.value })}
+              <textarea value={form.post_crisis_steps ?? ""} onChange={(e) => setForm({ ...form, post_crisis_steps: e.target.value })}
                 placeholder="Steps to take after a crisis — debrief, documentation, parent notification..." rows={3}
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
@@ -333,8 +331,8 @@ export default function CrisisPlansPage() {
 
       {loading && <p className="text-gray-400 text-sm">Loading...</p>}
       {!loading && plans.length === 0 && (
-        <Section title="Crisis Plans">
-          <p className="text-gray-400 text-sm">No crisis plans yet.</p>
+        <Section title="No Crisis Plans Yet">
+          <p className="text-gray-400 text-sm">No crisis safety plans yet. Click "+ New Crisis Plan" to create one.</p>
         </Section>
       )}
 

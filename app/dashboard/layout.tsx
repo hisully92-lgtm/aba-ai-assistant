@@ -13,7 +13,13 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div
+      className="flex min-h-screen bg-gray-50"
+      style={{
+        height: "100vh",
+        overflow: "hidden",
+      }}
+    >
       {/* MOBILE OVERLAY */}
       {sidebarOpen && (
         <div
@@ -27,7 +33,7 @@ export default function DashboardLayout({
       <div
         className={`
           fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
-          lg:relative lg:z-auto lg:translate-x-0 lg:flex-shrink-0
+          lg:relative lg:translate-x-0 lg:z-auto lg:flex-shrink-0
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
@@ -36,11 +42,16 @@ export default function DashboardLayout({
 
       {/* MAIN CONTENT */}
       <div
-        className="flex min-w-0 flex-1 flex-col overflow-x-hidden"
+        className="flex flex-1 flex-col min-w-0"
         style={{
-          overflowY: "auto",
+          height: "100vh",
+          overflow: "auto",
+          overflowX: "hidden",
           WebkitOverflowScrolling: "touch",
-          minHeight: "100vh",
+          scrollbarWidth: "thin",
+          scrollbarColor: "#cbd5e1 transparent",
+          touchAction: "pan-y",
+          overscrollBehavior: "contain",
         }}
       >
         {/* MOBILE HEADER */}
@@ -81,13 +92,7 @@ export default function DashboardLayout({
 
         <CompanyBanner />
 
-        <main
-          className="flex-1 overflow-x-hidden p-4 md:p-6 lg:p-8"
-          style={{
-            touchAction: "pan-y",
-            overscrollBehavior: "contain",
-          }}
-        >
+        <main className="flex-1 p-4 md:p-6 lg:p-8">
           {children}
         </main>
       </div>
