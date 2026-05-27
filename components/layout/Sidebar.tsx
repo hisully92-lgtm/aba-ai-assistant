@@ -247,6 +247,7 @@ function isSectionOpenByKey(key: string) {
             href: "/dashboard/clinician",
             icon: "🏥",
             children: [
+              { label: "Training Library", href: "/dashboard/training" },
               { label: "Clinician View", href: "/dashboard/clinician" },
               { label: "DTT Data Collection", href: "/dashboard/dtt" },
               {
@@ -509,6 +510,9 @@ function isSectionOpenByKey(key: string) {
       href: "/dashboard/settings",
       icon: "⚙️",
       children: [
+        { 
+          label: "Training Library", href: "/dashboard/training" 
+        },
         {
           label: "My Profile",
           href: "/dashboard/settings/profile",
