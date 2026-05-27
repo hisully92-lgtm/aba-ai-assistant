@@ -200,6 +200,7 @@ function isSectionOpenByKey(key: string) {
       href: "/dashboard/team",
       icon: "🏢",
       children: [
+        { label: "Time Off Requests", href: "/dashboard/time-off" },
         { label: "Members", href: "/dashboard/team" },
         { label: "Invite Member", href: "/dashboard/team/invite" },
         { label: "Locations", href: "/dashboard/team/locations" },
@@ -255,6 +256,9 @@ function isSectionOpenByKey(key: string) {
             href: "/dashboard/clinician",
             icon: "🏥",
             children: [
+              { label: "Prompt Fading", href: "/dashboard/prompt-fading" },
+              { label: "Visual Supports", href: "/dashboard/visual-supports" },
+              { label: "Social Stories", href: "/dashboard/social-stories" },
               { label: "Preference Assessment", href: "/dashboard/preference-assessment" },
               { label: "Goals Dashboard", href: "/dashboard/goals" },
               { label: "Crisis Plans", href: "/dashboard/crisis-plans" },
@@ -345,6 +349,8 @@ function isSectionOpenByKey(key: string) {
             href: "/dashboard/supervisor",
             icon: "📊",
             children: [
+              { label: "Macro Trends", href: "/dashboard/analytics/macro" },
+              { label: "Behavior Heatmap", href: "/dashboard/analytics/heatmap" },
               { label: "Dashboard", href: "/dashboard/supervisor" },
               { label: "Analytics", href: "/dashboard/analytics" },
               {
@@ -580,12 +586,7 @@ function isSectionOpenByKey(key: string) {
       children: [],
     },
 
-    {
-      label: "Upgrade to Pro",
-      href: "/dashboard/upgrade",
-      icon: "⭐",
-      children: [],
-    },
+    
   ];
 
   return (
