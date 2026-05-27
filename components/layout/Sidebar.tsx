@@ -137,7 +137,8 @@ function isSectionOpenByKey(key: string) {
       href: "/dashboard/clients",
       icon: "👥",
       children: [
-        
+        { label: "BIP Plans", href: "/dashboard/bip" },
+        { label: "RBT Checklist", href: "/dashboard/rbt-checklist" },
         { label: "All Clients", href: "/dashboard/clients" },
         { label: "Add Client", href: "/dashboard/clients/new" },
         { label: "Client Intake", href: "/dashboard/client-intake" },
@@ -159,6 +160,7 @@ function isSectionOpenByKey(key: string) {
       href: "/dashboard/schedule",
       icon: "📅",
       children: [
+        { label: "Waiting Room", href: "/dashboard/telehealth/waiting-room" },
         { label: "Schedule Conflicts", href: "/dashboard/schedule/conflicts" },
         { label: "Signatures", href: "/dashboard/signatures" },
         { label: "Calendar View", href: "/dashboard/schedule" },
@@ -258,6 +260,8 @@ function isSectionOpenByKey(key: string) {
             href: "/dashboard/clinician",
             icon: "🏥",
             children: [
+              { label: "BIP Plans", href: "/dashboard/bip" },
+              { label: "RBT Checklist", href: "/dashboard/rbt-checklist" },
               { label: "Prompt Fading", href: "/dashboard/prompt-fading" },
               { label: "Visual Supports", href: "/dashboard/visual-supports" },
               { label: "Social Stories", href: "/dashboard/social-stories" },
@@ -455,6 +459,8 @@ function isSectionOpenByKey(key: string) {
             href: "/dashboard/admin",
             icon: "🔐",
             children: [
+              { label: "BIP Plans", href: "/dashboard/bip" },
+              { label: "RBT Checklist", href: "/dashboard/rbt-checklist" },
               {
                 label: "Admin Panel",
                 href: "/dashboard/admin",
