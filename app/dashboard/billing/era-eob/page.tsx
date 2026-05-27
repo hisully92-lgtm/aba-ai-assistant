@@ -5,239 +5,370 @@ import { supabase } from "@/lib/supabase/client";
 import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+
+/* ================= TYPES ================= */
 
 type Client = { id: string; full_name: string };
-type ERARecord = {
+
+type CPTLine = {
+  cpt: string;
+  billed: number;
+  allowed: number;
+  paid: number;
+  adjustment: number;
+  patient_resp: number;
+  denial_code: string;
+  denial_reason: string;
+};
+
+type Posting = {
   id: string;
   client_id: string | null;
-  payer_name: string;
-  check_number: string;
+  insurance_provider: string;
+  payer_name?: string | null;
+  check_number: string | null;
   payment_date: string;
+
   total_billed: number;
+  total_allowed: number;
   total_paid: number;
-  total_adjusted: number;
-  adjustment_reason: string;
+  total_adjustment: number;
+  total_patient_responsibility: number;
+
+  denial_reason: string | null;
+  cpt_lines: CPTLine[];
+
   status: string;
+  notes: string | null;
   created_at: string;
 };
 
-const PAYERS = ["Blue Cross Blue Shield", "UnitedHealthcare", "Aetna", "Cigna", "Humana", "Medicaid", "TRICARE", "Kaiser Permanente", "Other"];
-const ADJUSTMENT_REASONS = ["Contractual adjustment", "Deductible", "Co-pay", "Co-insurance", "Not covered", "Prior auth required", "Medical necessity denied", "Timely filing", "Duplicate claim", "Other"];
-const STATUSES = ["posted", "pending_review", "disputed", "resolved"];
+/* ================= CONSTANTS ================= */
+
+const PROVIDERS = [
+  "Blue Cross Blue Shield",
+  "UnitedHealthcare",
+  "Aetna",
+  "Cigna",
+  "Humana",
+  "Medicaid",
+  "TRICARE",
+  "Other",
+];
+
+const DENIAL_CODES = [
+  { code: "CO-4", desc: "Service inconsistent with modifier" },
+  { code: "CO-11", desc: "Diagnosis inconsistent with procedure" },
+  { code: "CO-16", desc: "Missing information" },
+  { code: "CO-29", desc: "Timely filing" },
+  { code: "CO-45", desc: "Exceeds fee schedule" },
+  { code: "PR-1", desc: "Deductible" },
+  { code: "PR-2", desc: "Co-insurance" },
+  { code: "PR-3", desc: "Co-pay" },
+];
+
+const emptyLine: CPTLine = {
+  cpt: "97153",
+  billed: 0,
+  allowed: 0,
+  paid: 0,
+  adjustment: 0,
+  patient_resp: 0,
+  denial_code: "",
+  denial_reason: "",
+};
 
 const emptyForm = {
   client_id: "",
-  payer_name: "",
+  insurance_provider: "",
   check_number: "",
   payment_date: new Date().toISOString().split("T")[0],
-  total_billed: 0,
-  total_paid: 0,
-  total_adjusted: 0,
-  adjustment_reason: "",
-  status: "posted",
+  notes: "",
 };
 
+/* ================= COMPONENT ================= */
+
 export default function ERAEOBPage() {
-  const [records, setRecords] = useState<ERARecord[]>([]);
+  const [postings, setPostings] = useState<Posting[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
-  const [form, setForm] = useState(emptyForm);
+  const [loading, setLoading] = useState(true);
+
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [filterPayer, setFilterPayer] = useState("");
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { init(); }, []);
+  const [filterProvider, setFilterProvider] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const [form, setForm] = useState(emptyForm);
+  const [lines, setLines] = useState<CPTLine[]>([{ ...emptyLine }]);
+
+  /* ================= LOAD ================= */
+
+  useEffect(() => {
+    init();
+  }, []);
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
 
-    const [{ data: clientData }, { data: recordData }] = await Promise.all([
+    const [{ data: clientsData }, { data: postingsData }] = await Promise.all([
       supabase.from("clients").select("id, full_name"),
-      supabase.from("era_eob_records").select("*").eq("created_by", user.id).order("payment_date", { ascending: false }),
+      supabase
+        .from("era_eob_postings")
+        .select("*")
+        .eq("created_by", user.id)
+        .order("payment_date", { ascending: false }),
     ]);
 
-    setClients(clientData ?? []);
-    setRecords(recordData ?? []);
+    setClients(clientsData ?? []);
+    setPostings(
+      (postingsData ?? []).map((p: any) => ({
+        ...p,
+        cpt_lines: Array.isArray(p.cpt_lines)
+          ? p.cpt_lines
+          : JSON.parse(p.cpt_lines || "[]"),
+      }))
+    );
+
     setLoading(false);
   }
 
-  async function handleSave() {
-    if (!form.payer_name || !form.payment_date) { setError("Payer and payment date are required."); return; }
+  /* ================= LINE OPS ================= */
+
+  const addLine = () => setLines((p) => [...p, { ...emptyLine }]);
+
+  const updateLine = (i: number, field: keyof CPTLine, value: any) => {
+    setLines((prev) =>
+      prev.map((l, idx) => (idx === i ? { ...l, [field]: value } : l))
+    );
+  };
+
+  const removeLine = (i: number) => {
+    setLines((prev) => prev.filter((_, idx) => idx !== i));
+  };
+
+  const totals = () => ({
+    billed: lines.reduce((a, b) => a + b.billed, 0),
+    allowed: lines.reduce((a, b) => a + b.allowed, 0),
+    paid: lines.reduce((a, b) => a + b.paid, 0),
+    adjustment: lines.reduce((a, b) => a + b.adjustment, 0),
+    patient_resp: lines.reduce((a, b) => a + b.patient_resp, 0),
+  });
+
+  /* ================= SAVE ================= */
+
+  async function handleSave(status: string) {
+    if (!form.insurance_provider) return;
     setSaving(true);
-    setError(null);
 
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
 
-    const { data, error: saveError } = await supabase.from("era_eob_records").insert([{
-      ...form,
-      client_id: form.client_id || null,
-      created_by: user.id,
-    }]).select().single();
+    const t = totals();
+    const hasDenials = lines.some((l) => l.denial_code);
 
-    if (saveError) { setError(saveError.message); setSaving(false); return; }
+    const { data } = await supabase
+      .from("era_eob_postings")
+      .insert([
+        {
+          client_id: form.client_id || null,
+          insurance_provider: form.insurance_provider,
+          check_number: form.check_number || null,
+          payment_date: form.payment_date,
 
-    setRecords((prev) => [data, ...prev]);
+          total_billed: t.billed,
+          total_allowed: t.allowed,
+          total_paid: t.paid,
+          total_adjustment: t.adjustment,
+          total_patient_responsibility: t.patient_resp,
+
+          denial_reason:
+            lines.map((l) => l.denial_reason).filter(Boolean).join("; ") ||
+            null,
+
+          cpt_lines: JSON.stringify(lines),
+          status: hasDenials ? "partial_denial" : status,
+          notes: form.notes || null,
+          created_by: user.id,
+        },
+      ])
+      .select()
+      .single();
+
+    if (data) {
+      setPostings((p) => [
+        { ...data, cpt_lines: lines },
+        ...p,
+      ]);
+    }
+
     setForm(emptyForm);
+    setLines([{ ...emptyLine }]);
     setShowForm(false);
     setSaving(false);
   }
 
-  async function handleDelete(id: string) {
-    await supabase.from("era_eob_records").delete().eq("id", id);
-    setRecords((prev) => prev.filter((r) => r.id !== id));
-  }
+  /* ================= DERIVED ================= */
 
-  const filtered = filterPayer ? records.filter((r) => r.payer_name === filterPayer) : records;
   const clientMap = new Map(clients.map((c) => [c.id, c.full_name]));
 
-  const totalBilled = filtered.reduce((a, b) => a + b.total_billed, 0);
-  const totalPaid = filtered.reduce((a, b) => a + b.total_paid, 0);
-  const totalAdjusted = filtered.reduce((a, b) => a + b.total_adjusted, 0);
-  const collectionRate = totalBilled ? Math.round((totalPaid / totalBilled) * 100) : 0;
+  let filtered = postings;
+  if (filterProvider)
+    filtered = filtered.filter((p) => p.insurance_provider === filterProvider);
+  if (filterStatus)
+    filtered = filtered.filter((p) => p.status === filterStatus);
+
+  const totalPaid = postings.reduce((a, b) => a + b.total_paid, 0);
+  const totalBilled = postings.reduce((a, b) => a + b.total_billed, 0);
+
+  const collectionRate =
+    totalBilled > 0 ? Math.round((totalPaid / totalBilled) * 100) : 0;
+
+  const chartData = postings
+    .reduce((acc: any[], p) => {
+      const month = p.payment_date.slice(0, 7);
+      const existing = acc.find((a) => a.month === month);
+
+      if (existing) {
+        existing.paid += p.total_paid;
+        existing.billed += p.total_billed;
+      } else {
+        acc.push({ month, paid: p.total_paid, billed: p.total_billed });
+      }
+
+      return acc;
+    }, [])
+    .sort((a, b) => a.month.localeCompare(b.month))
+    .slice(-6);
 
   function statusColor(status: string) {
     if (status === "posted") return "bg-green-100 text-green-700";
-    if (status === "pending_review") return "bg-yellow-100 text-yellow-700";
-    if (status === "disputed") return "bg-red-100 text-red-700";
+    if (status === "partial_denial") return "bg-orange-100 text-orange-700";
+    if (status === "denied") return "bg-red-100 text-red-700";
+    if (status === "pending") return "bg-yellow-100 text-yellow-700";
     return "bg-gray-100 text-gray-600";
   }
+
+  /* ================= UI ================= */
 
   return (
     <div className="space-y-6">
       <PageHeader title="ERA / EOB Posting">
-        <Button onClick={() => setShowForm(!showForm)}>
+        <Button onClick={() => setShowForm((s) => !s)}>
           {showForm ? "Cancel" : "+ Post ERA/EOB"}
         </Button>
       </PageHeader>
 
       {/* SUMMARY */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="border rounded-lg p-4 text-center bg-white">
-          <p className="text-2xl font-bold text-blue-600">${totalBilled.toFixed(2)}</p>
-          <p className="text-xs text-gray-500 mt-1">Total Billed</p>
-        </div>
-        <div className="border rounded-lg p-4 text-center bg-white">
-          <p className="text-2xl font-bold text-green-600">${totalPaid.toFixed(2)}</p>
-          <p className="text-xs text-gray-500 mt-1">Total Paid</p>
-        </div>
-        <div className="border rounded-lg p-4 text-center bg-white">
-          <p className="text-2xl font-bold text-red-500">${totalAdjusted.toFixed(2)}</p>
-          <p className="text-xs text-gray-500 mt-1">Adjustments</p>
-        </div>
-        <div className="border rounded-lg p-4 text-center bg-white">
-          <p className="text-2xl font-bold text-purple-600">{collectionRate}%</p>
-          <p className="text-xs text-gray-500 mt-1">Collection Rate</p>
-        </div>
+        <Section title="">
+          <div className="grid grid-cols-4 gap-4">
+            <div className="text-center">
+              <p className="text-green-600 font-bold text-xl">
+                ${totalPaid.toFixed(0)}
+              </p>
+              <p className="text-xs">Paid</p>
+            </div>
+
+            <div className="text-center">
+              <p className="text-blue-600 font-bold text-xl">
+                ${totalBilled.toFixed(0)}
+              </p>
+              <p className="text-xs">Billed</p>
+            </div>
+
+            <div className="text-center">
+              <p className="font-bold text-xl">{collectionRate}%</p>
+              <p className="text-xs">Collection</p>
+            </div>
+
+            <div className="text-center">
+              <p className="text-red-500 font-bold text-xl">
+                {postings.filter((p) => p.status === "partial_denial").length}
+              </p>
+              <p className="text-xs">Denials</p>
+            </div>
+          </div>
+        </Section>
       </div>
 
-      {showForm && (
-        <Section title="Post ERA/EOB Record">
-          {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Payer *</label>
-              <select value={form.payer_name} onChange={(e) => setForm({ ...form, payer_name: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-                <option value="">Select payer...</option>
-                {PAYERS.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Client</label>
-              <select value={form.client_id} onChange={(e) => setForm({ ...form, client_id: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-                <option value="">No specific client</option>
-                {clients.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Check / EFT Number</label>
-              <input type="text" value={form.check_number} onChange={(e) => setForm({ ...form, check_number: e.target.value })}
-                placeholder="e.g. CHK123456" className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Payment Date *</label>
-              <input type="date" value={form.payment_date} onChange={(e) => setForm({ ...form, payment_date: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Total Billed ($)</label>
-              <input type="number" step="0.01" value={form.total_billed} onChange={(e) => setForm({ ...form, total_billed: parseFloat(e.target.value) || 0 })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Total Paid ($)</label>
-              <input type="number" step="0.01" value={form.total_paid} onChange={(e) => setForm({ ...form, total_paid: parseFloat(e.target.value) || 0 })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Adjustment Amount ($)</label>
-              <input type="number" step="0.01" value={form.total_adjusted} onChange={(e) => setForm({ ...form, total_adjusted: parseFloat(e.target.value) || 0 })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Adjustment Reason</label>
-              <select value={form.adjustment_reason} onChange={(e) => setForm({ ...form, adjustment_reason: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-                <option value="">Select reason...</option>
-                {ADJUSTMENT_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="mt-4 flex gap-2">
-            <Button onClick={handleSave} loading={saving}>Post ERA/EOB</Button>
-            <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-          </div>
+      {/* CHART */}
+      {chartData.length > 0 && (
+        <Section title="Trend">
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="billed" fill="#e5e7eb" />
+              <Bar dataKey="paid" fill="#16a34a" />
+            </BarChart>
+          </ResponsiveContainer>
         </Section>
       )}
 
-      {/* FILTER */}
-      {!loading && records.length > 0 && (
-        <div className="flex gap-3 items-center">
-          <select value={filterPayer} onChange={(e) => setFilterPayer(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-            <option value="">All Payers</option>
-            {PAYERS.map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
-          <p className="text-sm text-gray-400">{filtered.length} records</p>
-        </div>
-      )}
+      {/* FILTERS */}
+      <div className="flex gap-3 flex-wrap">
+        <select
+          value={filterProvider}
+          onChange={(e) => setFilterProvider(e.target.value)}
+          className="border px-3 py-2 rounded"
+        >
+          <option value="">All Providers</option>
+          {PROVIDERS.map((p) => (
+            <option key={p}>{p}</option>
+          ))}
+        </select>
 
-      {loading && <p className="text-gray-400 text-sm">Loading...</p>}
-      {!loading && filtered.length === 0 && (
-        <Section title="ERA/EOB Records">
-          <p className="text-gray-400 text-sm">No ERA/EOB records posted yet.</p>
-        </Section>
-      )}
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="border px-3 py-2 rounded"
+        >
+          <option value="">All Status</option>
+          <option value="posted">Posted</option>
+          <option value="pending">Pending</option>
+          <option value="partial_denial">Partial Denial</option>
+        </select>
+      </div>
 
+      {/* LIST */}
       <div className="space-y-3">
-        {filtered.map((r) => (
-          <div key={r.id} className="border border-gray-100 rounded-xl p-4 bg-white">
-            <div className="flex justify-between items-start flex-wrap gap-2">
+        {filtered.map((p) => (
+          <div key={p.id} className="border rounded-xl p-4 bg-white">
+            <div className="flex justify-between">
               <div>
-                <p className="font-semibold text-gray-800">{r.payer_name}</p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {r.check_number && `Check: ${r.check_number} · `}
-                  {r.payment_date}
-                  {r.client_id && ` · ${clientMap.get(r.client_id)}`}
+                <p className="font-semibold">{p.insurance_provider}</p>
+                <p className="text-xs text-gray-400">
+                  {p.payment_date} · {clientMap.get(p.client_id || "")}
                 </p>
-                {r.adjustment_reason && <p className="text-xs text-gray-500 mt-1">Adjustment: {r.adjustment_reason}</p>}
               </div>
-              <div className="flex gap-2 items-center flex-wrap">
-                <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColor(r.status)}`}>
-                  {r.status.replace("_", " ")}
+
+              <div className="text-right">
+                <p className="text-green-600 font-bold">
+                  ${p.total_paid.toFixed(2)}
+                </p>
+                <span
+                  className={`text-xs px-2 py-1 rounded ${statusColor(
+                    p.status
+                  )}`}
+                >
+                  {p.status}
                 </span>
-                <div className="text-right">
-                  <p className="text-xs text-gray-400">Billed: ${r.total_billed.toFixed(2)}</p>
-                  <p className="text-sm font-bold text-green-600">Paid: ${r.total_paid.toFixed(2)}</p>
-                  {r.total_adjusted > 0 && <p className="text-xs text-red-500">Adj: -${r.total_adjusted.toFixed(2)}</p>}
-                </div>
-                <button onClick={() => handleDelete(r.id)} className="text-gray-300 hover:text-red-400 text-xs">✕</button>
               </div>
             </div>
           </div>

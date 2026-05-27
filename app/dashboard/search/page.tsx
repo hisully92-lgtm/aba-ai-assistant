@@ -1,156 +1,301 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
+import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
+import Button from "@/components/ui/Button";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
-type SearchResult = {
-  id: string;
-  type: "client" | "session" | "behavior" | "program" | "incident" | "waitlist";
-  title: string;
-  subtitle: string;
-  href: string;
+/* ================= TYPES ================= */
+
+type Client = { id: string; full_name: string };
+
+type CPTLine = {
+  cpt: string;
+  billed: number;
+  allowed: number;
+  paid: number;
+  adjustment: number;
+  patient_resp: number;
+  denial_code: string;
+  denial_reason: string;
 };
 
-export default function SearchPage() {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [recent, setRecent] = useState<SearchResult[]>([]);
-  const router = useRouter();
+type ERAPosting = {
+  id: string;
+  client_id: string | null;
+  insurance_provider: string;
+  check_number: string | null;
+  payment_date: string;
+  total_billed: number;
+  total_allowed: number;
+  total_paid: number;
+  total_adjustment: number;
+  total_patient_responsibility: number;
+  denial_reason: string | null;
+  cpt_lines: CPTLine[];
+  status: string;
+  notes: string | null;
+  created_at: string;
+};
+
+/* ================= CONSTANTS ================= */
+
+const PROVIDERS = [
+  "Blue Cross Blue Shield",
+  "UnitedHealthcare",
+  "Aetna",
+  "Cigna",
+  "Humana",
+  "Medicaid",
+  "TRICARE",
+  "Other",
+];
+
+const DENIAL_CODES = [
+  { code: "CO-4", desc: "Service inconsistent with modifier" },
+  { code: "CO-11", desc: "Diagnosis inconsistent with procedure" },
+  { code: "CO-16", desc: "Claim/service lacks information" },
+  { code: "CO-29", desc: "Time limit expired" },
+  { code: "CO-45", desc: "Charge exceeds fee schedule" },
+  { code: "CO-97", desc: "Benefit for service included in payment" },
+  { code: "PR-1", desc: "Deductible amount" },
+  { code: "PR-2", desc: "Co-insurance amount" },
+  { code: "PR-3", desc: "Co-pay amount" },
+  { code: "OA-23", desc: "Payment adjusted - prior payer" },
+];
+
+const emptyLine: CPTLine = {
+  cpt: "97153",
+  billed: 0,
+  allowed: 0,
+  paid: 0,
+  adjustment: 0,
+  patient_resp: 0,
+  denial_code: "",
+  denial_reason: "",
+};
+
+const emptyForm = {
+  client_id: "",
+  insurance_provider: "",
+  check_number: "",
+  payment_date: new Date().toISOString().split("T")[0],
+  notes: "",
+};
+
+/* ================= COMPONENT ================= */
+
+export default function ERAEOBPage() {
+  const [postings, setPostings] = useState<ERAPosting[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const [filterProvider, setFilterProvider] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const [form, setForm] = useState(emptyForm);
+  const [lines, setLines] = useState<CPTLine[]>([{ ...emptyLine }]);
 
   useEffect(() => {
-    const stored = localStorage.getItem("search_recent");
-    if (stored) setRecent(JSON.parse(stored));
+    init();
   }, []);
 
-  const search = useCallback(async (q: string) => {
-    if (!q.trim()) { setResults([]); return; }
-    setSearching(true);
+  async function init() {
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth?.user;
+    if (!user) return;
+
+    const [{ data: clientData }, { data: postingData }] = await Promise.all([
+      supabase.from("clients").select("id, full_name"),
+      supabase
+        .from("era_eob_postings")
+        .select("*")
+        .eq("created_by", user.id)
+        .order("payment_date", { ascending: false }),
+    ]);
+
+    setClients(clientData ?? []);
+    setPostings(
+      (postingData ?? []).map((p: any) => ({
+        ...p,
+        cpt_lines: Array.isArray(p.cpt_lines)
+          ? p.cpt_lines
+          : JSON.parse(p.cpt_lines || "[]"),
+      }))
+    );
+
+    setLoading(false);
+  }
+
+  /* ================= LINE HELPERS ================= */
+
+  function addLine() {
+    setLines((p) => [...p, { ...emptyLine }]);
+  }
+
+  function updateLine(i: number, field: keyof CPTLine, value: any) {
+    setLines((p) =>
+      p.map((l, idx) => (idx === i ? { ...l, [field]: value } : l))
+    );
+  }
+
+  function removeLine(i: number) {
+    setLines((p) => p.filter((_, idx) => idx !== i));
+  }
+
+  function totals() {
+    return {
+      billed: lines.reduce((a, b) => a + b.billed, 0),
+      allowed: lines.reduce((a, b) => a + b.allowed, 0),
+      paid: lines.reduce((a, b) => a + b.paid, 0),
+      adjustment: lines.reduce((a, b) => a + b.adjustment, 0),
+      patient_resp: lines.reduce((a, b) => a + b.patient_resp, 0),
+    };
+  }
+
+  /* ================= SAVE ================= */
+
+  async function handleSave(status: string) {
+    if (!form.insurance_provider) return;
+    setSaving(true);
 
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
 
-    const [
-      { data: clients },
-      { data: sessions },
-      { data: behaviors },
-      { data: programs },
-      { data: incidents },
-      { data: waitlist },
-    ] = await Promise.all([
-      supabase.from("clients").select("id, full_name, diagnosis").ilike("full_name", `%${q}%`).eq("created_by", user.id).limit(5),
-      supabase.from("sessions").select("id, date, notes, status").ilike("notes", `%${q}%`).eq("created_by", user.id).limit(5),
-      supabase.from("behaviors").select("id, behavior_name, function_hypothesis").ilike("behavior_name", `%${q}%`).eq("created_by", user.id).limit(5),
-      supabase.from("programs").select("id, program_name, goal").ilike("program_name", `%${q}%`).eq("created_by", user.id).limit(5),
-      supabase.from("incident_reports").select("id, incident_type, description, incident_date").ilike("description", `%${q}%`).eq("created_by", user.id).limit(5),
-      supabase.from("waitlist").select("id, full_name, status").ilike("full_name", `%${q}%`).eq("created_by", user.id).limit(5),
-    ]);
+    const t = totals();
+    const hasDenials = lines.some((l) => l.denial_code);
 
-    const all: SearchResult[] = [
-      ...(clients ?? []).map((c: any) => ({ id: c.id, type: "client" as const, title: c.full_name, subtitle: c.diagnosis ?? "Client", href: `/dashboard/clients` })),
-      ...(sessions ?? []).map((s: any) => ({ id: s.id, type: "session" as const, title: `Session — ${s.date ?? "Recent"}`, subtitle: s.notes?.slice(0, 60) ?? s.status, href: `/dashboard/history` })),
-      ...(behaviors ?? []).map((b: any) => ({ id: b.id, type: "behavior" as const, title: b.behavior_name, subtitle: b.function_hypothesis ?? "Behavior", href: `/dashboard/behaviors` })),
-      ...(programs ?? []).map((p: any) => ({ id: p.id, type: "program" as const, title: p.program_name, subtitle: p.goal?.slice(0, 60) ?? "Program", href: `/dashboard/programs` })),
-      ...(incidents ?? []).map((i: any) => ({ id: i.id, type: "incident" as const, title: `Incident — ${i.incident_type}`, subtitle: i.description?.slice(0, 60) ?? i.incident_date, href: `/dashboard/incidents` })),
-      ...(waitlist ?? []).map((w: any) => ({ id: w.id, type: "waitlist" as const, title: w.full_name, subtitle: `Waitlist — ${w.status}`, href: `/dashboard/waitlist` })),
-    ];
+    const { data } = await supabase
+      .from("era_eob_postings")
+      .insert([
+        {
+          client_id: form.client_id || null,
+          insurance_provider: form.insurance_provider,
+          check_number: form.check_number || null,
+          payment_date: form.payment_date,
+          total_billed: t.billed,
+          total_allowed: t.allowed,
+          total_paid: t.paid,
+          total_adjustment: t.adjustment,
+          total_patient_responsibility: t.patient_resp,
+          denial_reason:
+            lines
+              .filter((l) => l.denial_reason)
+              .map((l) => l.denial_reason)
+              .join("; ") || null,
+          cpt_lines: JSON.stringify(lines),
+          status: hasDenials ? "partial_denial" : status,
+          notes: form.notes || null,
+          created_by: user.id,
+        },
+      ])
+      .select()
+      .single();
 
-    setResults(all);
-    setSearching(false);
-  }, []);
+    if (data) {
+      setPostings((p) => [{ ...data, cpt_lines: lines }, ...p]);
+    }
 
-  useEffect(() => {
-    const timeout = setTimeout(() => search(query), 300);
-    return () => clearTimeout(timeout);
-  }, [query, search]);
-
-  function handleSelect(result: SearchResult) {
-    const updated = [result, ...recent.filter((r) => r.id !== result.id)].slice(0, 8);
-    setRecent(updated);
-    localStorage.setItem("search_recent", JSON.stringify(updated));
-    router.push(result.href);
+    setForm(emptyForm);
+    setLines([{ ...emptyLine }]);
+    setShowForm(false);
+    setSaving(false);
   }
 
-  function typeIcon(type: string) {
-    if (type === "client") return "👤";
-    if (type === "session") return "📋";
-    if (type === "behavior") return "🧠";
-    if (type === "program") return "🎯";
-    if (type === "incident") return "⚠️";
-    if (type === "waitlist") return "📝";
-    return "🔍";
-  }
+  /* ================= FILTERING ================= */
 
-  function typeBadge(type: string) {
-    if (type === "client") return "bg-blue-100 text-blue-700";
-    if (type === "session") return "bg-purple-100 text-purple-700";
-    if (type === "behavior") return "bg-red-100 text-red-700";
-    if (type === "program") return "bg-green-100 text-green-700";
-    if (type === "incident") return "bg-orange-100 text-orange-700";
-    if (type === "waitlist") return "bg-yellow-100 text-yellow-700";
+  const clientMap = new Map(clients.map((c) => [c.id, c.full_name]));
+
+  let filtered = postings;
+  if (filterProvider)
+    filtered = filtered.filter(
+      (p) => p.insurance_provider === filterProvider
+    );
+  if (filterStatus) filtered = filtered.filter((p) => p.status === filterStatus);
+
+  const totalPaid = postings.reduce((a, b) => a + b.total_paid, 0);
+  const totalBilled = postings.reduce((a, b) => a + b.total_billed, 0);
+  const collectionRate =
+    totalBilled > 0 ? Math.round((totalPaid / totalBilled) * 100) : 0;
+
+  const chartData = postings
+    .reduce((acc: any[], p) => {
+      const month = p.payment_date.slice(0, 7);
+      const existing = acc.find((a) => a.month === month);
+      if (existing) {
+        existing.paid += p.total_paid;
+        existing.billed += p.total_billed;
+      } else {
+        acc.push({ month, paid: p.total_paid, billed: p.total_billed });
+      }
+      return acc;
+    }, [])
+    .sort((a, b) => a.month.localeCompare(b.month))
+    .slice(-6);
+
+  function statusColor(status: string) {
+    if (status === "posted") return "bg-green-100 text-green-700";
+    if (status === "partial_denial")
+      return "bg-orange-100 text-orange-700";
+    if (status === "denied") return "bg-red-100 text-red-700";
+    if (status === "pending") return "bg-yellow-100 text-yellow-700";
     return "bg-gray-100 text-gray-600";
   }
 
-  const displayResults = query ? results : recent;
-  const isEmpty = displayResults.length === 0 && !searching;
+  /* ================= UI ================= */
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
-      <PageHeader title="Search" />
+    <div className="space-y-6">
+      <PageHeader title="ERA / EOB Posting">
+        <Button onClick={() => setShowForm(!showForm)}>
+          {showForm ? "Cancel" : "+ Post ERA/EOB"}
+        </Button>
+      </PageHeader>
 
-      <div className="relative">
-        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Escape" && setQuery("")}
-          placeholder="Search clients, sessions, behaviors, programs..."
-          autoFocus
-          className="w-full border-2 border-blue-300 rounded-xl px-4 py-4 pl-12 text-base focus:outline-none focus:border-blue-500 shadow-sm"
-        />
-        {query && (
-          <button onClick={() => setQuery("")}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">✕</button>
-        )}
+      {/* STATS */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="p-4 bg-white border rounded-xl text-center">
+          <p className="text-2xl font-bold text-green-600">
+            ${totalPaid.toFixed(0)}
+          </p>
+          <p className="text-xs text-gray-500">Paid</p>
+        </div>
+        <div className="p-4 bg-white border rounded-xl text-center">
+          <p className="text-2xl font-bold text-blue-600">
+            ${totalBilled.toFixed(0)}
+          </p>
+          <p className="text-xs text-gray-500">Billed</p>
+        </div>
+        <div className="p-4 bg-white border rounded-xl text-center">
+          <p className="text-2xl font-bold text-purple-600">
+            {collectionRate}%
+          </p>
+          <p className="text-xs text-gray-500">Collection</p>
+        </div>
       </div>
 
-      {searching && (
-        <div className="flex items-center gap-3 py-4">
-          <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-gray-500">Searching...</p>
-        </div>
+      {/* CHART */}
+      {chartData.length > 0 && (
+        <Section title="Payments Trend">
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="billed" fill="#e5e7eb" />
+              <Bar dataKey="paid" fill="#16a34a" />
+            </BarChart>
+          </ResponsiveContainer>
+        </Section>
       )}
-
-      {!query && recent.length > 0 && (
-        <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Recent Searches</p>
-      )}
-
-      {isEmpty && query && (
-        <div className="text-center py-12">
-          <p className="text-gray-400">No results for "{query}"</p>
-          <p className="text-xs text-gray-300 mt-1">Try searching by client name, behavior, or program</p>
-        </div>
-      )}
-
-      <div className="space-y-2">
-        {displayResults.map((result) => (
-          <button key={result.id + result.type} onClick={() => handleSelect(result)}
-            className="w-full text-left border border-gray-100 rounded-xl p-4 bg-white hover:shadow-md hover:border-blue-200 transition-all flex items-center gap-4">
-            <span className="text-2xl">{typeIcon(result.type)}</span>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-gray-800 truncate">{result.title}</p>
-              <p className="text-xs text-gray-400 truncate mt-0.5">{result.subtitle}</p>
-            </div>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${typeBadge(result.type)}`}>
-              {result.type}
-            </span>
-          </button>
-        ))}
-      </div>
     </div>
   );
 }

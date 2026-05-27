@@ -159,10 +159,11 @@ function isSectionOpenByKey(key: string) {
       href: "/dashboard/schedule",
       icon: "📅",
       children: [
+        { label: "Schedule Conflicts", href: "/dashboard/schedule/conflicts" },
         { label: "Signatures", href: "/dashboard/signatures" },
         { label: "Calendar View", href: "/dashboard/schedule" },
         { label: "Session Changes", href: "/dashboard/session-changes" },
-        { label: "Telehealth", href: "/dashboard/telehealth" },
+        { label: "Session Recordings", href: "/dashboard/telehealth/recordings" },
         { label: "Time Tracking", href: "/dashboard/timetracking" },
         { label: "Signatures", href: "/dashboard/signatures" },
         { label: "Geofence", href: "/dashboard/geofence" },
@@ -175,6 +176,7 @@ function isSectionOpenByKey(key: string) {
       href: "/dashboard/insurance",
       icon: "🏦",
       children: [
+        { label: "ERA / EOB Posting", href: "/dashboard/billing/era-eob" },
         { label: "CMS-1500 Claims", href: "/dashboard/billing/cms1500" },
         { label: "Eligibility Verification", href: "/dashboard/eligibility" },
         { label: "Co-pay Tracking", href: "/dashboard/copay" },
