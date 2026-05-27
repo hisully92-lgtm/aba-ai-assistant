@@ -1,300 +1,198 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabase/client";
-import Section from "@/components/ui/Section";
+import Link from "next/link";
 import PageHeader from "@/components/layout/PageHeader";
-import Button from "@/components/ui/Button";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
-/* ================= TYPES ================= */
-
-type Client = { id: string; full_name: string };
-
-type CPTLine = {
-  cpt: string;
-  billed: number;
-  allowed: number;
-  paid: number;
-  adjustment: number;
-  patient_resp: number;
-  denial_code: string;
-  denial_reason: string;
-};
-
-type ERAPosting = {
+type Result = {
   id: string;
-  client_id: string | null;
-  insurance_provider: string;
-  check_number: string | null;
-  payment_date: string;
-  total_billed: number;
-  total_allowed: number;
-  total_paid: number;
-  total_adjustment: number;
-  total_patient_responsibility: number;
-  denial_reason: string | null;
-  cpt_lines: CPTLine[];
-  status: string;
-  notes: string | null;
-  created_at: string;
+  type: string;
+  title: string;
+  subtitle: string;
+  href: string;
+  icon: string;
 };
 
-/* ================= CONSTANTS ================= */
+const TYPE_COLORS: Record<string, string> = {
+  "Client": "bg-blue-100 text-blue-700",
+  "Session Note": "bg-gray-100 text-gray-700",
+  "Behavior": "bg-red-100 text-red-700",
+  "Program": "bg-green-100 text-green-700",
+  "Goal": "bg-purple-100 text-purple-700",
+  "Incident": "bg-orange-100 text-orange-700",
+  "Authorization": "bg-teal-100 text-teal-700",
+};
 
-const PROVIDERS = [
-  "Blue Cross Blue Shield",
-  "UnitedHealthcare",
-  "Aetna",
-  "Cigna",
-  "Humana",
-  "Medicaid",
-  "TRICARE",
-  "Other",
+const QUICK_LINKS = [
+  { label: "All Clients", href: "/dashboard/clients", icon: "👥" },
+  { label: "Session History", href: "/dashboard/history", icon: "📋" },
+  { label: "Behaviors", href: "/dashboard/behaviors", icon: "🧠" },
+  { label: "Goals Dashboard", href: "/dashboard/goals", icon: "🎯" },
+  { label: "BIP Plans", href: "/dashboard/bip", icon: "📄" },
+  { label: "Authorizations", href: "/dashboard/authorizations", icon: "🏦" },
+  { label: "ABA Graphs", href: "/dashboard/analytics/graphs", icon: "📈" },
+  { label: "Crisis Plans", href: "/dashboard/crisis-plans", icon: "🚨" },
 ];
 
-const DENIAL_CODES = [
-  { code: "CO-4", desc: "Service inconsistent with modifier" },
-  { code: "CO-11", desc: "Diagnosis inconsistent with procedure" },
-  { code: "CO-16", desc: "Claim/service lacks information" },
-  { code: "CO-29", desc: "Time limit expired" },
-  { code: "CO-45", desc: "Charge exceeds fee schedule" },
-  { code: "CO-97", desc: "Benefit for service included in payment" },
-  { code: "PR-1", desc: "Deductible amount" },
-  { code: "PR-2", desc: "Co-insurance amount" },
-  { code: "PR-3", desc: "Co-pay amount" },
-  { code: "OA-23", desc: "Payment adjusted - prior payer" },
-];
+export default function SearchPage() {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Result[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
 
-const emptyLine: CPTLine = {
-  cpt: "97153",
-  billed: 0,
-  allowed: 0,
-  paid: 0,
-  adjustment: 0,
-  patient_resp: 0,
-  denial_code: "",
-  denial_reason: "",
-};
+  async function handleSearch(q: string) {
+    setQuery(q);
+    if (q.length < 2) { setResults([]); setSearched(false); return; }
+    setLoading(true);
 
-const emptyForm = {
-  client_id: "",
-  insurance_provider: "",
-  check_number: "",
-  payment_date: new Date().toISOString().split("T")[0],
-  notes: "",
-};
-
-/* ================= COMPONENT ================= */
-
-export default function ERAEOBPage() {
-  const [postings, setPostings] = useState<ERAPosting[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const [filterProvider, setFilterProvider] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  const [form, setForm] = useState(emptyForm);
-  const [lines, setLines] = useState<CPTLine[]>([{ ...emptyLine }]);
-
-  useEffect(() => {
-    init();
-  }, []);
-
-  async function init() {
-    const { data: auth } = await supabase.auth.getUser();
-    const user = auth?.user;
-    if (!user) return;
-
-    const [{ data: clientData }, { data: postingData }] = await Promise.all([
-      supabase.from("clients").select("id, full_name"),
-      supabase
-        .from("era_eob_postings")
-        .select("*")
-        .eq("created_by", user.id)
-        .order("payment_date", { ascending: false }),
+    const [
+      { data: clients },
+      { data: sessions },
+      { data: behaviors },
+      { data: programs },
+      { data: goals },
+      { data: incidents },
+      { data: auths },
+    ] = await Promise.all([
+      supabase.from("clients").select("id, full_name, diagnosis").ilike("full_name", `%${q}%`).limit(5),
+      supabase.from("sessions").select("id, client_id, note, created_at").ilike("note", `%${q}%`).limit(5),
+      supabase.from("behaviors").select("id, behavior_name, client_id, created_at").ilike("behavior_name", `%${q}%`).limit(5),
+      supabase.from("programs").select("id, program_name, client_id, created_at").ilike("program_name", `%${q}%`).limit(5),
+      supabase.from("client_goals").select("id, goal_name, client_id, status").ilike("goal_name", `%${q}%`).limit(5),
+      supabase.from("incident_reports").select("id, incident_type, client_id, created_at").ilike("incident_type", `%${q}%`).limit(3),
+      supabase.from("insurance_authorizations").select("id, insurance_provider, client_id, status").ilike("insurance_provider", `%${q}%`).limit(3),
     ]);
 
-    setClients(clientData ?? []);
-    setPostings(
-      (postingData ?? []).map((p: any) => ({
-        ...p,
-        cpt_lines: Array.isArray(p.cpt_lines)
-          ? p.cpt_lines
-          : JSON.parse(p.cpt_lines || "[]"),
-      }))
-    );
+    const allResults: Result[] = [
+      ...(clients ?? []).map((c: any) => ({
+        id: c.id, type: "Client", icon: "👥",
+        title: c.full_name,
+        subtitle: c.diagnosis ?? "No diagnosis listed",
+        href: "/dashboard/clients",
+      })),
+      ...(sessions ?? []).map((s: any) => ({
+        id: s.id, type: "Session Note", icon: "📋",
+        title: `Session — ${new Date(s.created_at).toLocaleDateString()}`,
+        subtitle: (s.note ?? "").slice(0, 80) + "...",
+        href: "/dashboard/history",
+      })),
+      ...(behaviors ?? []).map((b: any) => ({
+        id: b.id, type: "Behavior", icon: "🧠",
+        title: b.behavior_name,
+        subtitle: `Logged ${new Date(b.created_at).toLocaleDateString()}`,
+        href: "/dashboard/behaviors",
+      })),
+      ...(programs ?? []).map((p: any) => ({
+        id: p.id, type: "Program", icon: "🎯",
+        title: p.program_name,
+        subtitle: `Created ${new Date(p.created_at).toLocaleDateString()}`,
+        href: "/dashboard/programs",
+      })),
+      ...(goals ?? []).map((g: any) => ({
+        id: g.id, type: "Goal", icon: "✅",
+        title: g.goal_name,
+        subtitle: `Status: ${g.status}`,
+        href: "/dashboard/goals",
+      })),
+      ...(incidents ?? []).map((i: any) => ({
+        id: i.id, type: "Incident", icon: "⚠️",
+        title: i.incident_type,
+        subtitle: `Reported ${new Date(i.created_at).toLocaleDateString()}`,
+        href: "/dashboard/incidents",
+      })),
+      ...(auths ?? []).map((a: any) => ({
+        id: a.id, type: "Authorization", icon: "🏦",
+        title: a.insurance_provider,
+        subtitle: `Status: ${a.status}`,
+        href: "/dashboard/authorizations",
+      })),
+    ];
 
+    setResults(allResults);
+    setSearched(true);
     setLoading(false);
   }
 
-  /* ================= LINE HELPERS ================= */
-
-  function addLine() {
-    setLines((p) => [...p, { ...emptyLine }]);
-  }
-
-  function updateLine(i: number, field: keyof CPTLine, value: any) {
-    setLines((p) =>
-      p.map((l, idx) => (idx === i ? { ...l, [field]: value } : l))
-    );
-  }
-
-  function removeLine(i: number) {
-    setLines((p) => p.filter((_, idx) => idx !== i));
-  }
-
-  function totals() {
-    return {
-      billed: lines.reduce((a, b) => a + b.billed, 0),
-      allowed: lines.reduce((a, b) => a + b.allowed, 0),
-      paid: lines.reduce((a, b) => a + b.paid, 0),
-      adjustment: lines.reduce((a, b) => a + b.adjustment, 0),
-      patient_resp: lines.reduce((a, b) => a + b.patient_resp, 0),
-    };
-  }
-
-  /* ================= SAVE ================= */
-
-  async function handleSave(status: string) {
-    if (!form.insurance_provider) return;
-    setSaving(true);
-
-    const { data: auth } = await supabase.auth.getUser();
-    const user = auth?.user;
-    if (!user) return;
-
-    const t = totals();
-    const hasDenials = lines.some((l) => l.denial_code);
-
-    const { data } = await supabase
-      .from("era_eob_postings")
-      .insert([
-        {
-          client_id: form.client_id || null,
-          insurance_provider: form.insurance_provider,
-          check_number: form.check_number || null,
-          payment_date: form.payment_date,
-          total_billed: t.billed,
-          total_allowed: t.allowed,
-          total_paid: t.paid,
-          total_adjustment: t.adjustment,
-          total_patient_responsibility: t.patient_resp,
-          denial_reason:
-            lines
-              .filter((l) => l.denial_reason)
-              .map((l) => l.denial_reason)
-              .join("; ") || null,
-          cpt_lines: JSON.stringify(lines),
-          status: hasDenials ? "partial_denial" : status,
-          notes: form.notes || null,
-          created_by: user.id,
-        },
-      ])
-      .select()
-      .single();
-
-    if (data) {
-      setPostings((p) => [{ ...data, cpt_lines: lines }, ...p]);
-    }
-
-    setForm(emptyForm);
-    setLines([{ ...emptyLine }]);
-    setShowForm(false);
-    setSaving(false);
-  }
-
-  /* ================= FILTERING ================= */
-
-  const clientMap = new Map(clients.map((c) => [c.id, c.full_name]));
-
-  let filtered = postings;
-  if (filterProvider)
-    filtered = filtered.filter(
-      (p) => p.insurance_provider === filterProvider
-    );
-  if (filterStatus) filtered = filtered.filter((p) => p.status === filterStatus);
-
-  const totalPaid = postings.reduce((a, b) => a + b.total_paid, 0);
-  const totalBilled = postings.reduce((a, b) => a + b.total_billed, 0);
-  const collectionRate =
-    totalBilled > 0 ? Math.round((totalPaid / totalBilled) * 100) : 0;
-
-  const chartData = postings
-    .reduce((acc: any[], p) => {
-      const month = p.payment_date.slice(0, 7);
-      const existing = acc.find((a) => a.month === month);
-      if (existing) {
-        existing.paid += p.total_paid;
-        existing.billed += p.total_billed;
-      } else {
-        acc.push({ month, paid: p.total_paid, billed: p.total_billed });
-      }
-      return acc;
-    }, [])
-    .sort((a, b) => a.month.localeCompare(b.month))
-    .slice(-6);
-
-  function statusColor(status: string) {
-    if (status === "posted") return "bg-green-100 text-green-700";
-    if (status === "partial_denial")
-      return "bg-orange-100 text-orange-700";
-    if (status === "denied") return "bg-red-100 text-red-700";
-    if (status === "pending") return "bg-yellow-100 text-yellow-700";
-    return "bg-gray-100 text-gray-600";
-  }
-
-  /* ================= UI ================= */
-
   return (
-    <div className="space-y-6">
-      <PageHeader title="ERA / EOB Posting">
-        <Button onClick={() => setShowForm(!showForm)}>
-          {showForm ? "Cancel" : "+ Post ERA/EOB"}
-        </Button>
-      </PageHeader>
+    <div className="space-y-6 max-w-2xl">
+      <PageHeader title="Search" />
 
-      {/* STATS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-4 bg-white border rounded-xl text-center">
-          <p className="text-2xl font-bold text-green-600">
-            ${totalPaid.toFixed(0)}
-          </p>
-          <p className="text-xs text-gray-500">Paid</p>
+      {/* SEARCH BAR */}
+      <div className="relative">
+        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
         </div>
-        <div className="p-4 bg-white border rounded-xl text-center">
-          <p className="text-2xl font-bold text-blue-600">
-            ${totalBilled.toFixed(0)}
-          </p>
-          <p className="text-xs text-gray-500">Billed</p>
-        </div>
-        <div className="p-4 bg-white border rounded-xl text-center">
-          <p className="text-2xl font-bold text-purple-600">
-            {collectionRate}%
-          </p>
-          <p className="text-xs text-gray-500">Collection</p>
-        </div>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => handleSearch(e.target.value)}
+          placeholder="Search clients, sessions, behaviors, programs, goals..."
+          autoFocus
+          className="w-full border-2 border-gray-200 rounded-2xl px-5 py-4 pl-12 text-base focus:outline-none focus:border-blue-400"
+        />
+        {loading && (
+          <div className="absolute right-4 top-1/2 -translate-y-1/2">
+            <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+        {query && !loading && (
+          <button onClick={() => { setQuery(""); setResults([]); setSearched(false); }}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            ✕
+          </button>
+        )}
       </div>
 
-      {/* CHART */}
-      {chartData.length > 0 && (
-        <Section title="Payments Trend">
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="billed" fill="#e5e7eb" />
-              <Bar dataKey="paid" fill="#16a34a" />
-            </BarChart>
-          </ResponsiveContainer>
-        </Section>
+      {/* NO RESULTS */}
+      {searched && results.length === 0 && (
+        <div className="text-center py-10 border border-dashed border-gray-200 rounded-2xl">
+          <p className="text-3xl mb-2">🔍</p>
+          <p className="text-gray-600 font-medium">No results for "{query}"</p>
+          <p className="text-gray-400 text-sm mt-1">Try a client name, behavior, program, or goal</p>
+        </div>
+      )}
+
+      {/* RESULTS */}
+      {results.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm text-gray-400">{results.length} results for "{query}"</p>
+          {results.map((result) => (
+            <Link key={result.id + result.type} href={result.href}>
+              <div className="flex items-center gap-3 border border-gray-100 rounded-xl p-4 bg-white hover:shadow-sm hover:border-blue-200 transition-all cursor-pointer">
+                <span className="text-2xl">{result.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-800 truncate">{result.title}</p>
+                  <p className="text-xs text-gray-500 truncate mt-0.5">{result.subtitle}</p>
+                </div>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${TYPE_COLORS[result.type] ?? "bg-gray-100 text-gray-600"}`}>
+                  {result.type}
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {/* QUICK LINKS — shown when no search active */}
+      {!searched && (
+        <div className="space-y-2">
+          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Quick Links</p>
+          <div className="grid grid-cols-2 gap-2">
+            {QUICK_LINKS.map((link) => (
+              <Link key={link.href} href={link.href}>
+                <div className="flex items-center gap-3 border border-gray-100 rounded-xl p-3 bg-white hover:shadow-sm hover:border-blue-200 transition-all cursor-pointer">
+                  <span className="text-xl">{link.icon}</span>
+                  <span className="text-sm font-medium text-gray-700">{link.label}</span>
+                  <span className="ml-auto text-gray-300">→</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
