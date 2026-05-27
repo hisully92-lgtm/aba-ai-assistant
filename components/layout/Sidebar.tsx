@@ -54,19 +54,31 @@ export default function Sidebar({ onClose }: SidebarProps) {
   }
 
   function toggleSection(key: string) {
-    setOpenSections((prev) =>
-      prev.includes(key)
-        ? prev.filter((k) => k !== key)
-        : [...prev, key]
-    );
-  }
+  setOpenSections((prev) => {
+    const isOpen = isSectionOpenByKey(key);
+    if (isOpen) {
+      return [...prev.filter((k) => k !== key), key + "_closed"];
+    } else {
+      return [...prev.filter((k) => k !== key + "_closed"), key];
+    }
+  });
+}
+
+function isSectionOpenByKey(key: string) {
+  if (openSections.includes(key + "_closed")) return false;
+  if (openSections.includes(key)) return true;
+  const item = nav.find((i) => i.href + i.label === key);
+  return item ? isChildActive(item) : false;
+}
 
   function isSectionOpen(item: NavItem) {
-    return (
-      openSections.includes(item.href + item.label) ||
-      isChildActive(item)
-    );
-  }
+  const key = item.href + item.label;
+  const manuallyClosed = openSections.includes(key + "_closed");
+  const manuallyOpened = openSections.includes(key);
+  if (manuallyClosed) return false;
+  if (manuallyOpened) return true;
+  return isChildActive(item);
+}
 
   function handleNavClick() {
     onClose?.();
