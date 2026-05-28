@@ -148,6 +148,54 @@ const MODULES: Module[] = [
     ],
     videos: [
       {
+        title: "RBT Task List Study Guide — Assessment and Skill Acquisition",
+        url: "https://www.youtube.com/embed/R9hYtz7B5v0",
+        duration: "~30 min",
+        description: "Covers RBT Task List sections B (Assessment) and C (Skill Acquisition) — terms, definitions, and practice questions directly from the BACB task list.",
+        },
+        {
+        title: "Functional Behavior Assessment (FBA) — Direct, Indirect, Functional Analysis | RBT & BCBA Exam",
+        url: "https://www.youtube.com/embed/fOev3s7ieK4",
+        duration: "~25 min",
+        description: "Complete breakdown of FBA methods — indirect (interviews, rating scales), direct observation, and functional analysis. Covers what RBTs assist with.",
+        },
+        {
+        title: "Functional Behavior Assessment Procedures — BT Competency Assessment",
+        url: "https://www.youtube.com/embed/HR7kpt_zlgI",
+        duration: "~15 min",
+        description: "Specifically designed for behavior technicians — how to assist with functional assessment procedures as required in the RBT competency assessment.",
+        },
+        {
+        title: "Functional Behavioral Assessment: Conducting an ABC Analysis",
+        url: "https://www.youtube.com/embed/Sxf9GPH5A-8",
+        duration: "~20 min",
+        description: "Live demonstration of conducting an ABC analysis as part of a functional behavior assessment — documents environmental variables affecting behavior.",
+        },
+        {
+        title: "How to Conduct a Preference Assessment (Two-Item and MSWO)",
+        url: "https://www.youtube.com/embed/s6imDTKvvFQ",
+        duration: "~18 min",
+        description: "Step-by-step guide to conducting a two-item paired stimulus and MSWO preference assessment — data collection and summarizing results.",
+        },
+        {
+        title: "How to Conduct MSWO Preference Assessment — ABA",
+        url: "https://www.youtube.com/embed/0l-KDILt3-M",
+        duration: "~15 min",
+        description: "Live demonstration of a Multiple Stimulus Without Replacement (MSWO) preference assessment — presenting stimuli, collecting data, and determining hierarchy.",
+        },
+        {
+        title: "Preference Assessment with Toys — MSWO",
+        url: "https://www.youtube.com/embed/fEEelCgBkWA",
+        duration: "~10 min",
+        description: "Demonstration of MSWO preference assessment conducted with toys — shows exactly how to present stimuli, record selections, and rotate items.",
+        },
+        {
+        title: "How to Choose the Right ABA Assessment (VB-MAPP, ABLLS, MOTAS)",
+        url: "https://www.youtube.com/embed/sKXOGofx9VQ",
+        duration: "~22 min",
+        description: "How to ABA covers how to select and use skill-based assessments including the VB-MAPP and ABLLS-R to individualize goals and track progress.",
+        },
+    {
         title: "ABA (Applied Behavior Analysis) Techniques by BCBA",
         url: "https://www.youtube.com/embed/BxK-FkRnE9A",
         duration: "~30 min",
