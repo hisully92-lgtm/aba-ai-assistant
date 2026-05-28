@@ -1,400 +1,626 @@
 "use client";
 
 import { useState } from "react";
-import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
+import Section from "@/components/ui/Section";
 
 type Video = {
-  id: string;
   title: string;
-  description: string;
-  youtubeId: string;
-  category: string;
+  url: string;
   duration: string;
-  level: string;
-  tags: string[];
+  description: string;
 };
 
-const VIDEOS: Video[] = [
+type Module = {
+  id: string;
+  section: string;
+  title: string;
+  hours: number;
+  bacbRef: string;
+  videos: Video[];
+  topics: string[];
+};
+
+const MODULES: Module[] = [
   {
-    id: "1",
-    title: "Introduction to ABA Therapy",
-    description: "A comprehensive overview of Applied Behavior Analysis principles, reinforcement, and the ABCs of behavior.",
-    youtubeId: "DGDfhF_YEsQ",
-    category: "RBT Training",
-    duration: "10 min",
-    level: "Beginner",
-    tags: ["ABA basics", "reinforcement", "RBT"],
+    id: "A",
+    section: "Section A",
+    title: "Introduction to Applied Behavior Analysis",
+    hours: 2,
+    bacbRef: "2026 RBT Curriculum — Section A (2 hours)",
+    topics: [
+      "Features and purpose of ABA service delivery",
+      "Stimuli, responses, and the 3-term contingency",
+      "Positive and negative reinforcement",
+      "Common functions of problem behavior",
+      "Elementary verbal operants (mand, tact, echoic, intraverbal)",
+      "Common phases of ABA interventions (baseline, intervention, generalization, maintenance)",
+    ],
+    videos: [
+      {
+        title: "Behavior Technician Training Program | 40-Hour RBT Course — Part 1",
+        url: "https://www.youtube.com/embed/qBrlTfuHxSU",
+        duration: "~60 min",
+        description: "Foundations of ABA, autism therapy, data collection, and assessment overview. Covers the full intro to ABA for new RBTs.",
+      },
+      {
+        title: "ABA Therapy: Schedules of Reinforcement",
+        url: "https://www.youtube.com/embed/R8NWkfGwJHU",
+        duration: "~15 min",
+        description: "Fixed ratio, variable ratio, fixed interval, and variable interval reinforcement schedules explained.",
+      },
+      {
+        title: "ABA: Basic Schedules of Reinforcement — FR, VR, FI, VI",
+        url: "https://www.youtube.com/embed/ZTWjlQC8eVo",
+        duration: "~12 min",
+        description: "Clear visual explanation of the four basic reinforcement schedules used in ABA practice.",
+      },
+    ],
   },
   {
-    id: "2",
-    title: "Discrete Trial Training (DTT) Explained",
-    description: "Step-by-step guide to running DTT sessions including SD, response, consequence, and inter-trial interval.",
-    youtubeId: "V7rZB7RMCyQ",
-    category: "RBT Training",
-    duration: "12 min",
-    level: "Beginner",
-    tags: ["DTT", "skill acquisition", "RBT"],
+    id: "B",
+    section: "Section B",
+    title: "Preparing for Service Delivery",
+    hours: 1,
+    bacbRef: "2026 RBT Curriculum — Section B (1 hour)",
+    topics: [
+      "Ensure readiness to effectively deliver services",
+      "Review procedures and prior session documentation",
+      "Prepare the environment (gather materials)",
+      "Prepare the client (build rapport, gain assent)",
+    ],
+    videos: [
+      {
+        title: "RBT Competency Assessment: Naturalistic Teaching",
+        url: "https://www.youtube.com/embed/Phnq0yN2918",
+        duration: "~20 min",
+        description: "Covers environment setup, client preparation, rapport building, and session readiness as demonstrated in an RBT competency assessment.",
+      },
+      {
+        title: "Unlocking Everyday Learning with Incidental Teaching",
+        url: "https://www.youtube.com/embed/FTBmhJRtQbI",
+        duration: "~18 min",
+        description: "RBT Nicole Dobbins covers incidental teaching and using the natural environment to prepare and deliver services.",
+      },
+    ],
   },
   {
-    id: "3",
-    title: "Natural Environment Teaching (NET)",
-    description: "How to teach skills in the natural environment using motivation and child-led activities.",
-    youtubeId: "Q4gUfE3pDyc",
-    category: "RBT Training",
-    duration: "8 min",
-    level: "Beginner",
-    tags: ["NET", "naturalistic teaching", "RBT"],
+    id: "C",
+    section: "Section C",
+    title: "Data Collection and Graphing",
+    hours: 3,
+    bacbRef: "2026 RBT Curriculum — Section C (3 hours)",
+    topics: [
+      "Describe behavior and stimuli in observable terms",
+      "Operational definitions",
+      "Importance of data collection and risks of unreliable data",
+      "Common data-collection procedures (continuous, discontinuous, permanent product)",
+      "Calculate and summarize data (rate, mean duration, percentage correct)",
+      "Common data displays (line graphs, bar graphs)",
+      "Enter data and update graphs",
+      "Identify changes in graphed data and report to supervisor",
+    ],
+    videos: [
+      {
+        title: "ABA Data Collection Training — Frequency, Duration, Latency, IRT, Interval",
+        url: "https://www.youtube.com/embed/uwWDLkwscP4",
+        duration: "~45 min",
+        description: "Comprehensive training on all major data collection methods used in ABA — frequency, duration, latency, IRT, partial/whole interval, and momentary time sampling.",
+      },
+      {
+        title: "Frequency, Duration, Rate, Latency, IRT — RBT Measurement",
+        url: "https://www.youtube.com/embed/wYUto4aqNeM",
+        duration: "~20 min",
+        description: "Covers all measurable dimensions of behavior RBTs must know for the competency assessment and exam.",
+      },
+      {
+        title: "Interval Recording | Momentary Time Sampling — Discontinuous Measurement",
+        url: "https://www.youtube.com/embed/U8OsvZPgv28",
+        duration: "~18 min",
+        description: "In-depth explanation of discontinuous measurement procedures including whole interval, partial interval, and MTS.",
+      },
+      {
+        title: "Graphing for RBTs | Trend, Level, Variability | ABA Line Graphs",
+        url: "https://www.youtube.com/embed/uPrCO0v-jg8",
+        duration: "~22 min",
+        description: "How to read, create, and interpret ABA line graphs including phase change lines, trend, level, and variability.",
+      },
+      {
+        title: "ATCC 2026 RBT Training: The Importance of Data Collection",
+        url: "https://www.youtube.com/embed/VMpqtDPCHF8",
+        duration: "~10 min",
+        description: "Sneak peek from the official ATCC 2026 RBT Training series covering why accurate data collection is critical in ABA.",
+      },
+    ],
   },
   {
-    id: "4",
-    title: "ABA Data Collection Methods",
-    description: "Frequency, duration, interval recording, and permanent product — how and when to use each method.",
-    youtubeId: "Yf5NkRPJjDg",
-    category: "RBT Training",
-    duration: "15 min",
-    level: "Beginner",
-    tags: ["data collection", "frequency", "duration", "RBT"],
+    id: "D",
+    section: "Section D",
+    title: "Assisting with Behavior Assessments",
+    hours: 3,
+    bacbRef: "2026 RBT Curriculum — Section D (3 hours)",
+    topics: [
+      "Purpose of skill-based, preference, and functional assessments",
+      "Assist with skill-based assessments",
+      "Conduct preference assessments (FOPA, SS, PS, MSWO)",
+      "Assist with functional assessments and FBA",
+      "Document environmental variables affecting assessment results",
+    ],
+    videos: [
+      {
+        title: "ABA (Applied Behavior Analysis) Techniques by BCBA",
+        url: "https://www.youtube.com/embed/BxK-FkRnE9A",
+        duration: "~30 min",
+        description: "Covers ABA assessment techniques including preference assessment, functional assessment, token economy, and behavior intervention strategies.",
+      },
+      {
+        title: "RBT Task List Practice Questions | Differential Reinforcement",
+        url: "https://www.youtube.com/embed/5vMzAnErybk",
+        duration: "~25 min",
+        description: "RBT task list review covering assessment-related procedures and differential reinforcement from the BACB task list.",
+      },
+    ],
   },
   {
-    id: "5",
-    title: "Prompting Strategies in ABA",
-    description: "Full physical, partial physical, model, gesture, and vocal prompts — how to use and fade them.",
-    youtubeId: "oB_Pkq7ZVNE",
-    category: "RBT Training",
-    duration: "11 min",
-    level: "Intermediate",
-    tags: ["prompting", "prompt fading", "RBT"],
+    id: "E",
+    section: "Section E",
+    title: "Behavior-Change Interventions",
+    hours: 20,
+    bacbRef: "2026 RBT Curriculum — Section E (20 hours — largest section)",
+    topics: [
+      "Procedural integrity",
+      "Establishing and using conditioned reinforcers (token economies)",
+      "Discrete-trial teaching (DTT)",
+      "Naturalistic teaching (incidental teaching, NET)",
+      "Task analysis and chaining (forward, backward, total task)",
+      "Stimulus and response prompts (errorless teaching, LTM, MTL, stimulus fading)",
+      "Discrimination training",
+      "Differential reinforcement (DRO, DRA)",
+      "Extinction (including secondary effects)",
+      "Punishment (including secondary effects)",
+      "Shaping",
+      "Antecedent intervention (NCR, high-p sequences, choice, activity schedules)",
+      "Generalization",
+      "Self-monitoring",
+      "Crisis intervention",
+    ],
+    videos: [
+      {
+        title: "ATCC 2026 RBT Training: Discrete-Trial Teaching",
+        url: "https://www.youtube.com/embed/02nHYMdrUhA",
+        duration: "~15 min",
+        description: "Official 2026 ATCC RBT training sneak peek covering discrete-trial teaching as required by the new BACB curriculum.",
+      },
+      {
+        title: "Discrete Trial Training: DTT in ABA Therapy | RBT & BCBA Review",
+        url: "https://www.youtube.com/embed/UxHd0lSLxRc",
+        duration: "~20 min",
+        description: "Parts of a discrete trial, DTT implementation, error correction, and data collection in ABA therapy.",
+      },
+      {
+        title: "G2: Discrete-Trial Teaching (DTT) Explained | ABA Training for RBTs",
+        url: "https://www.youtube.com/embed/4bJXAbP7WOk",
+        duration: "~18 min",
+        description: "DTT as outlined in the G2 task list for RBTs — covers SD, response, consequence, and inter-trial interval.",
+      },
+      {
+        title: "ATCC 2026 RBT Training: Naturalistic Teaching",
+        url: "https://www.youtube.com/embed/FiAMgqV35lw",
+        duration: "~12 min",
+        description: "Official 2026 ATCC sneak peek on naturalistic teaching strategies for the new RBT curriculum.",
+      },
+      {
+        title: "Natural Environment Teaching (NET) — ABA Techniques at Home",
+        url: "https://www.youtube.com/embed/mCDSU7LfZEk",
+        duration: "~15 min",
+        description: "How to use NET (Natural Environment Teaching) and ABA therapy techniques in home and natural settings.",
+      },
+      {
+        title: "How to Implement Naturalistic Teaching | RBT Study Guide",
+        url: "https://www.youtube.com/embed/z9mGqYHfjJY",
+        duration: "~16 min",
+        description: "Naturalistic teaching strategies — using the learner's natural environment to practice target skills.",
+      },
+      {
+        title: "Task Chaining and Task Analysis (Forward, Backward, Total) | ABA Terms",
+        url: "https://www.youtube.com/embed/gKd3OE58DBg",
+        duration: "~20 min",
+        description: "Complete breakdown of task analysis, forward chaining, backward chaining, and total task chaining for RBT and BCBA exam.",
+      },
+      {
+        title: "What is Chaining & How to Use Chaining to Teach Skills in ABA",
+        url: "https://www.youtube.com/embed/nTu4-swoWss",
+        duration: "~18 min",
+        description: "How to ABA discusses chaining procedures and how to teach complex multi-step behaviors using behavior chains.",
+      },
+      {
+        title: "Differential Reinforcement of Other Behavior (DRO) — BCBA/RBT Exam Prep",
+        url: "https://www.youtube.com/embed/S6wkQVNMLa0",
+        duration: "~15 min",
+        description: "DRO explained — reinforcing the absence of problem behavior during a specified time interval.",
+      },
+      {
+        title: "Differential Reinforcement of Alternative Behavior (DRA)",
+        url: "https://www.youtube.com/embed/d8VVl0fnFF8",
+        duration: "~12 min",
+        description: "DRA explained by Hope Education Services CEO — reinforcing an alternative behavior that serves the same function.",
+      },
+      {
+        title: "Extinction Explained: ABA Insights for Behavior Modification",
+        url: "https://www.youtube.com/embed/tb3sd_57s3A",
+        duration: "~14 min",
+        description: "Understanding extinction, extinction burst, spontaneous recovery, and how to remove reinforcement for problem behavior.",
+      },
+      {
+        title: "ABA Made Easy: Extinction",
+        url: "https://www.youtube.com/embed/5wZ9wTJcm1U",
+        duration: "~20 min",
+        description: "Free RBT/BCBA certification prep series — covers extinction procedures, secondary effects, and clinical application.",
+      },
+      {
+        title: "Behavior Technician Competency Assessment: DTT",
+        url: "https://www.youtube.com/embed/pi3rP7Vd6SA",
+        duration: "~25 min",
+        description: "Full competency assessment example covering discrete trial training — exactly what RBTs must demonstrate.",
+      },
+      {
+        title: "RBT Study Guide: Reinforcement Schedules",
+        url: "https://www.youtube.com/embed/XLouVK7kpQs",
+        duration: "~22 min",
+        description: "Complete RBT study guide on all four basic schedules of reinforcement for the RBT exam and competency assessment.",
+      },
+    ],
   },
   {
-    id: "6",
-    title: "Positive Reinforcement in ABA",
-    description: "Understanding and applying positive reinforcement effectively with children receiving ABA services.",
-    youtubeId: "xGaMaGgxkAc",
-    category: "RBT Training",
-    duration: "9 min",
-    level: "Beginner",
-    tags: ["reinforcement", "behavior", "RBT"],
+    id: "F",
+    section: "Section F",
+    title: "Service Delivery Documentation and Reporting",
+    hours: 3,
+    bacbRef: "2026 RBT Curriculum — Section F (3 hours)",
+    topics: [
+      "Maintaining confidentiality and documentation (legal, regulatory, workplace requirements)",
+      "When and how to document service delivery",
+      "Document and report variables that might affect client progress",
+      "Seek and prioritize direction from a supervisor",
+      "Communicate concerns and suggestions from intervention team",
+    ],
+    videos: [
+      {
+        title: "RBT Ethics Code (2.0) — Section 2: Service Delivery",
+        url: "https://www.youtube.com/embed/_Kg5rEarr4s",
+        duration: "~25 min",
+        description: "RBTs do no harm, implement accurately, conduct professionally — covers documentation and reporting responsibilities.",
+      },
+      {
+        title: "ABA Data Sheet: Behavior Data Collection",
+        url: "https://www.youtube.com/embed/wujDf8mMdMI",
+        duration: "~18 min",
+        description: "How to make and use a weekly data sheet for behavior data — frequency, partial interval, and ABC data recording.",
+      },
+    ],
   },
   {
-    id: "7",
-    title: "Functional Behavior Assessment (FBA)",
-    description: "How to conduct a thorough FBA including indirect, direct observation, and experimental methods.",
-    youtubeId: "gElcFNrjAFA",
-    category: "BCBA Training",
-    duration: "20 min",
-    level: "Advanced",
-    tags: ["FBA", "functional analysis", "BCBA"],
+    id: "G",
+    section: "Section G",
+    title: "Ethics and Professionalism",
+    hours: 5,
+    bacbRef: "2026 RBT Curriculum — Section G (5 hours)",
+    topics: [
+      "Core principles: benefit others; compassion, dignity, respect; integrity; competence",
+      "RBT Ethics Code (2.0) and consumer protection",
+      "Ethics Code for Behavior Analysts",
+      "Multiple relationships — risks and mitigation",
+      "Cultural humility and responsiveness",
+      "Risks of public statements about professional activities",
+      "Addressing, documenting, and reporting professional misconduct",
+      "Role of the RBT in behavior-analytic service delivery",
+      "Behaving professionally with clients, peers, and supervisors",
+      "Effective supervision practices",
+    ],
+    videos: [
+      {
+        title: "Your Ethical Responsibilities as an RBT — Inside the BACB",
+        url: "https://www.youtube.com/embed/A6MBTtH6fGY",
+        duration: "~25 min",
+        description: "Official BACB video — Certification Resource Manager Dr. Sarah Jenkins and Director of Ethics Dr. Holly Seniuk discuss RBT ethical responsibilities.",
+      },
+      {
+        title: "Episode 25: Introduction to the RBT Ethics Code (2.0) — Inside the BACB",
+        url: "https://www.youtube.com/embed/k6-BuK1WIv8",
+        duration: "~30 min",
+        description: "Official BACB podcast — CEO Dr. Jim Carr and Director of Ethics Dr. Tyra Sellers discuss the RBT Ethics Code (2.0).",
+      },
+      {
+        title: "RBT Ethics Code (2.0) — Section 1: General Responsibilities",
+        url: "https://www.youtube.com/embed/qkyHdCjULyk",
+        duration: "~20 min",
+        description: "Four core principles, general responsibilities, and professional conduct standards from the RBT Ethics Code.",
+      },
+      {
+        title: "ATCC 2026 RBT Training: BACB Ethics Codes",
+        url: "https://www.youtube.com/embed/q7nyNlJwZr8",
+        duration: "~15 min",
+        description: "Official 2026 ATCC sneak peek covering BACB ethics codes as required in the new 2026 RBT curriculum.",
+      },
+    ],
   },
   {
-    id: "8",
-    title: "Writing Behavior Intervention Plans",
-    description: "Components of an effective BIP — operational definitions, replacement behaviors, reinforcement systems.",
-    youtubeId: "rWH1AwEf1XU",
-    category: "BCBA Training",
-    duration: "18 min",
-    level: "Advanced",
-    tags: ["BIP", "behavior plan", "BCBA"],
-  },
-  {
-    id: "9",
-    title: "Visual Analysis of ABA Data",
-    description: "How to read and interpret ABA graphs — level, trend, variability, and phase change lines.",
-    youtubeId: "7S-IHMM8rFo",
-    category: "BCBA Training",
-    duration: "14 min",
-    level: "Advanced",
-    tags: ["graphs", "visual analysis", "data", "BCBA"],
-  },
-  {
-    id: "10",
-    title: "VB-MAPP Assessment Overview",
-    description: "Introduction to the Verbal Behavior Milestones Assessment and Placement Program.",
-    youtubeId: "jC8A7j5TSSE",
-    category: "BCBA Training",
-    duration: "16 min",
-    level: "Advanced",
-    tags: ["VB-MAPP", "assessment", "BCBA"],
-  },
-  {
-    id: "11",
-    title: "What is ABA Therapy? Parent Guide",
-    description: "A parent-friendly introduction to ABA therapy, what to expect, and how to support your child at home.",
-    youtubeId: "KaFPEPCP6Hw",
-    category: "Parent Training",
-    duration: "7 min",
-    level: "Beginner",
-    tags: ["parent training", "ABA basics", "family"],
-  },
-  {
-    id: "12",
-    title: "Using Reinforcement at Home",
-    description: "Practical strategies for parents to use reinforcement effectively during daily routines.",
-    youtubeId: "sM_c0H0YASE",
-    category: "Parent Training",
-    duration: "8 min",
-    level: "Beginner",
-    tags: ["reinforcement", "parent training", "home"],
-  },
-  {
-    id: "13",
-    title: "Managing Challenging Behaviors",
-    description: "Evidence-based strategies for parents to respond to challenging behaviors calmly and effectively.",
-    youtubeId: "Vr5xJFZk7_k",
-    category: "Parent Training",
-    duration: "12 min",
-    level: "Beginner",
-    tags: ["behavior management", "tantrums", "parent training"],
-  },
-  {
-    id: "14",
-    title: "BACB Ethics Code Overview",
-    description: "Overview of the BACB Professional and Ethical Compliance Code for behavior analysts.",
-    youtubeId: "FZhJu7bMT9A",
-    category: "Ethics & Professional",
-    duration: "15 min",
-    level: "Intermediate",
-    tags: ["ethics", "BACB", "professional conduct"],
-  },
-  {
-    id: "15",
-    title: "HIPAA Compliance for ABA Providers",
-    description: "What ABA clinicians need to know about HIPAA — protected health information, documentation, and security.",
-    youtubeId: "fU0ekFxGoMA",
-    category: "Ethics & Professional",
-    duration: "13 min",
-    level: "Intermediate",
-    tags: ["HIPAA", "compliance", "documentation"],
-  },
-  {
-    id: "16",
-    title: "Behavioral Skills Training (BST)",
-    description: "The four components of BST — instructions, modeling, rehearsal, and feedback for staff training.",
-    youtubeId: "wMGcSmPWbCo",
-    category: "Supervision",
-    duration: "14 min",
-    level: "Intermediate",
-    tags: ["BST", "supervision", "staff training"],
-  },
-  {
-    id: "17",
-    title: "RBT Supervision Best Practices",
-    description: "How BCBAs can provide effective, competency-based supervision to Registered Behavior Technicians.",
-    youtubeId: "y8Mvr7UhDmA",
-    category: "Supervision",
-    duration: "17 min",
-    level: "Advanced",
-    tags: ["supervision", "RBT", "BCBA", "feedback"],
-  },
-  {
-    id: "18",
-    title: "Task Analysis in ABA",
-    description: "How to write and implement task analyses for daily living and vocational skills.",
-    youtubeId: "tJPqHYPz3Vk",
-    category: "BCBA Training",
-    duration: "11 min",
-    level: "Intermediate",
-    tags: ["task analysis", "skill acquisition", "BCBA"],
+    id: "H",
+    section: "Section H",
+    title: "Next Steps in the Certification Process",
+    hours: 1,
+    bacbRef: "2026 RBT Curriculum — Section H (1 hour)",
+    topics: [
+      "Steps to obtain RBT certification",
+      "Certification statuses (inactive, voluntary inactive)",
+      "Ongoing supervision requirements and documentation",
+      "Ethics requirements for maintaining certification",
+      "Self-reporting requirements to the BACB",
+      "Recertification requirements",
+    ],
+    videos: [
+      {
+        title: "How to Become an RBT — Official BACB Video",
+        url: "https://www.youtube.com/embed/vht71vxSgOE",
+        duration: "~15 min",
+        description: "Official BACB video walking through the process of earning RBT certification — eligibility requirements, application, and exam.",
+      },
+      {
+        title: "RBT Certification: New 2026 Requirements Explained",
+        url: "https://www.youtube.com/embed/nCtulqs7z84",
+        duration: "~20 min",
+        description: "Breaks down the new 2026 RBT recertification requirements — shift from annual to biennial renewal and exam changes.",
+      },
+      {
+        title: "Maintaining Your RBT Certification — Inside the BACB",
+        url: "https://www.youtube.com/embed/c6C0BXIDpbM",
+        duration: "~18 min",
+        description: "Official BACB video covering how to maintain RBT certification — supervision, ethics, and recertification.",
+      },
+      {
+        title: "Better Understanding Supervision as an RBT — Inside the BACB",
+        url: "https://www.youtube.com/embed/tzx3QWNjvgI",
+        duration: "~22 min",
+        description: "Official BACB video — Dr. Sarah Jenkins and Rachel Ulrich discuss supervision requirements for RBTs.",
+      },
+      {
+        title: "ATCC 2026 RBT Training: Steps to Obtain RBT Certification",
+        url: "https://www.youtube.com/embed/F6jX4Ba7eSQ",
+        duration: "~10 min",
+        description: "Official ATCC 2026 sneak peek covering the steps to obtain RBT certification under the new 2026 requirements.",
+      },
+      {
+        title: "MAJOR RBT Changes in 2026 — What Every RBT & BCBA Must Know",
+        url: "https://www.youtube.com/embed/RBc0L4FwV4E",
+        duration: "~25 min",
+        description: "Comprehensive breakdown of all 2026 RBT certification changes and what they mean for RBTs and supervising BCBAs.",
+      },
+    ],
   },
 ];
 
-const CATEGORIES = ["All", "RBT Training", "BCBA Training", "Parent Training", "Ethics & Professional", "Supervision"];
-const LEVELS = ["All", "Beginner", "Intermediate", "Advanced"];
+const TOTAL_HOURS = MODULES.reduce((a, b) => a + b.hours, 0);
 
 export default function TrainingPage() {
-  const [search, setSearch] = useState("");
-  const [filterCategory, setFilterCategory] = useState("All");
-  const [filterLevel, setFilterLevel] = useState("All");
-  const [activeVideo, setActiveVideo] = useState<Video | null>(null);
-  const [completedIds, setCompletedIds] = useState<Set<string>>(() => {
-    try {
-      const stored = localStorage.getItem("completed_training");
-      return new Set(stored ? JSON.parse(stored) : []);
-    } catch { return new Set(); }
-  });
+  const [activeModule, setActiveModule] = useState<string | null>(null);
+  const [activeVideo, setActiveVideo] = useState<string | null>(null);
+  const [completed, setCompleted] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState("all");
 
-  function toggleCompleted(id: string) {
-    setCompletedIds((prev) => {
+  function toggleComplete(key: string) {
+    setCompleted(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      try { localStorage.setItem("completed_training", JSON.stringify([...next])); } catch {}
+      next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
   }
 
-  const filtered = VIDEOS.filter((v) => {
-    const matchSearch = !search ||
-      v.title.toLowerCase().includes(search.toLowerCase()) ||
-      v.description.toLowerCase().includes(search.toLowerCase()) ||
-      v.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()));
-    const matchCat = filterCategory === "All" || v.category === filterCategory;
-    const matchLevel = filterLevel === "All" || v.level === filterLevel;
-    return matchSearch && matchCat && matchLevel;
-  });
+  const totalVideos = MODULES.reduce((a, b) => a + b.videos.length, 0);
+  const completedVideos = completed.size;
+  const pct = Math.round((completedVideos / totalVideos) * 100);
 
-  const completedCount = VIDEOS.filter((v) => completedIds.has(v.id)).length;
-
-  function levelColor(level: string) {
-    if (level === "Beginner") return "bg-green-100 text-green-700";
-    if (level === "Intermediate") return "bg-yellow-100 text-yellow-700";
-    return "bg-red-100 text-red-700";
-  }
-
-  function categoryColor(cat: string) {
-    if (cat === "RBT Training") return "bg-blue-100 text-blue-700";
-    if (cat === "BCBA Training") return "bg-purple-100 text-purple-700";
-    if (cat === "Parent Training") return "bg-pink-100 text-pink-700";
-    if (cat === "Ethics & Professional") return "bg-orange-100 text-orange-700";
-    if (cat === "Supervision") return "bg-teal-100 text-teal-700";
-    return "bg-gray-100 text-gray-600";
-  }
+  const filtered = filter === "all" ? MODULES : MODULES.filter(m => m.id === filter);
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Video Training Library">
-        <p className="text-gray-500 text-sm">{completedCount}/{VIDEOS.length} completed</p>
-      </PageHeader>
+      <PageHeader title="RBT 40-Hour Training Library" />
 
-      {/* PROGRESS */}
-      <div className="bg-white border border-gray-100 rounded-xl p-4">
-        <div className="flex justify-between items-center mb-2">
-          <p className="text-sm font-medium text-gray-700">Training Progress</p>
-          <p className="text-sm font-bold text-blue-600">{Math.round((completedCount / VIDEOS.length) * 100)}%</p>
-        </div>
-        <div className="w-full bg-gray-100 rounded-full h-3">
-          <div className="bg-blue-500 h-3 rounded-full transition-all"
-            style={{ width: `${(completedCount / VIDEOS.length) * 100}%` }} />
-        </div>
-        <div className="flex flex-wrap gap-2 mt-3">
-          {CATEGORIES.slice(1).map((cat) => {
-            const catVideos = VIDEOS.filter((v) => v.category === cat);
-            const catDone = catVideos.filter((v) => completedIds.has(v.id)).length;
-            return (
-              <span key={cat} className={`text-xs px-2 py-0.5 rounded-full ${categoryColor(cat)}`}>
-                {cat.split(" ")[0]}: {catDone}/{catVideos.length}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* VIDEO MODAL */}
-      {activeVideo && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl">
-            <div className="aspect-video w-full bg-black">
-              <iframe
-                src={`https://www.youtube-nocookie.com/embed/${activeVideo.youtubeId}?autoplay=1&rel=0&modestbranding=1`}
-                title={activeVideo.title}
-                className="w-full h-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-              />
-            </div>
-            <div className="p-4">
-              <div className="flex justify-between items-start gap-3">
-                <div className="flex-1">
-                  <p className="font-bold text-gray-800 text-lg">{activeVideo.title}</p>
-                  <p className="text-sm text-gray-500 mt-1">{activeVideo.description}</p>
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${categoryColor(activeVideo.category)}`}>{activeVideo.category}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${levelColor(activeVideo.level)}`}>{activeVideo.level}</span>
-                    <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">{activeVideo.duration}</span>
-                  </div>
-                </div>
-                <button onClick={() => setActiveVideo(null)} className="text-gray-400 hover:text-gray-600 text-xl shrink-0">✕</button>
-              </div>
-              <div className="flex gap-2 mt-4">
-                <button
-                  onClick={() => { toggleCompleted(activeVideo.id); setActiveVideo(null); }}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${completedIds.has(activeVideo.id) ? "bg-gray-100 text-gray-600" : "bg-green-500 text-white hover:bg-green-600"}`}>
-                  {completedIds.has(activeVideo.id) ? "✓ Mark Incomplete" : "✓ Mark Complete"}
-                </button>
-                <button onClick={() => setActiveVideo(null)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
-                  Close
-                </button>
-              </div>
-            </div>
+      {/* HEADER BANNER */}
+      <div className="bg-[#1a2234] rounded-2xl p-5 text-white">
+        <p className="font-bold text-lg mb-1">BACB 2026 RBT 40-Hour Training Curriculum</p>
+        <p className="text-gray-300 text-sm mb-3">
+          All 8 sections of the official 2026 BACB RBT curriculum — {TOTAL_HOURS} hours minimum.
+          Videos sourced from official BACB channels, ATCC, and verified ABA educators.
+        </p>
+        <p className="text-xs text-yellow-300 mb-4">
+          ⚠️ This training program is designed to meet the 2026 training eligibility requirement for RBT certification.
+          This training is offered independent of the BACB.
+        </p>
+        <div className="flex items-center gap-4">
+          <div className="flex-1 bg-white bg-opacity-20 rounded-full h-3">
+            <div className="h-3 rounded-full bg-green-400 transition-all" style={{ width: `${pct}%` }} />
           </div>
+          <span className="text-sm font-bold text-green-300">{completedVideos}/{totalVideos} videos ({pct}%)</span>
         </div>
-      )}
-
-      {/* FILTERS */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search videos..."
-          className="border rounded-lg px-3 py-2 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-300" />
-        <div className="flex flex-wrap gap-1">
-          {CATEGORIES.map((cat) => (
-            <button key={cat} onClick={() => setFilterCategory(cat)}
-              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${filterCategory === cat ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 text-gray-600 hover:border-blue-300"}`}>
-              {cat}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-1">
-          {LEVELS.map((lvl) => (
-            <button key={lvl} onClick={() => setFilterLevel(lvl)}
-              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${filterLevel === lvl ? "bg-gray-700 text-white border-gray-700" : "border-gray-300 text-gray-600"}`}>
-              {lvl}
-            </button>
-          ))}
-        </div>
-        <p className="text-sm text-gray-400">{filtered.length} videos</p>
       </div>
 
-      {/* VIDEO GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map((video) => {
-          const isDone = completedIds.has(video.id);
-          return (
-            <div key={video.id} className={`border rounded-xl bg-white overflow-hidden hover:shadow-md transition-shadow ${isDone ? "border-green-200" : "border-gray-100"}`}>
-              <div className="relative cursor-pointer group" onClick={() => setActiveVideo(video)}>
-                <img
-                  src={`https://img.youtube.com/vi/${video.youtubeId}/hqdefault.jpg`}
-                  alt={video.title}
-                  className="w-full aspect-video object-cover"
-                  onError={(e) => { (e.target as HTMLImageElement).src = "https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg"; }}
-                />
-                <div className="absolute inset-0 bg-black bg-opacity-30 group-hover:bg-opacity-20 transition-all flex items-center justify-center">
-                  <div className="w-14 h-14 bg-white bg-opacity-95 rounded-full flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
-                    <svg className="w-6 h-6 text-red-600 ml-1" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
+      {/* STATS */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: "Total Hours", value: `${TOTAL_HOURS}+`, color: "text-blue-600" },
+          { label: "Sections", value: MODULES.length, color: "text-purple-600" },
+          { label: "Videos", value: totalVideos, color: "text-green-600" },
+          { label: "Completed", value: completedVideos, color: "text-orange-500" },
+        ].map(s => (
+          <div key={s.label} className="border rounded-xl p-3 text-center bg-white">
+            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* SECTION FILTER */}
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => setFilter("all")}
+          className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${filter === "all" ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 text-gray-600"}`}>
+          All Sections
+        </button>
+        {MODULES.map(m => (
+          <button key={m.id} onClick={() => setFilter(m.id)}
+            className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${filter === m.id ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 text-gray-600"}`}>
+            {m.section} ({m.hours}h)
+          </button>
+        ))}
+      </div>
+
+      {/* MODULES */}
+      {filtered.map(module => {
+        const isOpen = activeModule === module.id;
+        const moduleCompleted = module.videos.filter(v => completed.has(`${module.id}-${v.title}`)).length;
+
+        return (
+          <div key={module.id} className="border border-gray-200 rounded-2xl overflow-hidden bg-white">
+            {/* MODULE HEADER */}
+            <button
+              onClick={() => setActiveModule(isOpen ? null : module.id)}
+              className="w-full text-left p-4 hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 ${
+                    moduleCompleted === module.videos.length ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+                  }`}>
+                    {module.id}
+                  </div>
+                  <div>
+                    <p className="font-bold text-gray-800">{module.title}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{module.bacbRef}</p>
                   </div>
                 </div>
-                {isDone && (
-                  <div className="absolute top-2 right-2 w-7 h-7 bg-green-500 rounded-full flex items-center justify-center shadow">
-                    <span className="text-white text-xs font-bold">✓</span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-blue-600">{module.hours} hours</p>
+                    <p className="text-xs text-gray-400">{module.videos.length} videos · {moduleCompleted} done</p>
                   </div>
-                )}
-                <div className="absolute bottom-2 right-2 bg-black bg-opacity-70 text-white text-xs px-2 py-0.5 rounded">
-                  {video.duration}
+                  <span className="text-gray-400">{isOpen ? "▲" : "▼"}</span>
                 </div>
               </div>
-              <div className="p-4">
-                <div className="flex gap-2 mb-2 flex-wrap">
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${categoryColor(video.category)}`}>{video.category}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${levelColor(video.level)}`}>{video.level}</span>
+
+              {/* PROGRESS BAR */}
+              <div className="mt-3 w-full bg-gray-100 rounded-full h-1.5">
+                <div className="h-1.5 rounded-full bg-green-500 transition-all"
+                  style={{ width: `${Math.round((moduleCompleted / module.videos.length) * 100)}%` }} />
+              </div>
+            </button>
+
+            {/* MODULE CONTENT */}
+            {isOpen && (
+              <div className="border-t border-gray-100 p-4 space-y-4">
+                {/* TOPICS */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Topics Covered</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+                    {module.topics.map(topic => (
+                      <div key={topic} className="flex items-start gap-2 text-xs text-gray-600">
+                        <span className="text-blue-400 mt-0.5 shrink-0">•</span>
+                        {topic}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <p className="text-sm font-semibold text-gray-800 leading-tight">{video.title}</p>
-                <p className="text-xs text-gray-500 mt-1 line-clamp-2">{video.description}</p>
-                <div className="flex gap-2 mt-3">
-                  <button onClick={() => setActiveVideo(video)}
-                    className="flex-1 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-1">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                    Watch
-                  </button>
-                  <button onClick={() => toggleCompleted(video.id)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${isDone ? "border-green-500 text-green-600 bg-green-50" : "border-gray-300 text-gray-500 hover:border-green-400"}`}>
-                    {isDone ? "✓" : "○"}
-                  </button>
+
+                {/* VIDEOS */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Training Videos</p>
+                  <div className="space-y-4">
+                    {module.videos.map(video => {
+                      const videoKey = `${module.id}-${video.title}`;
+                      const isPlaying = activeVideo === videoKey;
+                      const isDone = completed.has(videoKey);
+
+                      return (
+                        <div key={videoKey}
+                          className={`border rounded-xl overflow-hidden transition-all ${isDone ? "border-green-200" : "border-gray-100"}`}>
+                          <div className="p-3 flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                              <button
+                                onClick={() => toggleComplete(videoKey)}
+                                className={`w-6 h-6 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${
+                                  isDone ? "bg-green-500 border-green-500 text-white" : "border-gray-300 hover:border-green-400"
+                                }`}
+                              >
+                                {isDone && "✓"}
+                              </button>
+                              <div className="flex-1 min-w-0">
+                                <p className={`font-medium text-sm ${isDone ? "line-through text-gray-400" : "text-gray-800"}`}>
+                                  {video.title}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-0.5">{video.description}</p>
+                                <p className="text-xs text-blue-500 mt-1">Duration: {video.duration}</p>
+                              </div>
+                            </div>
+                            <div className="flex gap-2 shrink-0">
+                              <button
+                                onClick={() => setActiveVideo(isPlaying ? null : videoKey)}
+                                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                                  isPlaying ? "bg-red-500 text-white" : "bg-blue-600 text-white hover:bg-blue-700"
+                                }`}
+                              >
+                                {isPlaying ? "⏹ Close" : "▶ Watch"}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* VIDEO PLAYER */}
+                          {isPlaying && (
+                            <div className="border-t border-gray-100">
+                              <div style={{ position: "relative", paddingBottom: "56.25%", height: 0 }}>
+                                <iframe
+                                  src={`${video.url}?autoplay=1`}
+                                  title={video.title}
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                  allowFullScreen
+                                  style={{
+                                    position: "absolute",
+                                    top: 0,
+                                    left: 0,
+                                    width: "100%",
+                                    height: "100%",
+                                    border: "none",
+                                  }}
+                                />
+                              </div>
+                              <div className="p-3 bg-gray-50 flex justify-between items-center">
+                                <p className="text-xs text-gray-500">Mark complete when finished watching</p>
+                                <button
+                                  onClick={() => { toggleComplete(videoKey); setActiveVideo(null); }}
+                                  className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                                >
+                                  ✓ Mark Complete
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            )}
+          </div>
+        );
+      })}
+
+      {/* DISCLAIMER */}
+      <div className="border border-yellow-200 bg-yellow-50 rounded-xl p-4 text-xs text-yellow-700">
+        <p className="font-bold mb-1">Important Disclaimer</p>
+        <p>
+          This training program is designed to meet the 2026 training eligibility requirement for RBT certification.
+          This training is offered independent of the BACB. A Responsible Trainer (BCaBA, BCBA, or BCBA-D with 8-hour supervision training)
+          must oversee and certify completion. Trainees must complete at least 40 hours in no fewer than 5 days and no more than 180 days.
+          The Responsible Trainer must provide each trainee with a completed RBT 2026 40-Hour Training Certificate.
+        </p>
       </div>
     </div>
   );
