@@ -6,6 +6,7 @@ import BillingCard from "@/components/billing/BillingCard";
 import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
+import LocationSwitcher from "@/components/layout/LocationSwitcher";
 
 type Client = { id: string; full_name: string };
 
@@ -183,7 +184,8 @@ export default function DashboardHome() {
   const clientMap = new Map(clients.map((c) => [c.id, c.full_name]));
 
   return (
-    <div className="space-y-6">
+  <div className="space-y-6">
+    <LocationSwitcher />
       <PageHeader title="Session Notes">
         <Button onClick={() => setShowForm(!showForm)}>
           {showForm ? "Cancel" : "+ New Session"}

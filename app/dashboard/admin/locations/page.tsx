@@ -1,0 +1,350 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase/client";
+import Section from "@/components/ui/Section";
+import PageHeader from "@/components/layout/PageHeader";
+import Button from "@/components/ui/Button";
+
+type Location = {
+  id: string;
+  name: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  phone: string | null;
+  is_active: boolean;
+};
+
+type Profile = {
+  id: string;
+  full_name: string | null;
+  role: string | null;
+  email: string | null;
+};
+
+type Assignment = {
+  user_id: string;
+  location_id: string;
+  is_primary: boolean;
+};
+
+const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
+
+const emptyForm = {
+  name: "",
+  address: "",
+  city: "",
+  state: "",
+  zip: "",
+  phone: "",
+};
+
+export default function LocationsPage() {
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [expandedLocation, setExpandedLocation] = useState<string | null>(null);
+  const [companyId, setCompanyId] = useState<string | null>(null);
+
+  useEffect(() => { init(); }, []);
+
+  async function init() {
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth?.user;
+    if (!user) return;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("company_id")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile?.company_id) return;
+    setCompanyId(profile.company_id);
+
+    const [{ data: locData }, { data: profileData }, { data: assignData }] = await Promise.all([
+      supabase.from("company_locations").select("*").eq("company_id", profile.company_id).order("name"),
+      supabase.from("profiles").select("id, full_name, role, email").eq("company_id", profile.company_id).order("full_name"),
+      supabase.from("user_location_assignments").select("user_id, location_id, is_primary"),
+    ]);
+
+    setLocations(locData ?? []);
+    setProfiles(profileData ?? []);
+    setAssignments(assignData ?? []);
+    setLoading(false);
+  }
+
+  async function handleSave() {
+    if (!form.name || !companyId) return;
+    setSaving(true);
+
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth?.user;
+    if (!user) return;
+
+    const { data } = await supabase.from("company_locations").insert([{
+      ...form,
+      company_id: companyId,
+      address: form.address || null,
+      city: form.city || null,
+      state: form.state || null,
+      zip: form.zip || null,
+      phone: form.phone || null,
+      is_active: true,
+      created_by: user.id,
+    }]).select().single();
+
+    if (data) setLocations((prev) => [...prev, data]);
+    setForm(emptyForm);
+    setShowForm(false);
+    setSaving(false);
+  }
+
+  async function toggleLocation(id: string, is_active: boolean) {
+    await supabase.from("company_locations").update({ is_active: !is_active }).eq("id", id);
+    setLocations((prev) => prev.map((l) => l.id === id ? { ...l, is_active: !is_active } : l));
+  }
+
+  async function deleteLocation(id: string) {
+    await supabase.from("company_locations").delete().eq("id", id);
+    setLocations((prev) => prev.filter((l) => l.id !== id));
+  }
+
+  async function toggleAssignment(userId: string, locationId: string) {
+    const existing = assignments.find((a) => a.user_id === userId && a.location_id === locationId);
+
+    if (existing) {
+      await supabase.from("user_location_assignments")
+        .delete()
+        .eq("user_id", userId)
+        .eq("location_id", locationId);
+      setAssignments((prev) => prev.filter((a) => !(a.user_id === userId && a.location_id === locationId)));
+    } else {
+      const { data: auth } = await supabase.auth.getUser();
+      const user = auth?.user;
+      const isPrimary = !assignments.find((a) => a.user_id === userId);
+      const { data } = await supabase.from("user_location_assignments").insert([{
+        user_id: userId,
+        location_id: locationId,
+        is_primary: isPrimary,
+        created_by: user?.id,
+      }]).select().single();
+      if (data) setAssignments((prev) => [...prev, data]);
+    }
+  }
+
+  async function setPrimary(userId: string, locationId: string) {
+    await supabase.from("user_location_assignments")
+      .update({ is_primary: false })
+      .eq("user_id", userId);
+    await supabase.from("user_location_assignments")
+      .update({ is_primary: true })
+      .eq("user_id", userId)
+      .eq("location_id", locationId);
+    setAssignments((prev) => prev.map((a) =>
+      a.user_id === userId ? { ...a, is_primary: a.location_id === locationId } : a
+    ));
+  }
+
+  function isAssigned(userId: string, locationId: string) {
+    return assignments.some((a) => a.user_id === userId && a.location_id === locationId);
+  }
+
+  function isPrimary(userId: string, locationId: string) {
+    return assignments.some((a) => a.user_id === userId && a.location_id === locationId && a.is_primary);
+  }
+
+  function getUsersForLocation(locationId: string) {
+    return profiles.filter((p) => isAssigned(p.id, locationId));
+  }
+
+  const roleColor: Record<string, string> = {
+    admin: "bg-red-100 text-red-700",
+    director: "bg-purple-100 text-purple-700",
+    supervisor: "bg-blue-100 text-blue-700",
+    clinician: "bg-green-100 text-green-700",
+    bcba: "bg-green-100 text-green-700",
+    rbt: "bg-yellow-100 text-yellow-700",
+    bt: "bg-yellow-100 text-yellow-700",
+    student_analyst: "bg-gray-100 text-gray-700",
+    developer: "bg-black text-white",
+  };
+
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Locations & Staff Assignments">
+        <Button onClick={() => setShowForm(!showForm)}>
+          {showForm ? "Cancel" : "+ Add Location"}
+        </Button>
+      </PageHeader>
+
+      {/* ADD LOCATION FORM */}
+      {showForm && (
+        <Section title="New Location">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Location Name *</label>
+              <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="e.g. Main Clinic, North Office, Home Services"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Address</label>
+              <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })}
+                placeholder="Street address"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">City</label>
+              <input type="text" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">State</label>
+                <select value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                  <option value="">Select...</option>
+                  {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">ZIP</label>
+                <input type="text" value={form.zip} onChange={(e) => setForm({ ...form, zip: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Phone</label>
+              <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            </div>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <Button onClick={handleSave} loading={saving}>Save Location</Button>
+            <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+          </div>
+        </Section>
+      )}
+
+      {loading && <p className="text-gray-400 text-sm">Loading...</p>}
+
+      {/* LOCATIONS LIST */}
+      <div className="space-y-4">
+        {locations.map((loc) => {
+          const assignedUsers = getUsersForLocation(loc.id);
+          const isExpanded = expandedLocation === loc.id;
+
+          return (
+            <div key={loc.id} className={`border rounded-xl bg-white ${!loc.is_active ? "opacity-60 border-gray-100" : "border-gray-200"}`}>
+              <div className="p-4">
+                <div className="flex justify-between items-start flex-wrap gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-gray-800 text-lg">{loc.name}</p>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${loc.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                        {loc.is_active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                    {(loc.address || loc.city) && (
+                      <p className="text-sm text-gray-500 mt-0.5">
+                        {[loc.address, loc.city, loc.state, loc.zip].filter(Boolean).join(", ")}
+                      </p>
+                    )}
+                    {loc.phone && <p className="text-xs text-gray-400 mt-0.5">{loc.phone}</p>}
+                    <p className="text-xs text-gray-400 mt-1">{assignedUsers.length} staff assigned</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setExpandedLocation(isExpanded ? null : loc.id)}
+                      className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 hover:bg-gray-50"
+                    >
+                      {isExpanded ? "▲ Hide Staff" : "▼ Manage Staff"}
+                    </button>
+                    <button
+                      onClick={() => toggleLocation(loc.id, loc.is_active)}
+                      className={`px-3 py-1.5 border rounded-lg text-xs transition-colors ${loc.is_active ? "border-orange-200 text-orange-600 hover:bg-orange-50" : "border-green-200 text-green-600 hover:bg-green-50"}`}
+                    >
+                      {loc.is_active ? "Deactivate" : "Activate"}
+                    </button>
+                    <button
+                      onClick={() => deleteLocation(loc.id)}
+                      className="px-3 py-1.5 border border-red-200 text-red-500 rounded-lg text-xs hover:bg-red-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+
+                {/* STAFF ASSIGNMENT TABLE */}
+                {isExpanded && (
+                  <div className="mt-4 border-t border-gray-100 pt-4">
+                    <p className="text-sm font-semibold text-gray-700 mb-3">Staff Access for {loc.name}</p>
+                    <div className="space-y-2">
+                      {profiles.map((profile) => {
+                        const assigned = isAssigned(profile.id, loc.id);
+                        const primary = isPrimary(profile.id, loc.id);
+                        return (
+                          <div key={profile.id} className={`flex items-center justify-between border rounded-lg p-3 transition-all ${assigned ? "border-blue-100 bg-blue-50" : "border-gray-100 bg-white"}`}>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${assigned ? "bg-blue-200 text-blue-700" : "bg-gray-200 text-gray-500"}`}>
+                                {(profile.full_name ?? "?")[0].toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-800">{profile.full_name ?? "Unknown"}</p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  {profile.role && (
+                                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${roleColor[profile.role] ?? "bg-gray-100 text-gray-600"}`}>
+                                      {profile.role}
+                                    </span>
+                                  )}
+                                  {primary && (
+                                    <span className="text-xs text-blue-600 font-medium">⭐ Primary</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {assigned && !primary && (
+                                <button
+                                  onClick={() => setPrimary(profile.id, loc.id)}
+                                  className="text-xs text-gray-400 hover:text-blue-600 px-2 py-1 border border-gray-200 rounded-lg"
+                                >
+                                  Set Primary
+                                </button>
+                              )}
+                              <button
+                                onClick={() => toggleAssignment(profile.id, loc.id)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${assigned ? "bg-blue-600 text-white hover:bg-blue-700" : "border border-gray-300 text-gray-600 hover:border-blue-400"}`}
+                              >
+                                {assigned ? "✓ Assigned" : "+ Assign"}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {!loading && locations.length === 0 && (
+          <div className="text-center py-12 border border-dashed border-gray-200 rounded-2xl">
+            <p className="text-4xl mb-3">🏢</p>
+            <p className="text-gray-600 font-medium">No locations yet</p>
+            <p className="text-gray-400 text-sm mt-1">Add your first location to assign staff</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -179,6 +179,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
       href: "/dashboard/team",
       icon: "🏢",
       children: sortChildren([
+        { label: "Locations", href: "/dashboard/admin/locations" },
         { label: "Accounting", href: "/dashboard/accounting" },
         { label: "Competency Checks", href: "/dashboard/competency" },
         { label: "Invite Member", href: "/dashboard/team/invite" },
@@ -273,6 +274,8 @@ export default function Sidebar({ onClose }: SidebarProps) {
       href: "/dashboard/admin",
       icon: "🔐",
       children: sortChildren([
+        { label: "Feature Access", href: "/dashboard/admin/access" },
+        { label: "Locations", href: "/dashboard/admin/locations" },
         { label: "Admin Panel", href: "/dashboard/admin" },
         { label: "Analytics", href: "/dashboard/analytics" },
         { label: "Audit Logs", href: "/dashboard/admin/logs" },
