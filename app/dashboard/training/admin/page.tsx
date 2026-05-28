@@ -18,6 +18,8 @@ type Video = {
   is_published: boolean;
   script: string | null;
   ai_generated: boolean;
+  heygen_video_id: string | null;
+  heygen_status: string | null;
 };
 
 type Quiz = {
@@ -28,6 +30,21 @@ type Quiz = {
   correct_answer: number;
   explanation: string | null;
   order_index: number;
+};
+
+type HeyGenAvatar = {
+  avatar_id: string;
+  avatar_name: string;
+  preview_image_url: string;
+  preview_video_url?: string;
+};
+
+type HeyGenVoice = {
+  voice_id: string;
+  language: string;
+  gender: string;
+  name: string;
+  preview_audio?: string;
 };
 
 const SECTIONS = [
@@ -72,12 +89,25 @@ export default function TrainingAdminPage() {
   const [generatingQuiz, setGeneratingQuiz] = useState(false);
   const [videoForm, setVideoForm] = useState(emptyVideoForm);
   const [quizForm, setQuizForm] = useState(emptyQuizForm);
-  const [activeTab, setActiveTab] = useState<"videos" | "quiz" | "script">("videos");
+  const [activeTab, setActiveTab] = useState<"videos" | "quiz" | "script" | "heygen">("videos");
   const [script, setScript] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
+
+  // HeyGen state
+  const [avatars, setAvatars] = useState<HeyGenAvatar[]>([]);
+  const [voices, setVoices] = useState<HeyGenVoice[]>([]);
+  const [selectedAvatar, setSelectedAvatar] = useState("");
+  const [selectedVoice, setSelectedVoice] = useState("");
+  const [loadingAssets, setLoadingAssets] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generationStatus, setGenerationStatus] = useState<string | null>(null);
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [voiceFilter, setVoiceFilter] = useState("English");
 
   useEffect(() => { init(); }, []);
+  useEffect(() => {
+    return () => { if (pollingInterval) clearInterval(pollingInterval); };
+  }, [pollingInterval]);
 
   async function init() {
     const [{ data: videoData }, { data: quizData }] = await Promise.all([
@@ -97,10 +127,115 @@ export default function TrainingAdminPage() {
     setLoading(false);
   }
 
+  async function loadHeyGenAssets() {
+    setLoadingAssets(true);
+    try {
+      const res = await fetch("/api/heygen/avatars");
+      const data = await res.json();
+      setAvatars(data.avatars ?? []);
+      setVoices(data.voices ?? []);
+
+      // Auto-select first English voice
+      const firstEnglish = (data.voices ?? []).find((v: HeyGenVoice) =>
+        v.language?.toLowerCase().includes("english")
+      );
+      if (firstEnglish) setSelectedVoice(firstEnglish.voice_id);
+    } catch (err) {
+      console.error("Failed to load HeyGen assets:", err);
+    }
+    setLoadingAssets(false);
+  }
+
+  async function handleGenerateHeyGen() {
+    if (!selectedVideo || !selectedAvatar || !selectedVoice) return;
+    const video = videos.find(v => v.id === selectedVideo);
+    if (!video?.script && !script) {
+      alert("Please generate a script first in the Script tab.");
+      return;
+    }
+
+    setGenerating(true);
+    setGenerationStatus("Submitting to HeyGen...");
+
+    try {
+      const res = await fetch("/api/heygen/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          script: script || video?.script,
+          avatar_id: selectedAvatar,
+          voice_id: selectedVoice,
+          training_video_id: selectedVideo,
+          title: video?.title,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.error) {
+        setGenerationStatus(`Error: ${data.error}`);
+        setGenerating(false);
+        return;
+      }
+
+      const heygenVideoId = data.video_id;
+      setGenerationStatus("Video rendering in HeyGen... this takes 2-5 minutes.");
+
+      // Update local state
+      setVideos(prev => prev.map(v =>
+        v.id === selectedVideo
+          ? { ...v, heygen_video_id: heygenVideoId, heygen_status: "processing" }
+          : v
+      ));
+
+      // Start polling
+      const interval = setInterval(async () => {
+        try {
+          const statusRes = await fetch(
+            `/api/heygen/status?video_id=${heygenVideoId}&training_video_id=${selectedVideo}`
+          );
+          const statusData = await statusRes.json();
+
+          if (statusData.status === "completed") {
+            clearInterval(interval);
+            setPollingInterval(null);
+            setGenerationStatus("✅ Video generated and uploaded successfully!");
+            setGenerating(false);
+            setVideos(prev => prev.map(v =>
+              v.id === selectedVideo
+                ? {
+                    ...v,
+                    video_url: statusData.video_url,
+                    duration_seconds: statusData.duration ? Math.round(statusData.duration) : 0,
+                    is_published: true,
+                    heygen_status: "completed",
+                    ai_generated: true,
+                  }
+                : v
+            ));
+          } else if (statusData.status === "failed") {
+            clearInterval(interval);
+            setPollingInterval(null);
+            setGenerationStatus("❌ Generation failed. Please try again.");
+            setGenerating(false);
+          } else {
+            setGenerationStatus(`Rendering... status: ${statusData.status}`);
+          }
+        } catch (err) {
+          setGenerationStatus("Checking status...");
+        }
+      }, 10000); // Poll every 10 seconds
+
+      setPollingInterval(interval);
+    } catch (err: any) {
+      setGenerationStatus(`Error: ${err.message}`);
+      setGenerating(false);
+    }
+  }
+
   async function handleSaveVideo() {
     if (!videoForm.title || !videoForm.section) return;
     setSaving(true);
-
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
@@ -110,6 +245,7 @@ export default function TrainingAdminPage() {
       module_id: `section_${videoForm.section}`,
       is_published: false,
       ai_generated: false,
+      heygen_status: "none",
       created_by: user.id,
     }]).select().single();
 
@@ -126,7 +262,6 @@ export default function TrainingAdminPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    setUploadProgress(0);
 
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
@@ -142,7 +277,6 @@ export default function TrainingAdminPage() {
     if (!error && data) {
       const { data: urlData } = supabase.storage.from("training-videos").getPublicUrl(path);
 
-      // Get duration
       const url = URL.createObjectURL(file);
       const vid = document.createElement("video");
       vid.src = url;
@@ -165,7 +299,6 @@ export default function TrainingAdminPage() {
     }
 
     setUploading(false);
-    setUploadProgress(0);
   }
 
   async function togglePublished(id: string, current: boolean) {
@@ -176,6 +309,7 @@ export default function TrainingAdminPage() {
   async function deleteVideo(id: string) {
     await supabase.from("training_videos").delete().eq("id", id);
     setVideos(prev => prev.filter(v => v.id !== id));
+    if (selectedVideo === id) setSelectedVideo(null);
   }
 
   async function generateScript(videoId: string, title: string, section: string) {
@@ -202,7 +336,7 @@ export default function TrainingAdminPage() {
           max_tokens: 1000,
           messages: [{
             role: "user",
-            content: `Write a professional training video script for an RBT (Registered Behavior Technician) 40-hour training course.
+            content: `Write a professional training video script for an RBT 40-hour training course.
 
 Section: ${section} — ${sectionLabels[section]}
 Video Title: ${title}
@@ -211,11 +345,12 @@ Requirements:
 - Write as a teleprompter script for an AI video presenter
 - Professional, clear, educational tone
 - 3-5 minutes of speaking content (approximately 450-750 words)
-- Include an introduction, key teaching points with examples, and a summary
-- Reference real ABA clinical practice
-- End with what the quiz will cover
-- Format with clear paragraph breaks
-- Do NOT include stage directions, just the spoken words
+- Include an introduction, key teaching points with real clinical examples, and a summary
+- Reference real ABA clinical practice and BACB 2026 requirements
+- End by telling the viewer what the knowledge check quiz will cover
+- Format with clear paragraph breaks for natural speech
+- Do NOT include stage directions, [PAUSE], or any non-spoken text
+- Write only the words the presenter will speak
 
 Begin the script now:`,
           }],
@@ -226,7 +361,6 @@ Begin the script now:`,
       const text = data.content?.[0]?.text ?? "";
       setScript(text);
 
-      // Save script to video
       await supabase.from("training_videos").update({ script: text }).eq("id", videoId);
       setVideos(prev => prev.map(v => v.id === videoId ? { ...v, script: text } : v));
     } catch (err) {
@@ -261,7 +395,7 @@ Requirements:
 - Difficulty should be appropriate for new RBT trainees
 - Base questions on the BACB 2026 RBT Task List
 
-Respond ONLY with valid JSON in this exact format, no other text:
+Respond ONLY with valid JSON — no preamble, no markdown, no backticks:
 [
   {
     "question": "Question text here?",
@@ -269,9 +403,7 @@ Respond ONLY with valid JSON in this exact format, no other text:
     "correct_answer": 0,
     "explanation": "Brief explanation of why this is correct"
   }
-]
-
-The correct_answer is the index (0=A, 1=B, 2=C, 3=D).`,
+]`,
           }],
         }),
       });
@@ -285,7 +417,6 @@ The correct_answer is the index (0=A, 1=B, 2=C, 3=D).`,
       const user = auth?.user;
       if (!user) return;
 
-      // Save all questions
       for (let i = 0; i < questions.length; i++) {
         const q = questions[i];
         const { data: saved } = await supabase.from("training_quizzes").insert([{
@@ -294,7 +425,7 @@ The correct_answer is the index (0=A, 1=B, 2=C, 3=D).`,
           options: JSON.stringify(q.options),
           correct_answer: q.correct_answer,
           explanation: q.explanation,
-          order_index: i,
+          order_index: (quizzes.get(videoId)?.length ?? 0) + i,
           created_by: user.id,
         }]).select().single();
 
@@ -360,6 +491,9 @@ The correct_answer is the index (0=A, 1=B, 2=C, 3=D).`,
 
   const selectedVideoObj = videos.find(v => v.id === selectedVideo);
   const selectedQuizzes = selectedVideo ? (quizzes.get(selectedVideo) ?? []) : [];
+  const filteredVoices = voices.filter(v =>
+    voiceFilter === "all" || v.language?.toLowerCase().includes(voiceFilter.toLowerCase())
+  );
 
   const inputClass = "w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300";
   const labelClass = "text-sm font-medium text-gray-700 mb-1 block";
@@ -377,8 +511,8 @@ The correct_answer is the index (0=A, 1=B, 2=C, 3=D).`,
         {[
           { label: "Total Videos", value: videos.length, color: "text-blue-600" },
           { label: "Published", value: videos.filter(v => v.is_published).length, color: "text-green-600" },
-          { label: "Drafts", value: videos.filter(v => !v.is_published).length, color: "text-yellow-600" },
-          { label: "Total Quizzes", value: Array.from(quizzes.values()).reduce((a, b) => a + b.length, 0), color: "text-purple-600" },
+          { label: "HeyGen Generated", value: videos.filter(v => v.ai_generated).length, color: "text-purple-600" },
+          { label: "Total Quiz Qs", value: Array.from(quizzes.values()).reduce((a, b) => a + b.length, 0), color: "text-orange-500" },
         ].map(s => (
           <div key={s.label} className="border rounded-xl p-3 text-center bg-white">
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -427,46 +561,56 @@ The correct_answer is the index (0=A, 1=B, 2=C, 3=D).`,
         </Section>
       )}
 
-      {/* TWO COLUMN LAYOUT */}
+      {/* TWO COLUMN */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* VIDEO LIST */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           <p className="text-sm font-semibold text-gray-700">Videos ({videos.length})</p>
           {loading && <p className="text-gray-400 text-sm">Loading...</p>}
           {videos.length === 0 && !loading && (
             <div className="text-center py-8 border border-dashed border-gray-200 rounded-xl">
-              <p className="text-gray-400 text-sm">No videos yet. Click "+ Add Video" to create one.</p>
+              <p className="text-gray-400 text-sm">No videos yet. Click "+ Add Video" to get started.</p>
             </div>
           )}
           {videos.map(video => (
             <div key={video.id}
-              onClick={() => setSelectedVideo(video.id)}
+              onClick={() => { setSelectedVideo(video.id); setScript(video.script ?? ""); setGenerationStatus(null); }}
               className={`border rounded-xl p-3 cursor-pointer transition-all ${
                 selectedVideo === video.id
                   ? "border-blue-400 bg-blue-50"
                   : "border-gray-100 bg-white hover:border-blue-200"
               }`}
             >
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex flex-wrap gap-1 mb-1">
                     <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full font-medium">
-                      Section {video.section}
+                      {video.section}
                     </span>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                       video.is_published ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
                     }`}>
-                      {video.is_published ? "Published" : "Draft"}
+                      {video.is_published ? "Live" : "Draft"}
                     </span>
-                    {quizzes.get(video.id)?.length ? (
+                    {video.ai_generated && (
                       <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
-                        {quizzes.get(video.id)?.length} quiz Qs
+                        🤖 HeyGen
+                      </span>
+                    )}
+                    {video.heygen_status === "processing" && (
+                      <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-600 rounded-full animate-pulse">
+                        ⏳ Rendering...
+                      </span>
+                    )}
+                    {quizzes.get(video.id)?.length ? (
+                      <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+                        {quizzes.get(video.id)?.length}Q
                       </span>
                     ) : (
                       <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full">No quiz</span>
                     )}
                   </div>
-                  <p className="font-medium text-gray-800 text-sm mt-1 truncate">{video.title}</p>
+                  <p className="font-medium text-gray-800 text-sm truncate">{video.title}</p>
                   {video.duration_seconds > 0 && (
                     <p className="text-xs text-gray-400">{Math.floor(video.duration_seconds / 60)} min</p>
                   )}
@@ -478,247 +622,399 @@ The correct_answer is the index (0=A, 1=B, 2=C, 3=D).`,
 
         {/* VIDEO DETAIL */}
         {selectedVideoObj ? (
-          <div className="space-y-4">
-            <div className="border border-gray-200 rounded-2xl overflow-hidden">
-              <div className="bg-[#1a2234] px-4 py-3">
-                <p className="text-white font-bold text-sm">{selectedVideoObj.title}</p>
-                <p className="text-gray-400 text-xs">Section {selectedVideoObj.section}</p>
-              </div>
+          <div className="border border-gray-200 rounded-2xl overflow-hidden">
+            <div className="bg-[#1a2234] px-4 py-3">
+              <p className="text-white font-bold text-sm">{selectedVideoObj.title}</p>
+              <p className="text-gray-400 text-xs">Section {selectedVideoObj.section}</p>
+            </div>
 
-              {/* TABS */}
-              <div className="flex border-b border-gray-100">
-                {(["videos", "quiz", "script"] as const).map(tab => (
-                  <button key={tab} onClick={() => setActiveTab(tab)}
-                    className={`flex-1 py-2.5 text-xs font-medium capitalize transition-colors ${
-                      activeTab === tab ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"
-                    }`}>
-                    {tab === "videos" ? "📹 Video" : tab === "quiz" ? "📝 Quiz" : "📄 Script"}
-                  </button>
-                ))}
-              </div>
+            {/* TABS */}
+            <div className="flex border-b border-gray-100 overflow-x-auto">
+              {(["heygen", "videos", "script", "quiz"] as const).map(tab => (
+                <button key={tab} onClick={() => {
+                  setActiveTab(tab);
+                  if (tab === "heygen" && avatars.length === 0) loadHeyGenAssets();
+                }}
+                  className={`flex-1 py-2.5 text-xs font-medium transition-colors whitespace-nowrap px-2 ${
+                    activeTab === tab ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"
+                  }`}>
+                  {tab === "heygen" ? "🤖 HeyGen" :
+                   tab === "videos" ? "📹 Upload" :
+                   tab === "script" ? "📄 Script" : "📝 Quiz"}
+                </button>
+              ))}
+            </div>
 
-              {/* VIDEO TAB */}
-              {activeTab === "videos" && (
-                <div className="p-4 space-y-4">
-                  {selectedVideoObj.video_url ? (
+            {/* HEYGEN TAB */}
+            {activeTab === "heygen" && (
+              <div className="p-4 space-y-4">
+                {/* Status */}
+                {selectedVideoObj.heygen_status === "completed" && (
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700">
+                    ✅ HeyGen video generated and live in course
+                  </div>
+                )}
+                {selectedVideoObj.heygen_status === "processing" && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-sm text-orange-700 flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin shrink-0" />
+                    Rendering in HeyGen... check back in a few minutes
+                  </div>
+                )}
+
+                {loadingAssets ? (
+                  <div className="text-center py-8">
+                    <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                    <p className="text-gray-400 text-sm">Loading your HeyGen avatars and voices...</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* WORKFLOW */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700 space-y-1">
+                      <p className="font-bold">How it works:</p>
+                      <p>1️⃣ Generate a script in the Script tab</p>
+                      <p>2️⃣ Select your avatar and voice below</p>
+                      <p>3️⃣ Click Generate — HeyGen renders the video</p>
+                      <p>4️⃣ Video auto-uploads to your course when done (2-5 min)</p>
+                    </div>
+
+                    {/* AVATAR SELECTOR */}
                     <div>
-                      <video src={selectedVideoObj.video_url} controls style={{ width: "100%", borderRadius: "8px" }} />
-                      <p className="text-xs text-green-600 mt-2">✓ Video uploaded — {Math.floor(selectedVideoObj.duration_seconds / 60)} min</p>
-                    </div>
-                  ) : (
-                    <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center">
-                      <p className="text-3xl mb-2">🎬</p>
-                      <p className="text-sm text-gray-600 mb-3">Upload your training video</p>
-                      <p className="text-xs text-gray-400 mb-3">MP4, MOV, or WebM — max 2GB</p>
-                      <Button onClick={() => fileInputRef.current?.click()} loading={uploading}>
-                        {uploading ? `Uploading ${uploadProgress}%...` : "Choose Video File"}
-                      </Button>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="video/*"
-                        onChange={(e) => handleVideoUpload(e, selectedVideoObj.id)}
-                        className="hidden"
-                      />
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 flex-wrap">
-                    <Button
-                      variant="outline"
-                      onClick={() => togglePublished(selectedVideoObj.id, selectedVideoObj.is_published)}
-                    >
-                      {selectedVideoObj.is_published ? "⬇ Unpublish" : "⬆ Publish"}
-                    </Button>
-                    {selectedVideoObj.video_url && (
-                      <Button onClick={() => fileInputRef.current?.click()} variant="outline" loading={uploading}>
-                        🔄 Replace Video
-                      </Button>
-                    )}
-                    <button
-                      onClick={() => deleteVideo(selectedVideoObj.id)}
-                      className="text-xs px-3 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50"
-                    >
-                      🗑 Delete
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* SCRIPT TAB */}
-              {activeTab === "script" && (
-                <div className="p-4 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <p className="text-sm font-medium text-gray-700">AI-Generated Script</p>
-                    <Button
-                      onClick={() => generateScript(selectedVideoObj.id, selectedVideoObj.title, selectedVideoObj.section)}
-                      loading={generatingScript}
-                    >
-                      ✨ {selectedVideoObj.script ? "Regenerate" : "Generate Script"}
-                    </Button>
-                  </div>
-
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700">
-                    <p className="font-bold mb-1">How to use this script</p>
-                    <p>1. Generate the AI script below</p>
-                    <p>2. Copy into HeyGen, Synthesia, or D-ID to create your AI avatar video</p>
-                    <p>3. Upload the finished MP4 in the Video tab</p>
-                    <p>4. Generate quiz questions in the Quiz tab</p>
-                  </div>
-
-                  {generatingScript && (
-                    <div className="text-center py-8">
-                      <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                      <p className="text-gray-400 text-sm">Generating script...</p>
-                    </div>
-                  )}
-
-                  {(script || selectedVideoObj.script) && !generatingScript && (
-                    <div>
-                      <textarea
-                        value={script || selectedVideoObj.script || ""}
-                        onChange={(e) => setScript(e.target.value)}
-                        rows={20}
-                        className="w-full border rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300 leading-relaxed"
-                      />
-                      <div className="flex gap-2 mt-2">
-                        <button
-                          onClick={() => navigator.clipboard.writeText(script || selectedVideoObj.script || "")}
-                          className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50"
-                        >
-                          📋 Copy Script
-                        </button>
-                        <button
-                          onClick={async () => {
-                            await supabase.from("training_videos").update({ script: script }).eq("id", selectedVideoObj.id);
-                            setVideos(prev => prev.map(v => v.id === selectedVideoObj.id ? { ...v, script } : v));
-                          }}
-                          className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                        >
-                          💾 Save Script
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* QUIZ TAB */}
-              {activeTab === "quiz" && (
-                <div className="p-4 space-y-4">
-                  <div className="flex justify-between items-center flex-wrap gap-2">
-                    <p className="text-sm font-medium text-gray-700">
-                      {selectedQuizzes.length} questions
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => generateQuizQuestions(selectedVideoObj.id, selectedVideoObj.title, selectedVideoObj.section)}
-                        loading={generatingQuiz}
-                      >
-                        ✨ AI Generate 5 Questions
-                      </Button>
-                      <Button onClick={() => setShowQuizForm(!showQuizForm)}>
-                        {showQuizForm ? "Cancel" : "+ Add Question"}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {generatingQuiz && (
-                    <div className="text-center py-6">
-                      <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                      <p className="text-gray-400 text-sm">Generating quiz questions with AI...</p>
-                    </div>
-                  )}
-
-                  {showQuizForm && (
-                    <div className="border border-gray-100 rounded-xl p-4 bg-gray-50 space-y-3">
-                      <div>
-                        <label className={labelClass}>Question *</label>
-                        <textarea value={quizForm.question}
-                          onChange={(e) => setQuizForm({ ...quizForm, question: e.target.value })}
-                          rows={2} placeholder="Enter your question..."
-                          className={inputClass} />
-                      </div>
-                      {(["option_a", "option_b", "option_c", "option_d"] as const).map((opt, i) => (
-                        <div key={opt}>
-                          <label className={labelClass}>Option {String.fromCharCode(65 + i)}</label>
-                          <input type="text" value={quizForm[opt]}
-                            onChange={(e) => setQuizForm({ ...quizForm, [opt]: e.target.value })}
-                            placeholder={`Option ${String.fromCharCode(65 + i)}`}
-                            className={inputClass} />
+                      <label className={labelClass}>Select Avatar *</label>
+                      {avatars.length === 0 ? (
+                        <div className="text-center py-4 border border-dashed border-gray-200 rounded-xl">
+                          <p className="text-gray-400 text-sm">No avatars found.</p>
+                          <p className="text-gray-400 text-xs mt-1">Create avatars at app.heygen.com</p>
+                          <Button variant="outline" onClick={loadHeyGenAssets} className="mt-2">
+                            🔄 Reload
+                          </Button>
                         </div>
-                      ))}
-                      <div>
-                        <label className={labelClass}>Correct Answer</label>
-                        <select value={quizForm.correct_answer}
-                          onChange={(e) => setQuizForm({ ...quizForm, correct_answer: parseInt(e.target.value) })}
-                          className={inputClass}>
-                          {["A", "B", "C", "D"].map((l, i) => (
-                            <option key={i} value={i}>Option {l}</option>
+                      ) : (
+                        <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                          {avatars.map(avatar => (
+                            <button key={avatar.avatar_id}
+                              onClick={() => setSelectedAvatar(avatar.avatar_id)}
+                              className={`border rounded-xl p-2 text-center transition-all ${
+                                selectedAvatar === avatar.avatar_id
+                                  ? "border-blue-500 bg-blue-50"
+                                  : "border-gray-200 hover:border-blue-300"
+                              }`}
+                            >
+                              {avatar.preview_image_url ? (
+                                <img
+                                  src={avatar.preview_image_url}
+                                  alt={avatar.avatar_name}
+                                  className="w-full h-16 object-cover rounded-lg mb-1"
+                                />
+                              ) : (
+                                <div className="w-full h-16 bg-gray-100 rounded-lg mb-1 flex items-center justify-center text-2xl">
+                                  👤
+                                </div>
+                              )}
+                              <p className="text-xs text-gray-700 truncate">{avatar.avatar_name}</p>
+                              {selectedAvatar === avatar.avatar_id && (
+                                <p className="text-xs text-blue-600 font-medium">✓ Selected</p>
+                              )}
+                            </button>
                           ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* VOICE SELECTOR */}
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className={labelClass} style={{ margin: 0 }}>Select Voice *</label>
+                        <select
+                          value={voiceFilter}
+                          onChange={(e) => setVoiceFilter(e.target.value)}
+                          className="text-xs border rounded px-2 py-1"
+                        >
+                          <option value="English">English</option>
+                          <option value="Spanish">Spanish</option>
+                          <option value="French">French</option>
+                          <option value="all">All Languages</option>
                         </select>
                       </div>
-                      <div>
-                        <label className={labelClass}>Explanation (shown when wrong)</label>
-                        <input type="text" value={quizForm.explanation}
-                          onChange={(e) => setQuizForm({ ...quizForm, explanation: e.target.value })}
-                          placeholder="Why is this the correct answer?"
-                          className={inputClass} />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button onClick={handleSaveQuiz} loading={saving}>Save Question</Button>
-                        <Button variant="outline" onClick={() => setShowQuizForm(false)}>Cancel</Button>
+                      <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-xl">
+                        {filteredVoices.length === 0 ? (
+                          <p className="text-gray-400 text-sm p-3">No voices found for selected language.</p>
+                        ) : (
+                          filteredVoices.slice(0, 30).map(voice => (
+                            <button key={voice.voice_id}
+                              onClick={() => setSelectedVoice(voice.voice_id)}
+                              className={`w-full text-left px-3 py-2 text-sm transition-colors flex items-center justify-between ${
+                                selectedVoice === voice.voice_id
+                                  ? "bg-blue-50 text-blue-700"
+                                  : "hover:bg-gray-50 text-gray-700"
+                              }`}
+                            >
+                              <span>{voice.name}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-400 capitalize">{voice.gender}</span>
+                                {selectedVoice === voice.voice_id && (
+                                  <span className="text-blue-500 text-xs font-bold">✓</span>
+                                )}
+                              </div>
+                            </button>
+                          ))
+                        )}
                       </div>
                     </div>
-                  )}
 
-                  <div className="space-y-2">
-                    {selectedQuizzes.map((q, i) => (
-                      <div key={q.id} className="border border-gray-100 rounded-xl p-3 bg-white">
-                        <div className="flex justify-between items-start gap-2">
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-800">
-                              <span className="text-blue-600 mr-1">{i + 1}.</span>
-                              {q.question}
-                            </p>
-                            <div className="mt-2 grid grid-cols-2 gap-1">
-                              {q.options.map((opt, oi) => (
-                                <p key={oi} className={`text-xs px-2 py-1 rounded ${
-                                  oi === q.correct_answer ? "bg-green-100 text-green-700 font-medium" : "bg-gray-100 text-gray-500"
-                                }`}>
-                                  {String.fromCharCode(65 + oi)}. {opt}
-                                </p>
-                              ))}
-                            </div>
-                            {q.explanation && (
-                              <p className="text-xs text-gray-400 mt-1 italic">💡 {q.explanation}</p>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => deleteQuiz(selectedVideoObj.id, q.id)}
-                            className="text-gray-300 hover:text-red-400 text-xs shrink-0"
-                          >✕</button>
-                        </div>
+                    {/* SCRIPT PREVIEW */}
+                    {(script || selectedVideoObj.script) && (
+                      <div className="border border-gray-100 rounded-xl p-3 bg-gray-50">
+                        <p className="text-xs font-medium text-gray-500 mb-1">Script preview</p>
+                        <p className="text-xs text-gray-600 line-clamp-3">
+                          {(script || selectedVideoObj.script)?.slice(0, 200)}...
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          ~{Math.round(((script || selectedVideoObj.script)?.split(" ").length ?? 0) / 150)} minutes
+                        </p>
+                      </div>
+                    )}
+
+                    {!(script || selectedVideoObj.script) && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-700">
+                        ⚠️ No script yet. Go to the Script tab to generate one first.
+                      </div>
+                    )}
+
+                    {/* GENERATE BUTTON */}
+                    <Button
+                      onClick={handleGenerateHeyGen}
+                      loading={generating}
+                      disabled={!selectedAvatar || !selectedVoice || !(script || selectedVideoObj.script)}
+                      className="w-full bg-purple-600 hover:bg-purple-700"
+                    >
+                      🤖 Generate Video with HeyGen
+                    </Button>
+
+                    {generationStatus && (
+                      <div className={`rounded-xl p-3 text-sm ${
+                        generationStatus.startsWith("✅") ? "bg-green-50 border border-green-200 text-green-700" :
+                        generationStatus.startsWith("❌") ? "bg-red-50 border border-red-200 text-red-700" :
+                        "bg-blue-50 border border-blue-200 text-blue-700"
+                      }`}>
+                        {generationStatus.startsWith("Rendering") && (
+                          <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin inline-block mr-2" />
+                        )}
+                        {generationStatus}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* UPLOAD TAB */}
+            {activeTab === "videos" && (
+              <div className="p-4 space-y-4">
+                {selectedVideoObj.video_url ? (
+                  <div>
+                    <video src={selectedVideoObj.video_url} controls style={{ width: "100%", borderRadius: "8px" }} />
+                    <p className="text-xs text-green-600 mt-2">
+                      ✓ Video live — {Math.floor(selectedVideoObj.duration_seconds / 60)} min
+                      {selectedVideoObj.ai_generated && " · 🤖 HeyGen generated"}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center">
+                    <p className="text-3xl mb-2">🎬</p>
+                    <p className="text-sm text-gray-600 mb-1">Upload video manually</p>
+                    <p className="text-xs text-gray-400 mb-3">Or use HeyGen tab to generate automatically</p>
+                    <Button onClick={() => fileInputRef.current?.click()} loading={uploading}>
+                      Choose Video File
+                    </Button>
+                    <input ref={fileInputRef} type="file" accept="video/*"
+                      onChange={(e) => handleVideoUpload(e, selectedVideoObj.id)}
+                      className="hidden" />
+                  </div>
+                )}
+
+                <div className="flex gap-2 flex-wrap">
+                  <Button variant="outline" onClick={() => togglePublished(selectedVideoObj.id, selectedVideoObj.is_published)}>
+                    {selectedVideoObj.is_published ? "⬇ Unpublish" : "⬆ Publish"}
+                  </Button>
+                  {selectedVideoObj.video_url && (
+                    <Button onClick={() => fileInputRef.current?.click()} variant="outline" loading={uploading}>
+                      🔄 Replace
+                    </Button>
+                  )}
+                  <button onClick={() => deleteVideo(selectedVideoObj.id)}
+                    className="text-xs px-3 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50">
+                    🗑 Delete
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* SCRIPT TAB */}
+            {activeTab === "script" && (
+              <div className="p-4 space-y-4">
+                <div className="flex justify-between items-center flex-wrap gap-2">
+                  <p className="text-sm font-medium text-gray-700">AI Script Generator</p>
+                  <Button
+                    onClick={() => generateScript(selectedVideoObj.id, selectedVideoObj.title, selectedVideoObj.section)}
+                    loading={generatingScript}
+                  >
+                    ✨ {selectedVideoObj.script ? "Regenerate" : "Generate Script"}
+                  </Button>
+                </div>
+
+                {generatingScript && (
+                  <div className="text-center py-8">
+                    <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                    <p className="text-gray-400 text-sm">Writing script...</p>
+                  </div>
+                )}
+
+                {(script || selectedVideoObj.script) && !generatingScript && (
+                  <div>
+                    <textarea
+                      value={script || selectedVideoObj.script || ""}
+                      onChange={(e) => setScript(e.target.value)}
+                      rows={20}
+                      className="w-full border rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300 leading-relaxed"
+                    />
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      <button
+                        onClick={() => navigator.clipboard.writeText(script || selectedVideoObj.script || "")}
+                        className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50"
+                      >
+                        📋 Copy
+                      </button>
+                      <button
+                        onClick={async () => {
+                          await supabase.from("training_videos").update({ script }).eq("id", selectedVideoObj.id);
+                          setVideos(prev => prev.map(v => v.id === selectedVideoObj.id ? { ...v, script } : v));
+                        }}
+                        className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      >
+                        💾 Save
+                      </button>
+                      <button
+                        onClick={() => { setActiveTab("heygen"); if (avatars.length === 0) loadHeyGenAssets(); }}
+                        className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                      >
+                        🤖 Send to HeyGen →
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-2">
+                      ~{Math.round(((script || selectedVideoObj.script)?.split(" ").length ?? 0) / 150)} minutes ·
+                      {(script || selectedVideoObj.script)?.split(" ").length ?? 0} words
+                    </p>
+                  </div>
+                )}
+
+                {!(script || selectedVideoObj.script) && !generatingScript && (
+                  <div className="text-center py-8 border border-dashed border-gray-200 rounded-xl">
+                    <p className="text-3xl mb-2">📄</p>
+                    <p className="text-gray-500 text-sm">No script yet</p>
+                    <p className="text-gray-400 text-xs mt-1">Click "Generate Script" to create an AI script for this video</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* QUIZ TAB */}
+            {activeTab === "quiz" && (
+              <div className="p-4 space-y-4">
+                <div className="flex justify-between items-center flex-wrap gap-2">
+                  <p className="text-sm font-medium text-gray-700">{selectedQuizzes.length} questions</p>
+                  <div className="flex gap-2">
+                    <Button variant="outline"
+                      onClick={() => generateQuizQuestions(selectedVideoObj.id, selectedVideoObj.title, selectedVideoObj.section)}
+                      loading={generatingQuiz}>
+                      ✨ AI Generate 5
+                    </Button>
+                    <Button onClick={() => setShowQuizForm(!showQuizForm)}>
+                      {showQuizForm ? "Cancel" : "+ Add"}
+                    </Button>
+                  </div>
+                </div>
+
+                {generatingQuiz && (
+                  <div className="text-center py-6">
+                    <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                    <p className="text-gray-400 text-sm">Generating questions...</p>
+                  </div>
+                )}
+
+                {showQuizForm && (
+                  <div className="border border-gray-100 rounded-xl p-4 bg-gray-50 space-y-3">
+                    <div>
+                      <label className={labelClass}>Question *</label>
+                      <textarea value={quizForm.question}
+                        onChange={(e) => setQuizForm({ ...quizForm, question: e.target.value })}
+                        rows={2} className={inputClass} />
+                    </div>
+                    {(["option_a", "option_b", "option_c", "option_d"] as const).map((opt, i) => (
+                      <div key={opt}>
+                        <label className={labelClass}>Option {String.fromCharCode(65 + i)}</label>
+                        <input type="text" value={quizForm[opt]}
+                          onChange={(e) => setQuizForm({ ...quizForm, [opt]: e.target.value })}
+                          className={inputClass} />
                       </div>
                     ))}
+                    <div>
+                      <label className={labelClass}>Correct Answer</label>
+                      <select value={quizForm.correct_answer}
+                        onChange={(e) => setQuizForm({ ...quizForm, correct_answer: parseInt(e.target.value) })}
+                        className={inputClass}>
+                        {["A","B","C","D"].map((l, i) => <option key={i} value={i}>Option {l}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelClass}>Explanation</label>
+                      <input type="text" value={quizForm.explanation}
+                        onChange={(e) => setQuizForm({ ...quizForm, explanation: e.target.value })}
+                        className={inputClass} />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={handleSaveQuiz} loading={saving}>Save</Button>
+                      <Button variant="outline" onClick={() => setShowQuizForm(false)}>Cancel</Button>
+                    </div>
                   </div>
+                )}
 
-                  {selectedQuizzes.length === 0 && !generatingQuiz && !showQuizForm && (
-                    <p className="text-gray-400 text-sm text-center py-4">
-                      No quiz questions yet. Use AI to generate or add manually.
-                    </p>
-                  )}
+                <div className="space-y-2">
+                  {selectedQuizzes.map((q, i) => (
+                    <div key={q.id} className="border border-gray-100 rounded-xl p-3 bg-white">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-800">
+                            <span className="text-blue-600 mr-1">{i + 1}.</span>{q.question}
+                          </p>
+                          <div className="mt-2 grid grid-cols-2 gap-1">
+                            {q.options.map((opt, oi) => (
+                              <p key={oi} className={`text-xs px-2 py-1 rounded ${
+                                oi === q.correct_answer ? "bg-green-100 text-green-700 font-medium" : "bg-gray-100 text-gray-500"
+                              }`}>
+                                {String.fromCharCode(65 + oi)}. {opt}
+                              </p>
+                            ))}
+                          </div>
+                          {q.explanation && <p className="text-xs text-gray-400 mt-1 italic">💡 {q.explanation}</p>}
+                        </div>
+                        <button onClick={() => deleteQuiz(selectedVideoObj.id, q.id)}
+                          className="text-gray-300 hover:text-red-400 text-xs shrink-0">✕</button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
+
+                {selectedQuizzes.length === 0 && !generatingQuiz && !showQuizForm && (
+                  <p className="text-gray-400 text-sm text-center py-4">No questions yet.</p>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex items-center justify-center border border-dashed border-gray-200 rounded-2xl" style={{ minHeight: "400px" }}>
             <div className="text-center">
               <p className="text-3xl mb-2">👈</p>
               <p className="text-gray-500 text-sm">Select a video to manage it</p>
-              <p className="text-gray-400 text-xs mt-1">Upload video, generate script, manage quiz</p>
             </div>
           </div>
         )}
