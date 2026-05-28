@@ -620,35 +620,36 @@ export default function TrainingPage() {
                           </div>
 
                           {/* VIDEO PLAYER */}
-                          {isPlaying && (
-                            <div className="border-t border-gray-100">
-                              <div style={{ position: "relative", paddingBottom: "56.25%", height: 0 }}>
-                                <iframe
-                                  src={`${video.url}?autoplay=1`}
-                                  title={video.title}
-                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                  allowFullScreen
-                                  style={{
-                                    position: "absolute",
-                                    top: 0,
-                                    left: 0,
-                                    width: "100%",
-                                    height: "100%",
-                                    border: "none",
-                                  }}
-                                />
-                              </div>
-                              <div className="p-3 bg-gray-50 flex justify-between items-center">
-                                <p className="text-xs text-gray-500">Mark complete when finished watching</p>
-                                <button
-                                  onClick={() => { toggleComplete(videoKey); setActiveVideo(null); }}
-                                  className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                                >
-                                  ✓ Mark Complete
-                                </button>
-                              </div>
-                            </div>
-                          )}
+{isPlaying && (
+  <div className="border-t border-gray-100">
+    <div className="relative bg-black" style={{ paddingBottom: "56.25%" }}>
+      <iframe
+        src={`${video.url}?autoplay=1&rel=0&modestbranding=1&controls=1&disablekb=1&fs=0`}
+        title={video.title}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen={false}
+        style={{
+          position: "absolute",
+          top: 0, left: 0,
+          width: "100%",
+          height: "100%",
+          border: "none",
+        }}
+      />
+    </div>
+    <div className="p-3 bg-gray-50 flex justify-between items-center">
+      <p className="text-xs text-gray-500">
+        Watch the full video, then mark complete
+      </p>
+      <button
+        onClick={() => { toggleComplete(videoKey); setActiveVideo(null); }}
+        className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700"
+      >
+        ✓ Mark Complete
+      </button>
+    </div>
+  </div>
+)}
                         </div>
                       );
                     })}

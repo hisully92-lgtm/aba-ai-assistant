@@ -233,6 +233,8 @@ export default function Sidebar({ onClose }: SidebarProps) {
         { label: "Social Stories", href: "/dashboard/social-stories" },
         { label: "Suggestions", href: "/dashboard/suggestions" },
         { label: "Task Analysis", href: "/dashboard/task-analysis" },
+        { label: "40-Hour RBT Course", href: "/dashboard/training/course" },
+        { label: "Training Certificate", href: "/dashboard/training/certificate" },
         { label: "Training Library", href: "/dashboard/training" },
         { label: "Visual Analytics", href: "/dashboard/analytics/graphs" },
         { label: "Visual Supports", href: "/dashboard/visual-supports" },
@@ -288,6 +290,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
         { label: "Staff Performance", href: "/dashboard/staff-performance" },
         { label: "Visual Analytics", href: "/dashboard/analytics/graphs" },
         { label: "Waitlist", href: "/dashboard/waitlist" },
+        { label: "Training Admin", href: "/dashboard/training/admin" },
       ]),
     }] : []),
     ...(isDeveloper ? [{
@@ -340,7 +343,9 @@ export default function Sidebar({ onClose }: SidebarProps) {
         { label: "Security", href: "/dashboard/settings/security" },
         { label: "SMS Alerts", href: "/dashboard/settings/sms" },
         { label: "Student Analyst Hub", href: "/dashboard/student-hub" },
+        { label: "Training Certificate", href: "/dashboard/training/certificate" },
         { label: "Training Library", href: "/dashboard/training" },
+        { label: "40-Hour RBT Course", href: "/dashboard/training/course" },
       ]),
     },
     {
