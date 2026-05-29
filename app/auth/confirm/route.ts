@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   const code = searchParams.get("code");
 
   if (code) {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -37,12 +37,10 @@ export async function GET(req: NextRequest) {
         .eq("id", user.id)
         .single();
 
-      // New user — send to onboarding
       if (!profile) {
         return NextResponse.redirect(new URL("/onboarding", req.url));
       }
 
-      // Existing user — send to dashboard
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
   }
