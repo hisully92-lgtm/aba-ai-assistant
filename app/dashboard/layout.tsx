@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase/client";
+
 import Sidebar from "@/components/layout/Sidebar";
 import CompanyBanner from "@/components/layout/CompanyBanner";
 import Link from "next/link";
@@ -11,14 +14,49 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const router = useRouter();
+
+  useEffect(() => {
+    const checkAccess = async () => {
+      const { data: sessionData } = await supabase.auth.getUser();
+      const user = sessionData?.user;
+
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
+
+      const { data } = await supabase
+        .from("company_users")
+        .select("status")
+        .eq("user_id", user.id)
+        .single();
+
+      if (data?.status !== "active") {
+        router.replace("/pending-approval");
+        return;
+      }
+
+      setLoading(false);
+    };
+
+    checkAccess();
+  }, [router]);
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        Loading...
+      </div>
+    );
+  }
 
   return (
     <div
       className="flex min-h-screen bg-gray-50"
-      style={{
-        height: "100vh",
-        overflow: "hidden",
-      }}
+      style={{ height: "100vh", overflow: "hidden" }}
     >
       {/* MOBILE OVERLAY */}
       {sidebarOpen && (
@@ -62,19 +100,7 @@ export default function DashboardLayout({
             onClick={() => setSidebarOpen(true)}
             className="rounded-lg p-1.5 text-white transition-colors hover:bg-[#2a3a54]"
           >
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 6h16M4 12h16M4 18h16"
-              />
-            </svg>
+            ☰
           </button>
 
           <h1 className="text-lg font-bold text-white">ABA AI</h1>
