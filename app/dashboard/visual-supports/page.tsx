@@ -24,6 +24,19 @@ type VisualSupport = {
   created_at: string;
 };
 
+type Timer = {
+  id: number;
+  label: string;
+  hours: number;
+  minutes: number;
+  seconds: number;
+  remaining: number;
+  total: number;
+  running: boolean;
+  paused: boolean;
+  done: boolean;
+};
+
 const EMOJIS = ["⭐","🌟","🏆","🎯","🎉","🦁","🐶","🌈","🚀","❤️","🍎","🎮","🎨","🏅","✅"];
 const ACTIVITIES = ["Circle Time","Reading","Math","Art","Recess","Lunch","Therapy","Free Play","Clean Up","Transition","Homework","Dinner","Bedtime"];
 
@@ -34,20 +47,12 @@ const SUPPORT_TYPES = [
   { value: "choice_board", label: "Choice Board" },
 ];
 
-const COLOR = {
-  blue: "bg-blue-50 border-blue-200 text-blue-700",
-  green: "bg-green-50 border-green-200 text-green-700",
-  purple: "bg-purple-50 border-purple-200 text-purple-700",
-};
-
 export default function VisualSupportsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [supports, setSupports] = useState<VisualSupport[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
   const [tab, setTab] = useState<"first-then" | "token" | "timer" | "saved" | "create">("first-then");
-
   const [filterClient, setFilterClient] = useState("");
 
   // FIRST THEN
@@ -62,18 +67,14 @@ export default function VisualSupportsPage() {
   const [goal, setGoal] = useState(5);
   const [tokenEmoji, setTokenEmoji] = useState("⭐");
   const [reward, setReward] = useState("");
-  const [earned, setEarned] = useState(0);
 
-  // TIMER
-  const [min, setMin] = useState(5);
-  const [sec, setSec] = useState(0);
-  const [running, setRunning] = useState(false);
-  const [done, setDone] = useState(false);
-  const [total, setTotal] = useState(0);
-  const [remaining, setRemaining] = useState(0);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  // TIMERS
+  const [timers, setTimers] = useState<Timer[]>([
+    { id: 1, label: "Timer 1", hours: 0, minutes: 5, seconds: 0, remaining: 0, total: 0, running: false, paused: false, done: false }
+  ]);
+  const timerRefs = useRef<Record<number, NodeJS.Timeout | null>>({});
 
-  // CREATE (advanced)
+  // CREATE
   const [createClient, setCreateClient] = useState("");
   const [title, setTitle] = useState("");
   const [type, setType] = useState("visual_schedule");
@@ -82,14 +83,23 @@ export default function VisualSupportsPage() {
   useEffect(() => { init(); }, []);
 
   useEffect(() => {
-    if (running && remaining > 0) {
-      timerRef.current = setTimeout(() => setRemaining(r => r - 1), 1000);
-    } else if (running && remaining === 0) {
-      setRunning(false);
-      setDone(true);
-    }
-    return () => clearTimeout(timerRef.current!);
-  }, [running, remaining]);
+    timers.forEach(timer => {
+      if (timer.running && timer.remaining > 0) {
+        timerRefs.current[timer.id] = setTimeout(() => {
+          setTimers(prev => prev.map(t =>
+            t.id === timer.id ? { ...t, remaining: t.remaining - 1 } : t
+          ));
+        }, 1000);
+      } else if (timer.running && timer.remaining === 0) {
+        setTimers(prev => prev.map(t =>
+          t.id === timer.id ? { ...t, running: false, done: true } : t
+        ));
+      }
+    });
+    return () => {
+      Object.values(timerRefs.current).forEach(t => { if (t) clearTimeout(t); });
+    };
+  }, [timers]);
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
@@ -109,11 +119,9 @@ export default function VisualSupportsPage() {
   async function saveFirstThen() {
     if (!ftClient || !first || !then) return;
     setSaving(true);
-
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
-
     const { data } = await supabase.from("visual_supports").insert([{
       client_id: ftClient,
       support_type: "first_then",
@@ -121,7 +129,6 @@ export default function VisualSupportsPage() {
       content: { first, then, firstEmoji, thenEmoji },
       created_by: user.id,
     }]).select().single();
-
     if (data) setSupports(prev => [data, ...prev]);
     setSaving(false);
   }
@@ -129,11 +136,9 @@ export default function VisualSupportsPage() {
   async function saveToken() {
     if (!teClient || !reward) return;
     setSaving(true);
-
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
-
     const { data } = await supabase.from("visual_supports").insert([{
       client_id: teClient,
       support_type: "token_economy",
@@ -141,25 +146,65 @@ export default function VisualSupportsPage() {
       content: { goal, tokenEmoji, reward },
       created_by: user.id,
     }]).select().single();
-
     if (data) setSupports(prev => [data, ...prev]);
     setSaving(false);
   }
 
-  function startTimer() {
-    const t = min * 60 + sec;
-    setTotal(t);
-    setRemaining(t);
-    setDone(false);
-    setRunning(true);
+  function addTimer() {
+    const newId = Date.now();
+    setTimers(prev => [...prev, {
+      id: newId, label: `Timer ${prev.length + 1}`,
+      hours: 0, minutes: 5, seconds: 0,
+      remaining: 0, total: 0, running: false, paused: false, done: false
+    }]);
   }
 
-  function color(value: number) {
-    if (!total) return "bg-gray-100";
-    const p = value / total;
-    if (p > 0.8) return "bg-red-600";
-    if (p > 0.5) return "bg-orange-400";
-    return "bg-yellow-300";
+  function startTimer(id: number) {
+    setTimers(prev => prev.map(t => {
+      if (t.id !== id) return t;
+      const total = t.hours * 3600 + t.minutes * 60 + t.seconds;
+      return { ...t, total, remaining: total, running: true, paused: false, done: false };
+    }));
+  }
+
+  function pauseTimer(id: number) {
+    if (timerRefs.current[id]) clearTimeout(timerRefs.current[id]!);
+    setTimers(prev => prev.map(t =>
+      t.id === id ? { ...t, running: false, paused: true } : t
+    ));
+  }
+
+  function resumeTimer(id: number) {
+    setTimers(prev => prev.map(t =>
+      t.id === id ? { ...t, running: true, paused: false } : t
+    ));
+  }
+
+  function stopTimer(id: number) {
+    if (timerRefs.current[id]) clearTimeout(timerRefs.current[id]!);
+    setTimers(prev => prev.map(t =>
+      t.id === id ? { ...t, running: false, paused: false, done: false, remaining: 0 } : t
+    ));
+  }
+
+  function removeTimer(id: number) {
+    stopTimer(id);
+    setTimers(prev => prev.filter(t => t.id !== id));
+  }
+
+  function formatTime(seconds: number) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+
+  function timerColor(timer: Timer) {
+    if (!timer.total) return "bg-gray-200";
+    const p = timer.remaining / timer.total;
+    if (p < 0.2) return "bg-red-500";
+    if (p < 0.5) return "bg-orange-400";
+    return "bg-green-500";
   }
 
   const filtered = filterClient ? supports.filter(s => s.client_id === filterClient) : supports;
@@ -180,7 +225,6 @@ export default function VisualSupportsPage() {
         </div>
       );
     }
-
     if (s.support_type === "token_economy") {
       return (
         <div className="flex flex-wrap gap-1">
@@ -191,7 +235,6 @@ export default function VisualSupportsPage() {
         </div>
       );
     }
-
     if (Array.isArray(s.content)) {
       return (
         <div className="grid grid-cols-2 gap-2">
@@ -204,7 +247,6 @@ export default function VisualSupportsPage() {
         </div>
       );
     }
-
     return null;
   }
 
@@ -216,7 +258,7 @@ export default function VisualSupportsPage() {
       <div className="flex gap-2 border-b text-sm">
         {["first-then","token","timer","saved","create"].map(t => (
           <button key={t} onClick={() => setTab(t as any)}
-            className={`px-3 py-2 ${tab === t ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"}`}>
+            className={`px-3 py-2 capitalize ${tab === t ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"}`}>
             {t}
           </button>
         ))}
@@ -224,30 +266,24 @@ export default function VisualSupportsPage() {
 
       {/* FIRST THEN */}
       {tab === "first-then" && (
-        <Section title="First → Then">
+        <Section title="First Then">
           <select value={ftClient} onChange={e => setFtClient(e.target.value)} className="border p-2 rounded w-full mb-2">
             <option value="">Select client</option>
             {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
           </select>
-
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <select value={first} onChange={e => setFirst(e.target.value)} className="border p-2 rounded w-full">
-                <option value="">First activity</option>
-                {ACTIVITIES.map(a => <option key={a}>{a}</option>)}
-              </select>
-            </div>
-            <div>
-              <select value={then} onChange={e => setThen(e.target.value)} className="border p-2 rounded w-full">
-                <option value="">Then activity</option>
-                {ACTIVITIES.map(a => <option key={a}>{a}</option>)}
-              </select>
-            </div>
+            <select value={first} onChange={e => setFirst(e.target.value)} className="border p-2 rounded w-full">
+              <option value="">First activity</option>
+              {ACTIVITIES.map(a => <option key={a}>{a}</option>)}
+            </select>
+            <select value={then} onChange={e => setThen(e.target.value)} className="border p-2 rounded w-full">
+              <option value="">Then activity</option>
+              {ACTIVITIES.map(a => <option key={a}>{a}</option>)}
+            </select>
           </div>
-
-          <Button onClick={saveFirstThen} disabled={!ftClient || !first || !then} loading={saving}>
-            Save
-          </Button>
+          <div className="mt-3">
+            <Button onClick={saveFirstThen} disabled={!ftClient || !first || !then} loading={saving}>Save</Button>
+          </div>
         </Section>
       )}
 
@@ -255,43 +291,91 @@ export default function VisualSupportsPage() {
       {tab === "token" && (
         <Section title="Token Board">
           <select value={teClient} onChange={e => setTeClient(e.target.value)} className="border p-2 rounded w-full mb-2">
-            <option>Select client</option>
+            <option value="">Select client</option>
             {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
           </select>
-
           <input value={reward} onChange={e => setReward(e.target.value)} placeholder="Reward" className="border p-2 rounded w-full mb-2" />
-
-          <input type="range" min={1} max={20} value={goal} onChange={e => setGoal(+e.target.value)} />
-
-          <div className="flex gap-1 my-2">
+          <input type="range" min={1} max={20} value={goal} onChange={e => setGoal(+e.target.value)} className="w-full mb-2" />
+          <div className="flex gap-1 my-2 flex-wrap">
             {Array.from({ length: goal }).map((_, i) => (
               <span key={i} className="text-2xl">{tokenEmoji}</span>
             ))}
           </div>
-
-          <Button onClick={saveToken} disabled={!teClient || !reward} loading={saving}>
-            Save Token Board
-          </Button>
+          <Button onClick={saveToken} disabled={!teClient || !reward} loading={saving}>Save Token Board</Button>
         </Section>
       )}
 
       {/* TIMER */}
       {tab === "timer" && (
-        <Section title="Timer">
-          {!running && !done && (
-            <div className="flex gap-2">
-              <input type="number" value={min} onChange={e => setMin(+e.target.value)} className="border p-2 w-20" />
-              <input type="number" value={sec} onChange={e => setSec(+e.target.value)} className="border p-2 w-20" />
-            </div>
-          )}
+        <Section title="Timers">
+          <div className="space-y-4">
+            {timers.map(timer => (
+              <div key={timer.id} className="border rounded-xl p-4 bg-gray-50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <input
+                    value={timer.label}
+                    onChange={e => setTimers(prev => prev.map(t => t.id === timer.id ? { ...t, label: e.target.value } : t))}
+                    className="font-semibold text-sm border-b border-gray-300 bg-transparent focus:outline-none w-32"
+                  />
+                  <button onClick={() => removeTimer(timer.id)} className="text-gray-400 hover:text-red-500 text-xs">Remove</button>
+                </div>
 
-          {(running || done) && (
-            <div className="text-2xl font-bold">{remaining}s</div>
-          )}
+                {!timer.running && !timer.paused && !timer.done && (
+                  <div className="flex items-end gap-2">
+                    <div className="text-center">
+                      <input type="number" min={0} max={23} value={timer.hours}
+                        onChange={e => setTimers(prev => prev.map(t => t.id === timer.id ? { ...t, hours: +e.target.value } : t))}
+                        className="border rounded p-1 w-16 text-center text-sm" />
+                      <p className="text-xs text-gray-400 mt-0.5">hrs</p>
+                    </div>
+                    <span className="text-gray-400 font-bold mb-4">:</span>
+                    <div className="text-center">
+                      <input type="number" min={0} max={59} value={timer.minutes}
+                        onChange={e => setTimers(prev => prev.map(t => t.id === timer.id ? { ...t, minutes: +e.target.value } : t))}
+                        className="border rounded p-1 w-16 text-center text-sm" />
+                      <p className="text-xs text-gray-400 mt-0.5">min</p>
+                    </div>
+                    <span className="text-gray-400 font-bold mb-4">:</span>
+                    <div className="text-center">
+                      <input type="number" min={0} max={59} value={timer.seconds}
+                        onChange={e => setTimers(prev => prev.map(t => t.id === timer.id ? { ...t, seconds: +e.target.value } : t))}
+                        className="border rounded p-1 w-16 text-center text-sm" />
+                      <p className="text-xs text-gray-400 mt-0.5">sec</p>
+                    </div>
+                  </div>
+                )}
 
-          <div className="flex gap-2 mt-2">
-            <Button onClick={startTimer}>Start</Button>
-            <Button variant="danger" onClick={() => setRunning(false)}>Pause</Button>
+                {(timer.running || timer.paused || timer.done) && (
+                  <div className="text-center">
+                    <div className={`inline-block px-6 py-3 rounded-xl text-white font-mono text-3xl font-bold ${timerColor(timer)}`}>
+                      {formatTime(timer.remaining)}
+                    </div>
+                    {timer.done && <p className="text-green-600 font-semibold mt-2">Time is up!</p>}
+                    {timer.paused && <p className="text-orange-500 text-sm mt-1">Paused</p>}
+                  </div>
+                )}
+
+                <div className="flex gap-2 flex-wrap">
+                  {!timer.running && !timer.paused && !timer.done && (
+                    <Button onClick={() => startTimer(timer.id)}>Start</Button>
+                  )}
+                  {timer.running && (
+                    <Button variant="outline" onClick={() => pauseTimer(timer.id)}>Pause</Button>
+                  )}
+                  {timer.paused && (
+                    <Button onClick={() => resumeTimer(timer.id)}>Resume</Button>
+                  )}
+                  {(timer.running || timer.paused || timer.done) && (
+                    <Button variant="danger" onClick={() => stopTimer(timer.id)}>Stop</Button>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            <button onClick={addTimer}
+              className="w-full border-2 border-dashed border-gray-300 rounded-xl py-3 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors">
+              + Add Timer
+            </button>
           </div>
         </Section>
       )}
@@ -299,12 +383,43 @@ export default function VisualSupportsPage() {
       {/* SAVED */}
       {tab === "saved" && (
         <Section title="Saved">
+          <select value={filterClient} onChange={e => setFilterClient(e.target.value)} className="border p-2 rounded w-full mb-3">
+            <option value="">All clients</option>
+            {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+          </select>
           {filtered.map(s => (
             <div key={s.id} className="border p-3 rounded mb-2">
-              <div className="font-bold">{s.title}</div>
+              <div className="font-bold mb-2">{s.title}</div>
               {renderSupport(s)}
             </div>
           ))}
+          {filtered.length === 0 && <p className="text-gray-400 text-sm">No saved supports yet.</p>}
+        </Section>
+      )}
+
+      {/* CREATE */}
+      {tab === "create" && (
+        <Section title="Create Visual Support">
+          <select value={createClient} onChange={e => setCreateClient(e.target.value)} className="border p-2 rounded w-full mb-2">
+            <option value="">Select client</option>
+            {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+          </select>
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" className="border p-2 rounded w-full mb-2" />
+          <select value={type} onChange={e => setType(e.target.value)} className="border p-2 rounded w-full mb-3">
+            {SUPPORT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+          {items.map((item, idx) => (
+            <div key={idx} className="flex gap-2 mb-2">
+              <input value={item.label} onChange={e => setItems(prev => prev.map((it, i) => i === idx ? { ...it, label: e.target.value } : it))}
+                placeholder="Label" className="border p-2 rounded flex-1" />
+              <select value={item.emoji} onChange={e => setItems(prev => prev.map((it, i) => i === idx ? { ...it, emoji: e.target.value } : it))}
+                className="border p-2 rounded">
+                {EMOJIS.map(em => <option key={em}>{em}</option>)}
+              </select>
+            </div>
+          ))}
+          <button onClick={() => setItems(prev => [...prev, { label: "", emoji: "⭐" }])}
+            className="text-sm text-blue-500 underline mb-3">+ Add item</button>
         </Section>
       )}
     </div>

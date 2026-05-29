@@ -6,6 +6,14 @@ import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
 
+const ABA_CREDENTIALS = [
+  "BT", "RBT", "BCaBA", "BCBA", "BCBA-D",
+  "CRP", "BACB Certificant", "QBA", "QABA",
+  "Licensed Psychologist", "LCSW", "LPC",
+  "SLP", "OT", "PT", "Student Analyst",
+  "ABAI Member", "APBA Member",
+];
+
 type Profile = {
   id: string;
   full_name: string | null;
@@ -15,6 +23,7 @@ type Profile = {
   bcba_license_number: string | null;
   credential_expiry: string | null;
   rbt_supervision_hours: number | null;
+  credentials: string[] | null;
 };
 
 export default function ProfilePage() {
@@ -30,6 +39,7 @@ export default function ProfilePage() {
   const [phone, setPhone] = useState("");
   const [licenseNumber, setLicenseNumber] = useState("");
   const [credentialExpiry, setCredentialExpiry] = useState("");
+  const [selectedCredentials, setSelectedCredentials] = useState<string[]>([]);
 
   useEffect(() => { init(); }, []);
 
@@ -45,6 +55,7 @@ export default function ProfilePage() {
       setPhone(data.phone ?? "");
       setLicenseNumber(data.bcba_license_number ?? "");
       setCredentialExpiry(data.credential_expiry ?? "");
+      setSelectedCredentials(data.credentials ?? []);
     }
     setLoading(false);
   }
@@ -62,9 +73,15 @@ export default function ProfilePage() {
       phone,
       bcba_license_number: licenseNumber || null,
       credential_expiry: credentialExpiry || null,
+      credentials: selectedCredentials,
     } as any).eq("id", user.id);
 
-    if (saveError) { setError(saveError.message); } else { setSuccess(true); setTimeout(() => setSuccess(false), 3000); }
+    if (saveError) {
+      setError(saveError.message);
+    } else {
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    }
     setSaving(false);
   }
 
@@ -94,8 +111,14 @@ export default function ProfilePage() {
     const photoUrl = urlData.publicUrl;
 
     await supabase.from("profiles").update({ photo_url: photoUrl } as any).eq("id", user.id);
-    setProfile((prev) => prev ? { ...prev, photo_url: photoUrl } : prev);
+    setProfile(prev => prev ? { ...prev, photo_url: photoUrl } : prev);
     setUploading(false);
+  }
+
+  function toggleCredential(cred: string) {
+    setSelectedCredentials(prev =>
+      prev.includes(cred) ? prev.filter(c => c !== cred) : [...prev, cred]
+    );
   }
 
   function roleBadge(role: string | null) {
@@ -111,8 +134,16 @@ export default function ProfilePage() {
     <div className="space-y-6">
       <PageHeader title="My Profile" />
 
-      {success && <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">✓ Profile saved.</div>}
-      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{error}</div>}
+      {success && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
+          Profile saved successfully.
+        </div>
+      )}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       <Section title="Profile Photo">
         <div className="flex items-center gap-6">
@@ -144,35 +175,59 @@ export default function ProfilePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1 block">Full Name</label>
-            <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)}
-              placeholder="Your full name" className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            <input type="text" value={fullName} onChange={e => setFullName(e.target.value)}
+              placeholder="Your full name"
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
           </div>
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1 block">Phone</label>
-            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-              placeholder="+1 (555) 000-0000" className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+              placeholder="+1 (555) 000-0000"
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
           </div>
         </div>
       </Section>
 
-      <Section title="Professional Information">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <Section title="Professional Credentials">
+        <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 block">BCBA License / Credential Number</label>
-            <input type="text" value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)}
-              placeholder="e.g. 1-20-12345" className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            <label className="text-sm font-medium text-gray-700 mb-2 block">ABA Credentials (select all that apply)</label>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {ABA_CREDENTIALS.map(cred => (
+                <label key={cred} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedCredentials.includes(cred)}
+                    onChange={() => toggleCredential(cred)}
+                    className="rounded border-gray-300 text-blue-600"
+                  />
+                  {cred}
+                </label>
+              ))}
+            </div>
           </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 block">Credential Expiry Date</label>
-            <input type="date" value={credentialExpiry} onChange={(e) => setCredentialExpiry(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">License / Credential Number</label>
+              <input type="text" value={licenseNumber} onChange={e => setLicenseNumber(e.target.value)}
+                placeholder="e.g. 1-20-12345"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Credential Expiry Date</label>
+              <input type="date" value={credentialExpiry} onChange={e => setCredentialExpiry(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            </div>
           </div>
+
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1 block">RBT Supervision Hours (logged)</label>
             <p className="text-2xl font-bold text-blue-600">{profile?.rbt_supervision_hours ?? 0}h</p>
             <p className="text-xs text-gray-400">Automatically tracked from supervision logs</p>
           </div>
         </div>
+
         <div className="mt-4">
           <Button onClick={handleSave} loading={saving}>Save Profile</Button>
         </div>
