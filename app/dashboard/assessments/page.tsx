@@ -127,25 +127,31 @@ export default function AssessmentsPage() {
     if (!clientId || !assessmentType) return;
     setSaving(true);
 
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth?.user;
+    if (!user) return;
+
     const total = calculateTotal();
     const level = getLevel(total, assessmentType);
 
-    const newAssessment: Assessment = {
-      id: crypto.randomUUID(),
-      client_id: clientId,
-      assessment_type: assessmentType,
-      scores,
-      total_score: total,
-      level,
-      notes,
-      assessed_by: assessedBy,
-      assessment_date: assessmentDate,
-      created_at: new Date().toISOString(),
-    };
+    const { data, error: saveError } = await supabase
+      .from("assessments")
+      .insert([{
+        client_id: clientId,
+        assessment_type: assessmentType,
+        scores,
+        total_score: total,
+        level,
+        notes,
+        assessed_by: assessedBy,
+        assessment_date: assessmentDate,
+        created_by: user.id,
+      }])
+      .select()
+      .single();
 
-    const updated = [newAssessment, ...assessments];
-    setAssessments(updated);
-    localStorage.setItem("aba_assessments", JSON.stringify(updated));
+    if (saveError) { console.error(saveError.message); setSaving(false); return; }
+    if (data) setAssessments(prev => [data, ...prev]);
 
     setShowForm(false);
     setClientId(""); setScores({}); setNotes(""); setAssessedBy("");

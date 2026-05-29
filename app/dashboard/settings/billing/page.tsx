@@ -111,7 +111,12 @@ export default function BillingPage() {
     const user = auth?.user;
     if (!user) return;
 
-    const { data } = await supabase.from("subscription_contracts").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+    const { data } = await supabase
+      .from("subscription_contracts")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
     setContracts(data ?? []);
     setLoading(false);
   }
@@ -135,18 +140,19 @@ export default function BillingPage() {
 
     const plan = PLANS.find((p) => p.type === selectedPlan)!;
     const { monthly, total, discount } = calculatePrice(selectedPlan, selectedMonths);
+    const isFirstSubscription = contracts.length === 0;
 
     const startDate = new Date();
     const endDate = new Date();
-    endDate.setMonth(endDate.getMonth() + selectedMonths);
+    endDate.setMonth(endDate.getMonth() + selectedMonths + (isFirstSubscription ? 1 : 0));
 
     const { data } = await supabase.from("subscription_contracts").insert([{
       user_id: user.id,
       plan_name: plan.name,
       plan_type: selectedPlan,
       contract_length_months: selectedMonths,
-      price_per_month: monthly,
-      total_price: total,
+      price_per_month: isFirstSubscription ? 0 : monthly,
+      total_price: isFirstSubscription ? 0 : total,
       discount_percent: discount,
       start_date: startDate.toISOString().split("T")[0],
       end_date: endDate.toISOString().split("T")[0],
@@ -181,6 +187,7 @@ export default function BillingPage() {
   }
 
   const activeContract = contracts.find((c) => c.status === "active");
+  const isFirstSubscription = contracts.length === 0;
   const pricing = calculatePrice(selectedPlan, selectedMonths);
 
   function statusColor(status: string) {
@@ -195,7 +202,9 @@ export default function BillingPage() {
 
       {success && (
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700">
-          ✅ Subscription activated! A confirmation email will be sent with your contract details.
+          {isFirstSubscription
+            ? "Your first month is free! You will be charged starting next month."
+            : "Subscription activated! A confirmation email will be sent with your contract details."}
         </div>
       )}
 
@@ -214,7 +223,7 @@ export default function BillingPage() {
               </p>
               {daysUntilRenewal(activeContract.end_date) <= activeContract.renewal_reminder_days && (
                 <p className="text-xs text-orange-600 mt-1 font-medium">
-                  ⚠️ Renews in {daysUntilRenewal(activeContract.end_date)} days
+                  Renews in {daysUntilRenewal(activeContract.end_date)} days
                 </p>
               )}
             </div>
@@ -240,6 +249,22 @@ export default function BillingPage() {
       {/* PLANS TAB */}
       {activeTab === "plans" && (
         <div className="space-y-6">
+
+          {/* FREE TRIAL BANNER */}
+          {!activeContract && (
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-6 text-white text-center">
+              <p className="text-2xl font-black mb-1">First Month Free</p>
+              <p className="text-sm opacity-90 mb-3">
+                Try any plan free for 30 days. No credit card required to start.
+              </p>
+              <div className="flex justify-center gap-6 text-sm flex-wrap">
+                <span>Full access</span>
+                <span>Cancel anytime</span>
+                <span>No hidden fees</span>
+              </div>
+            </div>
+          )}
+
           {/* PLAN CARDS */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {PLANS.map((plan) => {
@@ -256,10 +281,17 @@ export default function BillingPage() {
                   <p className="text-2xl mb-2">{plan.icon}</p>
                   <p className="font-bold text-gray-800 text-xl">{plan.name}</p>
                   <p className="text-xs text-gray-500 mt-1 mb-3">{plan.description}</p>
-                  <p className="text-3xl font-bold text-blue-600">
-                    ${p.monthly.toFixed(0)}
-                    <span className="text-sm font-normal text-gray-500">/mo</span>
-                  </p>
+                  {isFirstSubscription ? (
+                    <div>
+                      <p className="text-3xl font-bold text-green-600">Free</p>
+                      <p className="text-xs text-gray-500 mt-0.5">First month, then ${p.monthly.toFixed(0)}/mo</p>
+                    </div>
+                  ) : (
+                    <p className="text-3xl font-bold text-blue-600">
+                      ${p.monthly.toFixed(0)}
+                      <span className="text-sm font-normal text-gray-500">/mo</span>
+                    </p>
+                  )}
                   {p.discount > 0 && (
                     <p className="text-xs text-green-600 font-medium mt-0.5">
                       Save {p.discount}% · ${p.savings.toFixed(0)} off
@@ -273,7 +305,7 @@ export default function BillingPage() {
                     ))}
                   </ul>
                   <button className={`w-full mt-5 py-2.5 rounded-xl text-sm font-bold transition-colors ${selectedPlan === plan.type ? "bg-blue-600 text-white" : "border-2 border-blue-300 text-blue-600 hover:bg-blue-50"}`}>
-                    {selectedPlan === plan.type ? "✓ Selected" : `Select ${plan.name}`}
+                    {selectedPlan === plan.type ? "Selected" : `Select ${plan.name}`}
                   </button>
                 </div>
               );
@@ -289,7 +321,9 @@ export default function BillingPage() {
                   <button key={option.months} onClick={() => setSelectedMonths(option.months)}
                     className={`border-2 rounded-xl p-3 text-center transition-all ${selectedMonths === option.months ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"}`}>
                     <p className="text-sm font-bold text-gray-800">{option.label}</p>
-                    <p className="text-xl font-bold text-blue-600 mt-1">${p.monthly.toFixed(0)}<span className="text-xs text-gray-400">/mo</span></p>
+                    <p className="text-xl font-bold text-blue-600 mt-1">
+                      ${p.monthly.toFixed(0)}<span className="text-xs text-gray-400">/mo</span>
+                    </p>
                     {option.discount > 0 ? (
                       <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">
                         Save {option.discount}%
@@ -311,6 +345,11 @@ export default function BillingPage() {
                 {/* ORDER SUMMARY */}
                 <div className="bg-gray-50 rounded-xl p-5 space-y-3">
                   <p className="font-bold text-gray-700">Order Summary</p>
+                  {isFirstSubscription && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700 font-medium">
+                      First month free applied automatically
+                    </div>
+                  )}
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Plan</span>
@@ -320,22 +359,41 @@ export default function BillingPage() {
                       <span className="text-gray-600">Contract</span>
                       <span className="font-medium">{CONTRACT_OPTIONS.find((c) => c.months === selectedMonths)?.label}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Monthly Rate</span>
-                      <span className="font-medium">${pricing.monthly.toFixed(2)}/mo</span>
-                    </div>
-                    {pricing.discount > 0 && (
-                      <div className="flex justify-between text-green-600">
-                        <span>Contract Discount</span>
-                        <span>-{pricing.discount}% (Save ${pricing.savings.toFixed(2)})</span>
-                      </div>
-                    )}
-                    <div className="border-t border-gray-200 pt-2 flex justify-between font-bold text-base">
-                      <span>Total Due</span>
-                      <span className="text-blue-600">${pricing.total.toFixed(2)}</span>
-                    </div>
-                    {selectedMonths > 1 && (
-                      <p className="text-xs text-gray-400">Billed as ${pricing.total.toFixed(2)} for {selectedMonths} months</p>
+                    {isFirstSubscription ? (
+                      <>
+                        <div className="flex justify-between text-green-600 font-medium">
+                          <span>First Month</span>
+                          <span>FREE</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">After trial</span>
+                          <span className="font-medium">${pricing.monthly.toFixed(2)}/mo</span>
+                        </div>
+                        <div className="border-t border-gray-200 pt-2 flex justify-between font-bold text-base">
+                          <span>Due Today</span>
+                          <span className="text-green-600">$0.00</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Monthly Rate</span>
+                          <span className="font-medium">${pricing.monthly.toFixed(2)}/mo</span>
+                        </div>
+                        {pricing.discount > 0 && (
+                          <div className="flex justify-between text-green-600">
+                            <span>Contract Discount</span>
+                            <span>-{pricing.discount}% (Save ${pricing.savings.toFixed(2)})</span>
+                          </div>
+                        )}
+                        <div className="border-t border-gray-200 pt-2 flex justify-between font-bold text-base">
+                          <span>Total Due</span>
+                          <span className="text-blue-600">${pricing.total.toFixed(2)}</span>
+                        </div>
+                        {selectedMonths > 1 && (
+                          <p className="text-xs text-gray-400">Billed as ${pricing.total.toFixed(2)} for {selectedMonths} months</p>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -362,7 +420,7 @@ export default function BillingPage() {
                           {autoRenew ? "Auto-renew enabled" : "Auto-renew disabled"}
                         </p>
                         <p className="text-xs text-gray-400">
-                          {autoRenew ? "Plan renews automatically" : "You'll be notified before expiry"}
+                          {autoRenew ? "Plan renews automatically" : "You will be notified before expiry"}
                         </p>
                       </div>
                     </div>
@@ -380,11 +438,13 @@ export default function BillingPage() {
                   </div>
 
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-700">
-                    📧 Renewal reminder email will be sent {reminderDays} days before your contract ends.
+                    Renewal reminder email will be sent {reminderDays} days before your contract ends.
                   </div>
 
                   <Button onClick={handleSubscribe} loading={saving} className="w-full">
-                    Subscribe — ${pricing.total.toFixed(2)} {selectedMonths > 1 ? `for ${selectedMonths} months` : "/month"}
+                    {isFirstSubscription
+                      ? "Start Free Trial"
+                      : `Subscribe — $${pricing.total.toFixed(2)} ${selectedMonths > 1 ? `for ${selectedMonths} months` : "/month"}`}
                   </Button>
                   <Button variant="outline" onClick={() => setShowCheckout(false)} className="w-full">
                     Cancel
@@ -431,7 +491,7 @@ export default function BillingPage() {
                       <span>{contract.payment_method}</span>
                     </div>
                     {isExpiringSoon && (
-                      <p className="text-xs text-orange-600 font-medium mt-1">⚠️ Renews in {days} days</p>
+                      <p className="text-xs text-orange-600 font-medium mt-1">Renews in {days} days</p>
                     )}
                   </div>
                   {contract.status === "active" && (
