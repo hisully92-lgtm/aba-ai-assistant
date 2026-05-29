@@ -305,14 +305,9 @@ export default function SupervisorDashboardPage() {
       `This week: ${total} exports, ${highRisk} high-risk cases, avg forecast ${avgForecastScore.toFixed(1)}%. Generating full AI summary...`
     );
 
-    telemetry.ai
-      .weeklySummary({ type: "weekly_summary", total, highRisk, mediumRisk, avgForecastScore, escalationCount }, userId)
-      .then((res) => {
-        if (res.error) { console.error("Weekly summary error:", res.error); return; }
-        setSummary(
-          `This week: ${total} exports, ${highRisk} high-risk cases, avg forecast ${avgForecastScore.toFixed(1)}%. Summary queued — check back shortly.`
-        );
-      });
+    setSummary(
+  `This week: ${total} exports, ${highRisk} high-risk cases, avg forecast ${avgForecastScore.toFixed(1)}%.`
+);
   }, [exportsData, userId]);
 
   async function handleApprove(exportId: string) {
