@@ -53,7 +53,7 @@ export default function LoginPage() {
           <div>
             <h2 className="text-2xl font-bold text-gray-800">Sign in to ABA AI</h2>
             <p className="text-sm text-gray-500 mt-1">
-              Enter your email and we'll send you a magic link to sign in or create your account.
+              Enter your email to sign in or create a new account.
             </p>
           </div>
 
@@ -96,7 +96,7 @@ export default function LoginPage() {
                 disabled={loading}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg text-sm transition-colors disabled:opacity-50"
               >
-                {loading ? "Sending..." : "Create My Account"}
+                {loading ? "Sending..." : "Sign In / Create Account"}
               </button>
             </div>
           )}
