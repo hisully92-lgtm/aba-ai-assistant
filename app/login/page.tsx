@@ -9,8 +9,9 @@ export default function LoginPage() {
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
 
-  async function handleSignIn() {
+  async function handleSubmit() {
     if (!email.trim()) { setError("Please enter your email."); return; }
     setLoading(true);
     setError(null);
@@ -50,10 +51,39 @@ export default function LoginPage() {
       {/* FORM */}
       <div className="flex justify-center px-4 py-10">
         <div className="w-full max-w-md bg-white rounded-2xl shadow-md p-8 space-y-6">
+
+          {/* Toggle */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => { setMode("signin"); setError(null); }}
+              className={`py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                mode === "signin"
+                  ? "bg-blue-600 text-white"
+                  : "border border-gray-300 text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => { setMode("signup"); setError(null); }}
+              className={`py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                mode === "signup"
+                  ? "bg-blue-600 text-white"
+                  : "border border-gray-300 text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              Create Account
+            </button>
+          </div>
+
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">Sign in to ABA AI</h2>
+            <h2 className="text-2xl font-bold text-gray-800">
+              {mode === "signin" ? "Welcome back" : "Create your account"}
+            </h2>
             <p className="text-sm text-gray-500 mt-1">
-              Enter your email to sign in or create a new account.
+              {mode === "signin"
+                ? "Enter your email and we'll send you a magic link to sign in."
+                : "Enter your email to get started. We'll send you a magic link."}
             </p>
           </div>
 
@@ -67,7 +97,7 @@ export default function LoginPage() {
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-700 text-center space-y-2">
               <p className="text-2xl">📧</p>
               <p className="font-semibold">Check your email!</p>
-              <p>We sent a sign-in link to <strong>{email}</strong></p>
+              <p>We sent a link to <strong>{email}</strong></p>
               <button
                 onClick={() => { setSent(false); setEmail(""); }}
                 className="text-xs text-green-600 underline mt-2"
@@ -85,18 +115,18 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSignIn()}
+                  onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
                   placeholder="you@clinic.com"
                   className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                 />
               </div>
 
               <button
-                onClick={handleSignIn}
+                onClick={handleSubmit}
                 disabled={loading}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg text-sm transition-colors disabled:opacity-50"
               >
-                {loading ? "Sending..." : "Sign In / Create Account"}
+                {loading ? "Sending..." : mode === "signin" ? "Send Magic Link" : "Create Account"}
               </button>
             </div>
           )}
