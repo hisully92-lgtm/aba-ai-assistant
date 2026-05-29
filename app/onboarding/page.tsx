@@ -255,7 +255,7 @@ export default function OnboardingPage() {
           company_id: companyId,
           user_id: user.id,
           role,
-          status: "pending"
+          status: codeVerified ? "active" : "pending"
         });
 
       if (linkError) {

@@ -18,7 +18,7 @@ export default function LoginPage() {
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/confirm?type=magiclink`,
+        emailRedirectTo: `${window.location.origin}/auth/confirm`,
       },
     });
 
@@ -53,7 +53,7 @@ export default function LoginPage() {
           <div>
             <h2 className="text-2xl font-bold text-gray-800">Sign in to ABA AI</h2>
             <p className="text-sm text-gray-500 mt-1">
-              Enter your email and we'll send you a magic link to sign in.
+              Enter your email and we'll send you a magic link to sign in or create your account.
             </p>
           </div>
 
@@ -96,23 +96,7 @@ export default function LoginPage() {
                 disabled={loading}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg text-sm transition-colors disabled:opacity-50"
               >
-                {loading ? "Sending..." : "Send Magic Link"}
-              </button>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-200" />
-                </div>
-                <div className="relative flex justify-center text-xs text-gray-400 bg-white px-2">
-                  or
-                </div>
-              </div>
-
-              <button
-                onClick={() => window.location.href = "/signup"}
-                className="w-full border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-3 rounded-lg text-sm transition-colors"
-              >
-                Create account
+                {loading ? "Sending..." : "Create My Account"}
               </button>
             </div>
           )}
