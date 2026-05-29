@@ -34,10 +34,14 @@ export default function DashboardLayout({
         .eq("user_id", user.id)
         .single();
 
-      if (data?.status !== "active") {
-        router.replace("/pending-approval");
-        return;
-      }
+      if (!data) {
+  router.replace("/onboarding");
+  return;
+}
+if (data.status !== "active") {
+  router.replace("/onboarding");
+  return;
+}
 
       setLoading(false);
     };
