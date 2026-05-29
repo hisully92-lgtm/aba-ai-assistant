@@ -102,7 +102,6 @@ export default function Sidebar({ onClose }: SidebarProps) {
       children: sortChildren([
         { label: "Active Interventions", href: "/dashboard/behaviors" },
         { label: "Behavior Log", href: "/dashboard/behaviors/log" },
-        { label: "BIP Plans", href: "/dashboard/bip" },
         { label: "Intervention History", href: "/dashboard/behaviors/history" },
         { label: "Interval Recording", href: "/dashboard/interval-recording" },
         { label: "Rate Data", href: "/dashboard/rate-data" },
@@ -117,7 +116,6 @@ export default function Sidebar({ onClose }: SidebarProps) {
         { label: "Active Programs", href: "/dashboard/programs" },
         { label: "Add Program", href: "/dashboard/programs/new" },
         { label: "Program Books", href: "/dashboard/program-books" },
-        { label: "Program Graphs", href: "/dashboard/analytics/graphs" },
         { label: "Program Progress", href: "/dashboard/programs/progress" },
       ]),
     },
