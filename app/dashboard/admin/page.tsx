@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,7 +7,6 @@ import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Profile = {
   id: string;
@@ -26,7 +26,25 @@ type ClinicianReport = {
   pendingNotes: number;
 };
 
+type RoleCode = {
+  id: string;
+  code: string;
+  role: string;
+  used: boolean;
+  used_by: string | null;
+  expires_at: string | null;
+  created_at: string;
+};
+
+type Company = {
+  id: string;
+  name: string;
+  clinic_code: string | null;
+  slug: string;
+};
+
 const ROLES = ["admin", "director", "supervisor", "clinician", "student_analyst", "rbt", "bt", "office", "accounting", "hr", "parent"];
+const CODE_ROLES = ["admin", "supervisor", "clinical_director", "director"];
 
 const ROLE_TIERS: Record<string, number> = {
   admin: 10, director: 9, supervisor: 8, clinician: 7,
@@ -34,8 +52,17 @@ const ROLE_TIERS: Record<string, number> = {
   accounting: 3, hr: 3, parent: 1,
 };
 
+function generateCode(role: string, clinicCode: string): string {
+  const rolePrefix = role.toUpperCase().slice(0, 4);
+  const year = new Date().getFullYear();
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${clinicCode}-${rolePrefix}-${year}-${random}`;
+}
+
 export default function AdminPage() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [company, setCompany] = useState<Company | null>(null);
+  const [roleCodes, setRoleCodes] = useState<RoleCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState("");
@@ -44,18 +71,72 @@ export default function AdminPage() {
   const [inviteName, setInviteName] = useState("");
   const [inviting, setInviting] = useState(false);
   const [inviteSuccess, setInviteSuccess] = useState(false);
-  const [activeTab, setActiveTab] = useState<"users" | "reports" | "logs" | "system">("users");
+  const [activeTab, setActiveTab] = useState<"users" | "codes" | "reports" | "logs" | "system">("users");
   const [logs, setLogs] = useState<any[]>([]);
   const [stats, setStats] = useState({ totalUsers: 0, totalClients: 0, totalSessions: 0, totalIncidents: 0 });
   const [clinicianReports, setClinicianReports] = useState<ClinicianReport[]>([]);
   const [expiringAuths, setExpiringAuths] = useState<any[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
 
+  // Code generator state
+  const [newCodeRole, setNewCodeRole] = useState("supervisor");
+  const [newCodeExpiry, setNewCodeExpiry] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().split("T")[0];
+  });
+  const [generatingCode, setGeneratingCode] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
   useEffect(() => { init(); }, []);
 
   async function init() {
-    const { data: profileData } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
-    setProfiles(profileData ?? []);
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth?.user;
+    if (!user) return;
+
+    // Get user's company
+    const { data: companyUser } = await supabase
+      .from("company_users")
+      .select("company_id")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .single();
+
+    if (companyUser?.company_id) {
+      const { data: companyData } = await supabase
+        .from("companies")
+        .select("*")
+        .eq("id", companyUser.company_id)
+        .single();
+      setCompany(companyData);
+
+      // Get users in same company
+      const { data: companyUsers } = await supabase
+        .from("company_users")
+        .select("user_id")
+        .eq("company_id", companyUser.company_id);
+
+      const userIds = (companyUsers ?? []).map((u: any) => u.user_id);
+
+      if (userIds.length > 0) {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("*")
+          .in("id", userIds)
+          .order("created_at", { ascending: false });
+        setProfiles(profileData ?? []);
+        setStats(prev => ({ ...prev, totalUsers: profileData?.length ?? 0 }));
+      }
+
+      // Get role codes for this company
+      const { data: codesData } = await supabase
+        .from("role_codes")
+        .select("*")
+        .eq("company_id", companyUser.company_id)
+        .order("created_at", { ascending: false });
+      setRoleCodes(codesData ?? []);
+    }
 
     const [{ count: clientCount }, { count: sessionCount }, { count: incidentCount }] = await Promise.all([
       supabase.from("clients").select("*", { count: "exact", head: true }),
@@ -63,21 +144,55 @@ export default function AdminPage() {
       supabase.from("incident_reports").select("*", { count: "exact", head: true }),
     ]);
 
-    setStats({
-      totalUsers: profileData?.length ?? 0,
+    setStats(prev => ({
+      ...prev,
       totalClients: clientCount ?? 0,
       totalSessions: sessionCount ?? 0,
       totalIncidents: incidentCount ?? 0,
-    });
+    }));
 
     const { data: logData } = await supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(50);
     setLogs(logData ?? []);
     setLoading(false);
   }
 
+  async function generateRoleCode() {
+    if (!company) return;
+    setGeneratingCode(true);
+
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth?.user;
+    if (!user) return;
+
+    const clinicCode = company.clinic_code ?? company.slug.toUpperCase().slice(0, 6);
+    const code = generateCode(newCodeRole, clinicCode);
+
+    const { data } = await supabase.from("role_codes").insert([{
+      code,
+      role: newCodeRole,
+      used: false,
+      expires_at: newCodeExpiry,
+      company_id: company.id,
+      created_by: user.id,
+    }]).select().single();
+
+    if (data) setRoleCodes(prev => [data, ...prev]);
+    setGeneratingCode(false);
+  }
+
+  async function deleteCode(id: string) {
+    await supabase.from("role_codes").delete().eq("id", id);
+    setRoleCodes(prev => prev.filter(c => c.id !== id));
+  }
+
+  async function copyCode(code: string) {
+    await navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 2000);
+  }
+
   async function loadReports() {
     setReportLoading(true);
-
     const thirtyDays = new Date();
     thirtyDays.setDate(thirtyDays.getDate() + 30);
 
@@ -129,6 +244,14 @@ export default function AdminPage() {
   async function updateStatus(userId: string, status: string) {
     await supabase.from("profiles").update({ status } as any).eq("id", userId);
     setProfiles(prev => prev.map(p => p.id === userId ? { ...p, status } : p));
+
+    // Also update company_users status
+    if (company) {
+      await supabase.from("company_users")
+        .update({ status })
+        .eq("user_id", userId)
+        .eq("company_id", company.id);
+    }
   }
 
   async function handleInvite() {
@@ -149,7 +272,8 @@ export default function AdminPage() {
   }
 
   function daysUntil(dateStr: string) {
-    return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    const now = new Date();
+    return Math.ceil((new Date(dateStr).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   }
 
   const filtered = profiles.filter(p => {
@@ -180,10 +304,34 @@ export default function AdminPage() {
         </div>
       </PageHeader>
 
+      {/* CLINIC ID BANNER */}
+      {company && (
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-white">
+          <div className="flex justify-between items-start flex-wrap gap-3">
+            <div>
+              <p className="text-xs text-blue-200 uppercase tracking-wide mb-1">Your Clinic</p>
+              <p className="text-xl font-bold">{company.name}</p>
+              <p className="text-sm text-blue-200 mt-0.5">Share this code with staff to join your clinic</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-blue-200 uppercase tracking-wide mb-1">Clinic ID Code</p>
+              <div className="flex items-center gap-2">
+                <p className="text-2xl font-black font-mono tracking-widest">{company.clinic_code ?? company.slug.toUpperCase().slice(0, 8)}</p>
+                <button
+                  onClick={() => navigator.clipboard.writeText(company.clinic_code ?? company.slug.toUpperCase().slice(0, 8))}
+                  className="text-xs bg-white/20 hover:bg-white/30 px-2 py-1 rounded-lg transition-colors">
+                  Copy
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* STATS */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Total Users", value: stats.totalUsers, color: "text-blue-600" },
+          { label: "Team Members", value: stats.totalUsers, color: "text-blue-600" },
           { label: "Total Clients", value: stats.totalClients, color: "text-green-600" },
           { label: "Total Sessions", value: stats.totalSessions, color: "text-purple-600" },
           { label: "Incident Reports", value: stats.totalIncidents, color: "text-red-500" },
@@ -198,8 +346,9 @@ export default function AdminPage() {
       {/* TABS */}
       <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
         {[
-          { key: "users", label: "User Management" },
-          { key: "reports", label: "Clinic Reports" },
+          { key: "users", label: "Team" },
+          { key: "codes", label: "Role Codes" },
+          { key: "reports", label: "Reports" },
           { key: "logs", label: "Audit Logs" },
           { key: "system", label: "System" },
         ].map(tab => (
@@ -213,7 +362,7 @@ export default function AdminPage() {
       {/* USERS TAB */}
       {activeTab === "users" && (
         <>
-          <Section title="Invite New User">
+          <Section title="Invite New Team Member">
             {inviteSuccess && <p className="text-green-600 text-sm mb-3">Invitation sent!</p>}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <input type="text" value={inviteName} onChange={e => setInviteName(e.target.value)}
@@ -234,17 +383,17 @@ export default function AdminPage() {
 
           <div className="flex flex-wrap gap-3 items-center">
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search users..."
+              placeholder="Search team..."
               className="border rounded-lg px-3 py-2 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-blue-300" />
             <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
               className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
               <option value="">All Roles</option>
               {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
-            <p className="text-sm text-gray-400">{filtered.length} users</p>
+            <p className="text-sm text-gray-400">{filtered.length} members</p>
           </div>
 
-          {loading && <p className="text-gray-400 text-sm">Loading users...</p>}
+          {loading && <p className="text-gray-400 text-sm">Loading...</p>}
           <div className="space-y-2">
             {filtered.map(user => (
               <div key={user.id} className="border border-gray-100 rounded-xl p-4 bg-white">
@@ -258,6 +407,9 @@ export default function AdminPage() {
                       </span>
                       {user.status === "inactive" && (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">Inactive</span>
+                      )}
+                      {user.status === "suspended" && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Suspended</span>
                       )}
                     </div>
                   </div>
@@ -280,12 +432,89 @@ export default function AdminPage() {
         </>
       )}
 
+      {/* ROLE CODES TAB */}
+      {activeTab === "codes" && (
+        <div className="space-y-6">
+          <Section title="Generate Role Code">
+            <p className="text-sm text-gray-500 mb-4">
+              Generate a one-time code for staff who need elevated roles (Admin, Supervisor, etc). Send the code to the staff member — they enter it during signup.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Role</label>
+                <select value={newCodeRole} onChange={e => setNewCodeRole(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                  {CODE_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Expires</label>
+                <input type="date" value={newCodeExpiry} onChange={e => setNewCodeExpiry(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              </div>
+              <div className="flex items-end">
+                <Button onClick={generateRoleCode} loading={generatingCode} className="w-full">
+                  Generate Code
+                </Button>
+              </div>
+            </div>
+
+            {company && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
+                Codes are prefixed with your clinic code: <strong>{company.clinic_code ?? company.slug.toUpperCase().slice(0, 6)}</strong>
+              </div>
+            )}
+          </Section>
+
+          <Section title="Active Role Codes">
+            {roleCodes.length === 0 ? (
+              <p className="text-gray-400 text-sm">No codes generated yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {roleCodes.map(code => {
+                  const expired = code.expires_at ? new Date(code.expires_at) < new Date() : false;
+                  return (
+                    <div key={code.id} className={`border rounded-xl p-4 bg-white flex justify-between items-center flex-wrap gap-3 ${code.used ? "opacity-50" : expired ? "border-red-200" : "border-gray-100"}`}>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-mono font-bold text-gray-800 text-sm">{code.code}</p>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${roleBadge(code.role)}`}>{code.role}</span>
+                          {code.used && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Used</span>}
+                          {!code.used && expired && <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">Expired</span>}
+                          {!code.used && !expired && <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Created {new Date(code.created_at).toLocaleDateString()}
+                          {code.expires_at && ` · Expires ${code.expires_at}`}
+                          {code.used && " · Used"}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        {!code.used && !expired && (
+                          <button onClick={() => copyCode(code.code)}
+                            className="text-xs px-3 py-1.5 border border-blue-300 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
+                            {copiedCode === code.code ? "Copied!" : "Copy"}
+                          </button>
+                        )}
+                        <button onClick={() => deleteCode(code.id)}
+                          className="text-xs px-3 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 transition-colors">
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Section>
+        </div>
+      )}
+
       {/* REPORTS TAB */}
       {activeTab === "reports" && (
         <div className="space-y-6">
           {reportLoading && <p className="text-gray-400 text-sm">Loading reports...</p>}
 
-          {/* EXPIRING AUTHORIZATIONS */}
           {expiringAuths.length > 0 && (
             <Section title="Expiring Authorizations (Next 30 Days)">
               <div className="space-y-2">
@@ -304,8 +533,7 @@ export default function AdminPage() {
             </Section>
           )}
 
-          {/* CLINICIAN PERFORMANCE */}
-          <Section title="Clinician Activity Report">
+          <Section title="Team Activity Report">
             {clinicianReports.length === 0 ? (
               <p className="text-gray-400 text-sm">No clinician data yet.</p>
             ) : (
@@ -318,7 +546,6 @@ export default function AdminPage() {
                       <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500">Clients</th>
                       <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500">Sessions</th>
                       <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500">Pending Notes</th>
-                      <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500">Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -335,9 +562,6 @@ export default function AdminPage() {
                             {report.pendingNotes}
                           </span>
                         </td>
-                        <td className="py-3 px-3 text-center">
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Active</span>
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -346,7 +570,6 @@ export default function AdminPage() {
             )}
           </Section>
 
-          {/* SUMMARY STATS */}
           <Section title="Clinic Summary">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[

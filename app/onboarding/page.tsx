@@ -26,6 +26,7 @@ export default function OnboardingPage() {
 
   const [name, setName] = useState("");
   const [clinicName, setClinicName] = useState("");
+  const [clinicCode, setClinicCode] = useState("");
   const [joinExisting, setJoinExisting] = useState(false);
   const [role, setRole] = useState("clinician");
   const [verificationCode, setVerificationCode] = useState("");
@@ -42,7 +43,8 @@ export default function OnboardingPage() {
   }
 
   function handleClinicStep() {
-    if (!clinicName.trim()) { setError("Please enter your clinic name."); return; }
+    if (!joinExisting && !clinicName.trim()) { setError("Please enter your clinic name."); return; }
+    if (joinExisting && !clinicCode.trim()) { setError("Please enter your clinic code."); return; }
     setError("");
     if (joinExisting) {
       setStep("role");
@@ -133,9 +135,16 @@ export default function OnboardingPage() {
       let companyId = "";
 
       if (joinExisting) {
+        // Find by clinic code
         const { data: existingCompany, error: companyError } = await supabase
-          .from("companies").select("id").ilike("name", clinicName.trim()).single();
-        if (companyError || !existingCompany) throw new Error("Clinic not found. Verify the name or ask your administrator.");
+          .from("companies")
+          .select("id, name")
+          .ilike("clinic_code", clinicCode.trim())
+          .single();
+
+        if (companyError || !existingCompany) {
+          throw new Error("Clinic code not found. Check the code and try again.");
+        }
         companyId = existingCompany.id;
       } else {
         const slug = clinicName.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
@@ -143,6 +152,10 @@ export default function OnboardingPage() {
           .from("companies").insert({ name: clinicName.trim(), slug }).select().single();
         if (createCompanyError || !company) throw new Error(createCompanyError?.message || "Failed to create clinic.");
         companyId = company.id;
+
+        // Generate clinic code for new company
+        const shortCode = company.id.replace(/-/g, "").toUpperCase().slice(0, 4) + "-" + company.id.replace(/-/g, "").toUpperCase().slice(4, 8);
+        await supabase.from("companies").update({ clinic_code: shortCode }).eq("id", company.id);
       }
 
       const { error: linkError } = await supabase.from("company_users").upsert({
@@ -233,15 +246,26 @@ export default function OnboardingPage() {
                 🔗 Join Existing
               </button>
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                {joinExisting ? "Clinic Name (Exact)" : "Clinic Name"}
-              </label>
-              <input type="text" value={clinicName} onChange={e => setClinicName(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && handleClinicStep()}
-                placeholder={joinExisting ? "Enter exact clinic name" : "e.g. Sunshine ABA Therapy"}
-                className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-            </div>
+
+            {!joinExisting ? (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Clinic Name</label>
+                <input type="text" value={clinicName} onChange={e => setClinicName(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleClinicStep()}
+                  placeholder="e.g. Sunshine ABA Therapy"
+                  className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              </div>
+            ) : (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Clinic Code</label>
+                <input type="text" value={clinicCode} onChange={e => setClinicCode(e.target.value.toUpperCase())}
+                  onKeyDown={e => e.key === "Enter" && handleClinicStep()}
+                  placeholder="e.g. ABCD-1234"
+                  className="w-full rounded-lg border px-3 py-2 text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                <p className="text-xs text-gray-400 mt-1">Ask your clinic administrator for this code.</p>
+              </div>
+            )}
+
             <div className="flex gap-2">
               <button onClick={() => setStep("profile")}
                 className="flex-1 rounded-lg border py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50">
@@ -350,7 +374,7 @@ export default function OnboardingPage() {
             <div>
               <h1 className="text-2xl font-bold text-gray-800">Verify Your Role</h1>
               <p className="mt-1 text-sm text-gray-500">
-                The <strong>{selectedRole?.label}</strong> role requires administrator approval.
+                The <strong>{selectedRole?.label}</strong> role requires a verification code from your administrator.
               </p>
             </div>
             {codeVerified ? (
@@ -362,7 +386,7 @@ export default function OnboardingPage() {
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">Verification Code</label>
                   <input type="text" value={verificationCode} onChange={e => setVerificationCode(e.target.value)}
-                    placeholder="e.g. BCBA-2026-XYZ"
+                    placeholder="e.g. ABCD-SUPE-2026-XY9Z"
                     className="w-full rounded-lg border px-3 py-2 font-mono text-sm tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-300"
                     maxLength={30} />
                 </div>
