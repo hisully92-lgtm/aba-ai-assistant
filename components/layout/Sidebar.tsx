@@ -208,6 +208,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
       href: "/dashboard/clinician",
       icon: "🏥",
       children: sortChildren([
+        { label: "ABC Data", href: "/dashboard/behaviors/abc" },
         { label: "AI Assistant", href: "/dashboard/ai-chat" },
         { label: "AI Treatment Plans", href: "/dashboard/ai-treatment-plans" },
         { label: "Assessments", href: "/dashboard/assessments" },
