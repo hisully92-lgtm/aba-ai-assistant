@@ -43,6 +43,77 @@ const CLIENT_RESPONSES = [
   "Partial compliance", "Independent", "Needed full physical assistance"
 ];
 
+type Template = {
+  label: string;
+  behaviors: string[];
+  interventions: string[];
+  programs: string[];
+  soap: { subjective: string; objective: string; assessment: string; plan: string };
+};
+
+const TEMPLATES: Record<string, Template> = {
+  rbt: {
+    label: "RBT Session Note",
+    behaviors: ["Aggression", "Non-Compliance", "Stereotypy"],
+    interventions: ["Redirection", "Differential reinforcement", "Prompting hierarchy"],
+    programs: ["Mand Training", "Tact Training", "Imitation"],
+    soap: {
+      subjective: "Client arrived on time. Caregiver reported...",
+      objective: "Client completed X trials with Y% accuracy. Behaviors observed: frequency, duration.",
+      assessment: "Client is making progress toward goals. Behavior frequency has...",
+      plan: "Continue current programming. Increase difficulty on mastered targets.",
+    },
+  },
+  clinician: {
+    label: "Clinician / BCBA Note",
+    behaviors: ["Non-Compliance", "Vocal Disruption"],
+    interventions: ["Differential reinforcement", "NCR", "Token economy"],
+    programs: ["Social Skills", "Daily Living Skills", "Intraverbal"],
+    soap: {
+      subjective: "Client and caregiver present. Parent reports...",
+      objective: "Conducted supervision/direct session. Data reviewed: goals trending...",
+      assessment: "Clinical interpretation: client demonstrates...",
+      plan: "Modify program X. Schedule next supervision for...",
+    },
+  },
+  supervisor: {
+    label: "Supervision Note",
+    behaviors: [],
+    interventions: [],
+    programs: [],
+    soap: {
+      subjective: "Supervision session conducted with RBT...",
+      objective: "Reviewed session data, observed X trials, provided feedback on...",
+      assessment: "RBT is demonstrating competency in... Areas for improvement include...",
+      plan: "Next supervision scheduled for... Focus areas: ...",
+    },
+  },
+  bt: {
+    label: "BT Session Note",
+    behaviors: ["Aggression", "Self-Injurious Behavior", "Elopement"],
+    interventions: ["Redirection", "Response blocking", "Praise/Reinforcement"],
+    programs: ["Mand Training", "Imitation", "Matching"],
+    soap: {
+      subjective: "Client arrived. Mood observed as...",
+      objective: "Ran X programs. Client responded with...",
+      assessment: "Session went... Behavior was...",
+      plan: "Continue current plan. Report observations to supervisor.",
+    },
+  },
+  parent: {
+    label: "Parent/Caregiver Note",
+    behaviors: [],
+    interventions: [],
+    programs: [],
+    soap: {
+      subjective: "Home session conducted. Parent/caregiver present.",
+      objective: "Practiced home program strategies. Child responded...",
+      assessment: "Generalization of skills observed at home...",
+      plan: "Continue home practice. Questions for next session...",
+    },
+  },
+};
+
 export default function SessionsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -53,13 +124,12 @@ export default function SessionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [filterClient, setFilterClient] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
 
-  // Timer state
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [timerInterval, setTimerInterval] = useState<NodeJS.Timeout | null>(null);
 
-  // Form state
   const [clientId, setClientId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [status, setStatus] = useState("completed");
@@ -72,7 +142,7 @@ export default function SessionsPage() {
   const [showSOAP, setShowSOAP] = useState(false);
   const [soap, setSoap] = useState({ subjective: "", objective: "", assessment: "", plan: "" });
 
-  useEffect(() => { init(); }, []);
+  useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (timerRunning) {
@@ -82,7 +152,7 @@ export default function SessionsPage() {
     } else {
       if (timerInterval) clearInterval(timerInterval);
     }
-  }, [timerRunning]);
+  }, [timerRunning]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
@@ -122,13 +192,32 @@ export default function SessionsPage() {
     }
   }
 
+  function applyTemplate(key: string) {
+    const template = TEMPLATES[key];
+    if (!template) return;
+    setSelectedTemplate(key);
+    setSelectedBehaviors(template.behaviors);
+    setSelectedInterventions(template.interventions);
+    setSelectedPrograms(template.programs);
+    setSoap(template.soap);
+    setShowSOAP(true);
+  }
+
   function resetForm() {
-    setClientId(""); setDate(new Date().toISOString().split("T")[0]);
-    setStatus("completed"); setClientResponse(""); setNotes(""); setStaffMember("");
-    setSelectedBehaviors([]); setSelectedInterventions([]); setSelectedPrograms([]);
+    setClientId("");
+    setDate(new Date().toISOString().split("T")[0]);
+    setStatus("completed");
+    setClientResponse("");
+    setNotes("");
+    setStaffMember("");
+    setSelectedBehaviors([]);
+    setSelectedInterventions([]);
+    setSelectedPrograms([]);
     setSoap({ subjective: "", objective: "", assessment: "", plan: "" });
-    setTimerRunning(false); setTimerSeconds(0);
+    setTimerRunning(false);
+    setTimerSeconds(0);
     setShowForm(false);
+    setSelectedTemplate(null);
   }
 
   async function handleSave() {
@@ -203,6 +292,23 @@ export default function SessionsPage() {
                 )}
                 <Button variant="outline" onClick={() => { setTimerRunning(false); setTimerSeconds(0); }}>Reset</Button>
               </div>
+            </div>
+          </div>
+
+          {/* TEMPLATES */}
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Quick Templates</p>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(TEMPLATES).map(([key, template]) => (
+                <button key={key} onClick={() => applyTemplate(key)}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
+                    selectedTemplate === key
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white text-gray-600 border-gray-300 hover:border-blue-300"
+                  }`}>
+                  {template.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -323,7 +429,6 @@ export default function SessionsPage() {
         </Section>
       )}
 
-      {/* FILTERS */}
       {!loading && sessions.length > 0 && (
         <div className="flex gap-3 flex-wrap items-center">
           <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
@@ -351,15 +456,9 @@ export default function SessionsPage() {
               <div>
                 <p className="font-semibold text-gray-800">{clientMap.get(session.client_id) ?? "Unknown"}</p>
                 <p className="text-xs text-gray-400 mt-0.5">{session.date ?? new Date(session.created_at).toLocaleDateString()}</p>
-                {session.behaviors_observed && (
-                  <p className="text-xs text-gray-500 mt-1">Behaviors: {session.behaviors_observed}</p>
-                )}
-                {session.programs_targeted && (
-                  <p className="text-xs text-gray-500">Programs: {session.programs_targeted}</p>
-                )}
-                {session.staff_member && (
-                  <p className="text-xs text-gray-400 mt-1">Staff: {session.staff_member}</p>
-                )}
+                {session.behaviors_observed && <p className="text-xs text-gray-500 mt-1">Behaviors: {session.behaviors_observed}</p>}
+                {session.programs_targeted && <p className="text-xs text-gray-500">Programs: {session.programs_targeted}</p>}
+                {session.staff_member && <p className="text-xs text-gray-400 mt-1">Staff: {session.staff_member}</p>}
               </div>
               <span className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ml-3 ${
                 session.status === "completed" ? "bg-green-100 text-green-700"
