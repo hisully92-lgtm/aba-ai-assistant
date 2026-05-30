@@ -39,6 +39,23 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="ABA AI" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js')
+                    .then(function(reg) {
+                      console.log('SW registered:', reg.scope);
+                    })
+                    .catch(function(err) {
+                      console.log('SW registration failed:', err);
+                    });
+                });
+              }
+            `,
+          }}
+        />
       </head>
       <body className={inter.className}>
         {children}
