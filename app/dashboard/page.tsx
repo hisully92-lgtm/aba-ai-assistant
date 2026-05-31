@@ -2,379 +2,280 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
-import Section from "@/components/ui/Section";
+import Link from "next/link";
 import PageHeader from "@/components/layout/PageHeader";
-import Button from "@/components/ui/Button";
+import Section from "@/components/ui/Section";
 
-type Client = { id: string; full_name: string };
-type Session = {
-  id: string;
-  client_id: string;
-  date: string;
-  status: string;
-  behaviors_observed: string;
-  interventions_used: string;
-  client_response: string;
-  programs_targeted: string;
-  notes: string;
-  staff_member: string;
-  created_at: string;
+type Stats = {
+  totalClients: number;
+  sessionsThisWeek: number;
+  activeGoals: number;
+  pendingSessions: number;
+  expiringAuths: number;
+  hoursThisWeek: number;
 };
 
-const BEHAVIORS_LIST = [
-  "Aggression", "Self-Injurious Behavior", "Elopement", "Property Destruction",
-  "Tantrum", "Non-Compliance", "Vocal Disruption", "Stereotypy", "No behaviors observed"
-];
+type ChecklistItem = {
+  key: string;
+  label: string;
+  description: string;
+  href: string;
+  done: boolean;
+};
 
-const INTERVENTIONS_LIST = [
-  "Redirection", "Planned ignoring", "Differential reinforcement",
-  "Response blocking", "NCR", "Token economy", "Visual supports",
-  "First-Then board", "Praise/Reinforcement", "Prompting hierarchy"
-];
+function StatSkeleton() {
+  return (
+    <div className="border rounded-xl p-4 text-center bg-white animate-pulse">
+      <div className="h-8 bg-gray-200 rounded w-12 mx-auto mb-2" />
+      <div className="h-3 bg-gray-200 rounded w-20 mx-auto" />
+    </div>
+  );
+}
 
-const PROGRAMS_LIST = [
-  "Mand Training", "Tact Training", "Imitation", "Matching",
-  "Receptive ID", "Expressive ID", "LRFFC", "Intraverbal",
-  "Social Skills", "Daily Living Skills", "Gross Motor", "Fine Motor"
-];
-
-const CLIENT_RESPONSES = [
-  "Responded well", "Required multiple prompts", "Refused task",
-  "Partial compliance", "Independent", "Needed full physical assistance"
-];
-
-export default function SessionsPage() {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [sessions, setSessions] = useState<Session[]>([]);
+export default function DashboardPage() {
+  const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [filterClient, setFilterClient] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
+  const [userName, setUserName] = useState("");
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const [checklistDone, setChecklistDone] = useState(false);
+  const [clockedIn, setClockedIn] = useState(false);
 
-  // Timer state
-  const [timerRunning, setTimerRunning] = useState(false);
-  const [timerSeconds, setTimerSeconds] = useState(0);
-  const [timerInterval, setTimerInterval] = useState<NodeJS.Timeout | null>(null);
-
-  // Form state
-  const [clientId, setClientId] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-  const [status, setStatus] = useState("completed");
-  const [clientResponse, setClientResponse] = useState("");
-  const [notes, setNotes] = useState("");
-  const [staffMember, setStaffMember] = useState("");
-  const [selectedBehaviors, setSelectedBehaviors] = useState<string[]>([]);
-  const [selectedInterventions, setSelectedInterventions] = useState<string[]>([]);
-  const [selectedPrograms, setSelectedPrograms] = useState<string[]>([]);
-  const [showSOAP, setShowSOAP] = useState(false);
-  const [soap, setSoap] = useState({ subjective: "", objective: "", assessment: "", plan: "" });
-
-  useEffect(() => { init(); }, []);
-
-  useEffect(() => {
-    if (timerRunning) {
-      const interval = setInterval(() => setTimerSeconds(s => s + 1), 1000);
-      setTimerInterval(interval);
-      return () => clearInterval(interval);
-    } else {
-      if (timerInterval) clearInterval(timerInterval);
-    }
-  }, [timerRunning]);
+  useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
 
-    const [{ data: clientData }, { data: sessionData }] = await Promise.all([
-      supabase.from("clients").select("id, full_name").eq("created_by", user.id),
-      supabase.from("sessions").select("*").eq("created_by", user.id).order("created_at", { ascending: false }).limit(50),
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+    const [
+      { data: profile },
+      { data: clients },
+      { data: sessions },
+      { data: goals },
+      { data: timeEntries },
+      { data: intakes },
+      { data: activeTimeEntry },
+    ] = await Promise.all([
+      supabase.from("profiles").select("full_name").eq("id", user.id).single(),
+      supabase.from("clients").select("id").eq("created_by", user.id),
+      supabase.from("sessions").select("id, status, created_at").eq("created_by", user.id),
+      supabase.from("client_goals").select("id, status").eq("created_by", user.id),
+      supabase.from("time_entries").select("duration_minutes, clock_in").eq("created_by", user.id),
+      supabase.from("client_intake").select("authorization_end").gte("authorization_end", now.toISOString().split("T")[0]).lte("authorization_end", thirtyDaysFromNow),
+      supabase.from("time_entries").select("id").eq("created_by", user.id).is("clock_out", null).limit(1),
     ]);
 
-    setClients(clientData ?? []);
-    setSessions(sessionData ?? []);
+    setUserName(profile?.full_name?.split(" ")[0] ?? "");
+    setClockedIn((activeTimeEntry ?? []).length > 0);
+
+    const sessionsThisWeek = (sessions ?? []).filter(s => s.created_at >= weekAgo).length;
+    const pendingSessions = (sessions ?? []).filter(s => s.status === "pending").length;
+    const activeGoals = (goals ?? []).filter(g => g.status === "active").length;
+    const hoursThisWeek = (timeEntries ?? [])
+      .filter(e => e.clock_in >= weekAgo)
+      .reduce((sum, e) => sum + (e.duration_minutes ?? 0), 0) / 60;
+
+    setStats({
+      totalClients: (clients ?? []).length,
+      sessionsThisWeek,
+      activeGoals,
+      pendingSessions,
+      expiringAuths: (intakes ?? []).length,
+      hoursThisWeek: Math.round(hoursThisWeek * 10) / 10,
+    });
+
+    // Build checklist
+    const hasClients = (clients ?? []).length > 0;
+    const hasSessions = (sessions ?? []).length > 0;
+    const hasGoals = (goals ?? []).length > 0;
+    const hasTimeEntry = (timeEntries ?? []).length > 0;
+    const hasProfile = !!profile?.full_name;
+
+    const items: ChecklistItem[] = [
+      {
+        key: "profile",
+        label: "Complete your profile",
+        description: "Add your credentials and role",
+        href: "/dashboard/settings/profile",
+        done: hasProfile,
+      },
+      {
+        key: "client",
+        label: "Add your first client",
+        description: "Start tracking a learner",
+        href: "/dashboard/clients",
+        done: hasClients,
+      },
+      {
+        key: "goal",
+        label: "Create a treatment goal",
+        description: "Set measurable targets for a client",
+        href: "/dashboard/goals",
+        done: hasGoals,
+      },
+      {
+        key: "session",
+        label: "Log your first session",
+        description: "Record a therapy session note",
+        href: "/dashboard/sessions",
+        done: hasSessions,
+      },
+      {
+        key: "time",
+        label: "Clock in for a session",
+        description: "Track your billable hours",
+        href: "/dashboard/timetracking",
+        done: hasTimeEntry,
+      },
+    ];
+
+    setChecklist(items);
+    setChecklistDone(items.every(i => i.done));
     setLoading(false);
   }
 
-  function toggleItem(item: string, list: string[], setList: (l: string[]) => void) {
-    setList(list.includes(item) ? list.filter(i => i !== item) : [...list, item]);
-  }
+  const greeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return "Good morning";
+    if (h < 17) return "Good afternoon";
+    return "Good evening";
+  };
 
-  function formatTimer(seconds: number) {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  }
+  const quickActions = [
+    {
+      label: clockedIn ? "Clock Out" : "Clock In",
+      icon: "⏱️",
+      href: "/dashboard/timetracking",
+      color: clockedIn ? "bg-green-600 text-white hover:bg-green-700" : "bg-blue-600 text-white hover:bg-blue-700",
+    },
+    { label: "+ New Session", icon: "📋", href: "/dashboard/sessions", color: "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50" },
+    { label: "+ Add Client", icon: "👤", href: "/dashboard/clients", color: "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50" },
+    { label: "+ Add Goal", icon: "🎯", href: "/dashboard/goals", color: "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50" },
+    { label: "Progress Report", icon: "📄", href: "/dashboard/progress-reports", color: "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50" },
+    { label: "View Analytics", icon: "📊", href: "/dashboard/analytics/graphs", color: "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50" },
+  ];
 
-  function startTimer() {
-    setTimerSeconds(0);
-    setTimerRunning(true);
-  }
+  const statCards = stats ? [
+    { label: "Total Clients", value: stats.totalClients, color: "text-blue-600", icon: "👥" },
+    { label: "Sessions This Week", value: stats.sessionsThisWeek, color: "text-purple-600", icon: "📋" },
+    { label: "Active Goals", value: stats.activeGoals, color: "text-green-600", icon: "🎯" },
+    { label: "Pending Notes", value: stats.pendingSessions, color: stats.pendingSessions > 0 ? "text-yellow-600" : "text-gray-400", icon: "⚠️" },
+    { label: "Expiring Auths", value: stats.expiringAuths, color: stats.expiringAuths > 0 ? "text-red-500" : "text-gray-400", icon: "📅" },
+    { label: "Hours This Week", value: stats.hoursThisWeek, color: "text-indigo-600", icon: "⏱️" },
+  ] : [];
 
-  function stopTimer() {
-    setTimerRunning(false);
-    if (soap.objective === "") {
-      setSoap(prev => ({ ...prev, objective: `Session duration: ${formatTimer(timerSeconds)}` }));
-    }
-  }
-
-  function resetForm() {
-    setClientId(""); setDate(new Date().toISOString().split("T")[0]);
-    setStatus("completed"); setClientResponse(""); setNotes(""); setStaffMember("");
-    setSelectedBehaviors([]); setSelectedInterventions([]); setSelectedPrograms([]);
-    setSoap({ subjective: "", objective: "", assessment: "", plan: "" });
-    setTimerRunning(false); setTimerSeconds(0);
-    setShowForm(false);
-  }
-
-  async function handleSave() {
-    if (!clientId) { setError("Please select a client."); return; }
-    setSaving(true);
-    setError(null);
-
-    const { data: auth } = await supabase.auth.getUser();
-    const user = auth?.user;
-    if (!user) return;
-
-    const { data, error: saveError } = await supabase.from("sessions").insert([{
-      client_id: clientId,
-      date,
-      status,
-      client_response: clientResponse,
-      notes,
-      staff_member: staffMember,
-      behaviors_observed: selectedBehaviors.join(", "),
-      interventions_used: selectedInterventions.join(", "),
-      programs_targeted: selectedPrograms.join(", "),
-      soap_subjective: soap.subjective,
-      soap_objective: soap.objective || (timerSeconds > 0 ? `Session duration: ${formatTimer(timerSeconds)}` : ""),
-      soap_assessment: soap.assessment,
-      soap_plan: soap.plan,
-      created_by: user.id,
-    }]).select().single();
-
-    if (saveError) { setError(saveError.message); setSaving(false); return; }
-    if (data) setSessions(prev => [data, ...prev]);
-    setSuccess(true);
-    setTimeout(() => setSuccess(false), 3000);
-    resetForm();
-    setSaving(false);
-  }
-
-  const clientMap = new Map(clients.map(c => [c.id, c.full_name]));
-  const filtered = sessions
-    .filter(s => filterClient ? s.client_id === filterClient : true)
-    .filter(s => filterStatus ? s.status === filterStatus : true);
+  const completedCount = checklist.filter(i => i.done).length;
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Session Notes">
-        <Button onClick={() => setShowForm(!showForm)}>
-          {showForm ? "Cancel" : "+ New Session"}
-        </Button>
+      <PageHeader title={loading ? "Dashboard" : `${greeting()}${userName ? `, ${userName}` : ""}!`}>
+        <p className="text-gray-500 text-sm">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</p>
       </PageHeader>
 
-      {success && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
-          Session note saved successfully.
+      {/* ALERTS */}
+      {!loading && stats && (
+        <div className="space-y-2">
+          {stats.pendingSessions > 0 && (
+            <Link href="/dashboard/sessions" className="block">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-sm text-yellow-800 hover:bg-yellow-100 transition-colors">
+                ⚠️ You have <strong>{stats.pendingSessions}</strong> pending session note{stats.pendingSessions > 1 ? "s" : ""} that need completion.
+              </div>
+            </Link>
+          )}
+          {stats.expiringAuths > 0 && (
+            <Link href="/dashboard/clients" className="block">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-800 hover:bg-red-100 transition-colors">
+                📅 <strong>{stats.expiringAuths}</strong> client authorization{stats.expiringAuths > 1 ? "s" : ""} expiring within 30 days.
+              </div>
+            </Link>
+          )}
+          {clockedIn && (
+            <Link href="/dashboard/timetracking" className="block">
+              <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-800 hover:bg-green-100 transition-colors">
+                ✅ You are currently clocked in. Tap to view your time entry.
+              </div>
+            </Link>
+          )}
         </div>
       )}
 
-      {showForm && (
-        <Section title="New Session Note">
-          {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
-
-          {/* SESSION TIMER */}
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Session Timer</p>
-            <div className="flex items-center gap-4">
-              <p className={`text-3xl font-mono font-bold ${timerRunning ? "text-blue-600" : "text-gray-400"}`}>
-                {formatTimer(timerSeconds)}
-              </p>
-              <div className="flex gap-2">
-                {!timerRunning ? (
-                  <Button onClick={startTimer}>Start Timer</Button>
-                ) : (
-                  <Button variant="danger" onClick={stopTimer}>Stop Timer</Button>
-                )}
-                <Button variant="outline" onClick={() => { setTimerRunning(false); setTimerSeconds(0); }}>Reset</Button>
-              </div>
+      {/* STATS */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {loading
+          ? [...Array(6)].map((_, i) => <StatSkeleton key={i} />)
+          : statCards.map(stat => (
+            <div key={stat.label} className="border rounded-xl p-4 text-center bg-white">
+              <div className="text-2xl mb-1">{stat.icon}</div>
+              <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
+              <p className="text-xs text-gray-500 mt-1 leading-tight">{stat.label}</p>
             </div>
+          ))
+        }
+      </div>
+
+      {/* QUICK ACTIONS */}
+      <Section title="Quick Actions">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+          {quickActions.map(action => (
+            <Link key={action.label} href={action.href}
+              className={`flex flex-col items-center gap-2 px-3 py-4 rounded-xl text-sm font-medium transition-colors text-center ${action.color}`}>
+              <span className="text-2xl">{action.icon}</span>
+              <span className="leading-tight">{action.label}</span>
+            </Link>
+          ))}
+        </div>
+      </Section>
+
+      {/* ONBOARDING CHECKLIST */}
+      {!loading && !checklistDone && (
+        <Section title={`Getting Started (${completedCount}/${checklist.length})`}>
+          <div className="mb-3">
+            <div className="w-full bg-gray-100 rounded-full h-2">
+              <div
+                className="bg-blue-500 h-2 rounded-full transition-all"
+                style={{ width: `${(completedCount / checklist.length) * 100}%` }}
+              />
+            </div>
+            <p className="text-xs text-gray-400 mt-1">{checklist.length - completedCount} step{checklist.length - completedCount !== 1 ? "s" : ""} remaining</p>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Client *</label>
-              <select value={clientId} onChange={e => setClientId(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-                <option value="">Select client...</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Session Date</label>
-              <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Status</label>
-              <select value={status} onChange={e => setStatus(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-                <option value="completed">Completed</option>
-                <option value="pending">Pending</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Client Response</label>
-              <select value={clientResponse} onChange={e => setClientResponse(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-                <option value="">Select response...</option>
-                {CLIENT_RESPONSES.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Staff Member</label>
-              <input type="text" value={staffMember} onChange={e => setStaffMember(e.target.value)}
-                placeholder="Staff name and role"
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="text-sm font-medium text-gray-700 mb-2 block">Behaviors Observed</label>
-              <div className="flex flex-wrap gap-2">
-                {BEHAVIORS_LIST.map(b => (
-                  <button key={b} onClick={() => toggleItem(b, selectedBehaviors, setSelectedBehaviors)}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition-all ${selectedBehaviors.includes(b) ? "bg-red-600 text-white border-red-600" : "bg-white text-gray-600 border-gray-300 hover:border-red-300"}`}>
-                    {b}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="text-sm font-medium text-gray-700 mb-2 block">Interventions Used</label>
-              <div className="flex flex-wrap gap-2">
-                {INTERVENTIONS_LIST.map(i => (
-                  <button key={i} onClick={() => toggleItem(i, selectedInterventions, setSelectedInterventions)}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition-all ${selectedInterventions.includes(i) ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300 hover:border-blue-300"}`}>
-                    {i}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="text-sm font-medium text-gray-700 mb-2 block">Programs Targeted</label>
-              <div className="flex flex-wrap gap-2">
-                {PROGRAMS_LIST.map(p => (
-                  <button key={p} onClick={() => toggleItem(p, selectedPrograms, setSelectedPrograms)}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition-all ${selectedPrograms.includes(p) ? "bg-purple-600 text-white border-purple-600" : "bg-white text-gray-600 border-gray-300 hover:border-purple-300"}`}>
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Session Notes</label>
-              <textarea value={notes} onChange={e => setNotes(e.target.value)}
-                placeholder="Additional session notes..." rows={3}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-            </div>
-
-            <div className="md:col-span-2">
-              <button onClick={() => setShowSOAP(!showSOAP)}
-                className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700">
-                <span>{showSOAP ? "▼" : "▶"}</span>
-                SOAP Notes {showSOAP ? "(hide)" : "(optional)"}
-              </button>
-            </div>
-
-            {showSOAP && (
-              <div className="md:col-span-2 space-y-3 border border-blue-100 rounded-xl p-4 bg-blue-50">
-                <p className="text-xs font-semibold text-blue-700 mb-2">SOAP Note Format</p>
-                {[
-                  { key: "subjective", label: "S — Subjective", placeholder: "Client/caregiver report, concerns, mood..." },
-                  { key: "objective", label: "O — Objective", placeholder: "Measurable data, frequency, duration, observations..." },
-                  { key: "assessment", label: "A — Assessment", placeholder: "Clinical interpretation, progress toward goals..." },
-                  { key: "plan", label: "P — Plan", placeholder: "Next session plan, goals, modifications..." },
-                ].map(field => (
-                  <div key={field.key}>
-                    <label className="text-xs font-medium text-gray-600 mb-0.5 block">{field.label}</label>
-                    <textarea value={soap[field.key as keyof typeof soap]}
-                      onChange={e => setSoap(prev => ({ ...prev, [field.key]: e.target.value }))}
-                      placeholder={field.placeholder} rows={2}
-                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white" />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="mt-4 flex gap-2">
-            <Button onClick={handleSave} loading={saving}>Save Session Note</Button>
-            <Button variant="outline" onClick={resetForm}>Cancel</Button>
+          <div className="space-y-2">
+            {checklist.map(item => (
+              <Link key={item.key} href={item.done ? "#" : item.href}
+                className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                  item.done
+                    ? "border-green-100 bg-green-50 cursor-default"
+                    : "border-gray-100 bg-white hover:border-blue-200 hover:bg-blue-50"
+                }`}>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
+                  item.done ? "bg-green-500 text-white" : "bg-gray-200 text-gray-500"
+                }`}>
+                  {item.done ? "✓" : ""}
+                </div>
+                <div className="min-w-0">
+                  <p className={`text-sm font-medium ${item.done ? "text-green-700 line-through" : "text-gray-800"}`}>
+                    {item.label}
+                  </p>
+                  <p className="text-xs text-gray-400">{item.description}</p>
+                </div>
+                {!item.done && <span className="text-gray-300 ml-auto shrink-0">→</span>}
+              </Link>
+            ))}
           </div>
         </Section>
       )}
 
-      {/* FILTERS */}
-      {!loading && sessions.length > 0 && (
-        <div className="flex gap-3 flex-wrap items-center">
-          <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-            <option value="">All Clients</option>
-            {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
-          </select>
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-            <option value="">All Statuses</option>
-            <option value="completed">Completed</option>
-            <option value="pending">Pending</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-          <p className="text-sm text-gray-400">{filtered.length} sessions</p>
+      {/* ALL DONE STATE */}
+      {!loading && checklistDone && completedCount === checklist.length && (
+        <div className="text-center py-8 border border-dashed border-green-200 rounded-2xl bg-green-50">
+          <div className="text-4xl mb-2">🎉</div>
+          <p className="text-green-700 font-semibold">Setup complete!</p>
+          <p className="text-green-600 text-sm mt-1">You&apos;re fully set up and ready to go.</p>
         </div>
       )}
-
-      {loading && <p className="text-gray-400 text-sm">Loading...</p>}
-
-      <div className="space-y-3">
-        {filtered.map(session => (
-          <div key={session.id} className="border border-gray-100 rounded-xl p-4 bg-white">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="font-semibold text-gray-800">{clientMap.get(session.client_id) ?? "Unknown"}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{session.date ?? new Date(session.created_at).toLocaleDateString()}</p>
-                {session.behaviors_observed && (
-                  <p className="text-xs text-gray-500 mt-1">Behaviors: {session.behaviors_observed}</p>
-                )}
-                {session.programs_targeted && (
-                  <p className="text-xs text-gray-500">Programs: {session.programs_targeted}</p>
-                )}
-                {session.staff_member && (
-                  <p className="text-xs text-gray-400 mt-1">Staff: {session.staff_member}</p>
-                )}
-              </div>
-              <span className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ml-3 ${
-                session.status === "completed" ? "bg-green-100 text-green-700"
-                : session.status === "pending" ? "bg-yellow-100 text-yellow-700"
-                : "bg-gray-100 text-gray-600"
-              }`}>
-                {session.status}
-              </span>
-            </div>
-          </div>
-        ))}
-        {!loading && filtered.length === 0 && (
-          <p className="text-gray-400 text-sm">No sessions found.</p>
-        )}
-      </div>
     </div>
   );
 }
