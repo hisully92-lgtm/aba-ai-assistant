@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase/client";
 import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
+import Link from "next/link";
 
 type Client = { id: string; full_name: string };
 type Session = {
@@ -25,19 +26,16 @@ const BEHAVIORS_LIST = [
   "Aggression", "Self-Injurious Behavior", "Elopement", "Property Destruction",
   "Tantrum", "Non-Compliance", "Vocal Disruption", "Stereotypy", "No behaviors observed"
 ];
-
 const INTERVENTIONS_LIST = [
   "Redirection", "Planned ignoring", "Differential reinforcement",
   "Response blocking", "NCR", "Token economy", "Visual supports",
   "First-Then board", "Praise/Reinforcement", "Prompting hierarchy"
 ];
-
 const PROGRAMS_LIST = [
   "Mand Training", "Tact Training", "Imitation", "Matching",
   "Receptive ID", "Expressive ID", "LRFFC", "Intraverbal",
   "Social Skills", "Daily Living Skills", "Gross Motor", "Fine Motor"
 ];
-
 const CLIENT_RESPONSES = [
   "Responded well", "Required multiple prompts", "Refused task",
   "Partial compliance", "Independent", "Needed full physical assistance"
@@ -114,6 +112,21 @@ const TEMPLATES: Record<string, Template> = {
   },
 };
 
+function SessionSkeleton() {
+  return (
+    <div className="border border-gray-100 rounded-xl p-4 bg-white animate-pulse">
+      <div className="flex justify-between items-start">
+        <div className="space-y-2 flex-1">
+          <div className="h-4 bg-gray-200 rounded w-1/3" />
+          <div className="h-3 bg-gray-200 rounded w-1/4" />
+          <div className="h-3 bg-gray-200 rounded w-2/3" />
+        </div>
+        <div className="h-6 bg-gray-200 rounded-full w-16 ml-3" />
+      </div>
+    </div>
+  );
+}
+
 export default function SessionsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -122,6 +135,7 @@ export default function SessionsPage() {
   const [showForm, setShowForm] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [filterClient, setFilterClient] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
@@ -155,17 +169,22 @@ export default function SessionsPage() {
   }, [timerRunning]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function init() {
+    setFetchError(null);
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
 
-    const [{ data: clientData }, { data: sessionData }] = await Promise.all([
+    const [{ data: clientData, error: clientErr }, { data: sessionData, error: sessionErr }] = await Promise.all([
       supabase.from("clients").select("id, full_name").eq("created_by", user.id),
       supabase.from("sessions").select("*").eq("created_by", user.id).order("created_at", { ascending: false }).limit(50),
     ]);
 
-    setClients(clientData ?? []);
-    setSessions(sessionData ?? []);
+    if (clientErr || sessionErr) {
+      setFetchError("Failed to load sessions. Please refresh and try again.");
+    } else {
+      setClients(clientData ?? []);
+      setSessions(sessionData ?? []);
+    }
     setLoading(false);
   }
 
@@ -180,10 +199,7 @@ export default function SessionsPage() {
     return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   }
 
-  function startTimer() {
-    setTimerSeconds(0);
-    setTimerRunning(true);
-  }
+  function startTimer() { setTimerSeconds(0); setTimerRunning(true); }
 
   function stopTimer() {
     setTimerRunning(false);
@@ -204,20 +220,12 @@ export default function SessionsPage() {
   }
 
   function resetForm() {
-    setClientId("");
-    setDate(new Date().toISOString().split("T")[0]);
-    setStatus("completed");
-    setClientResponse("");
-    setNotes("");
-    setStaffMember("");
-    setSelectedBehaviors([]);
-    setSelectedInterventions([]);
-    setSelectedPrograms([]);
+    setClientId(""); setDate(new Date().toISOString().split("T")[0]);
+    setStatus("completed"); setClientResponse(""); setNotes(""); setStaffMember("");
+    setSelectedBehaviors([]); setSelectedInterventions([]); setSelectedPrograms([]);
     setSoap({ subjective: "", objective: "", assessment: "", plan: "" });
-    setTimerRunning(false);
-    setTimerSeconds(0);
-    setShowForm(false);
-    setSelectedTemplate(null);
+    setTimerRunning(false); setTimerSeconds(0);
+    setShowForm(false); setSelectedTemplate(null);
   }
 
   async function handleSave() {
@@ -230,19 +238,14 @@ export default function SessionsPage() {
     if (!user) return;
 
     const { data, error: saveError } = await supabase.from("sessions").insert([{
-      client_id: clientId,
-      date,
-      status,
-      client_response: clientResponse,
-      notes,
-      staff_member: staffMember,
+      client_id: clientId, date, status,
+      client_response: clientResponse, notes, staff_member: staffMember,
       behaviors_observed: selectedBehaviors.join(", "),
       interventions_used: selectedInterventions.join(", "),
       programs_targeted: selectedPrograms.join(", "),
       soap_subjective: soap.subjective,
       soap_objective: soap.objective || (timerSeconds > 0 ? `Session duration: ${formatTimer(timerSeconds)}` : ""),
-      soap_assessment: soap.assessment,
-      soap_plan: soap.plan,
+      soap_assessment: soap.assessment, soap_plan: soap.plan,
       created_by: user.id,
     }]).select().single();
 
@@ -273,14 +276,20 @@ export default function SessionsPage() {
         </div>
       )}
 
+      {fetchError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 flex justify-between items-center">
+          <span>{fetchError}</span>
+          <button onClick={init} className="text-xs underline font-medium">Retry</button>
+        </div>
+      )}
+
       {showForm && (
         <Section title="New Session Note">
           {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
 
-          {/* SESSION TIMER */}
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
             <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Session Timer</p>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
               <p className={`text-3xl font-mono font-bold ${timerRunning ? "text-blue-600" : "text-gray-400"}`}>
                 {formatTimer(timerSeconds)}
               </p>
@@ -295,7 +304,6 @@ export default function SessionsPage() {
             </div>
           </div>
 
-          {/* TEMPLATES */}
           <div className="mb-4">
             <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Quick Templates</p>
             <div className="flex flex-wrap gap-2">
@@ -320,6 +328,12 @@ export default function SessionsPage() {
                 <option value="">Select client...</option>
                 {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
               </select>
+              {clients.length === 0 && !loading && (
+                <p className="text-xs text-orange-500 mt-1">
+                  No clients yet.{" "}
+                  <Link href="/dashboard/clients" className="underline">Add a client first.</Link>
+                </p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Session Date</label>
@@ -422,7 +436,7 @@ export default function SessionsPage() {
             )}
           </div>
 
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex gap-2 flex-wrap">
             <Button onClick={handleSave} loading={saving}>Save Session Note</Button>
             <Button variant="outline" onClick={resetForm}>Cancel</Button>
           </div>
@@ -432,12 +446,12 @@ export default function SessionsPage() {
       {!loading && sessions.length > 0 && (
         <div className="flex gap-3 flex-wrap items-center">
           <select value={filterClient} onChange={e => setFilterClient(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+            className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 w-full sm:w-auto">
             <option value="">All Clients</option>
             {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
           </select>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+            className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 w-full sm:w-auto">
             <option value="">All Statuses</option>
             <option value="completed">Completed</option>
             <option value="pending">Pending</option>
@@ -447,20 +461,43 @@ export default function SessionsPage() {
         </div>
       )}
 
-      {loading && <p className="text-gray-400 text-sm">Loading...</p>}
+      {loading && (
+        <div className="space-y-3">
+          {[...Array(5)].map((_, i) => <SessionSkeleton key={i} />)}
+        </div>
+      )}
+
+      {!loading && !fetchError && sessions.length === 0 && (
+        <div className="text-center py-16 border border-dashed border-gray-200 rounded-2xl bg-white">
+          <div className="text-5xl mb-4">📋</div>
+          <p className="text-gray-700 font-semibold text-lg">No sessions yet</p>
+          <p className="text-gray-400 text-sm mt-1 mb-6">Start tracking therapy sessions for your clients.</p>
+          <Button onClick={() => setShowForm(true)}>+ New Session</Button>
+        </div>
+      )}
+
+      {!loading && sessions.length > 0 && filtered.length === 0 && (
+        <div className="text-center py-10 border border-dashed border-gray-200 rounded-2xl bg-white">
+          <p className="text-gray-500 text-sm">No sessions match your filters.</p>
+          <button onClick={() => { setFilterClient(""); setFilterStatus(""); }}
+            className="text-blue-500 text-sm mt-2 hover:underline block mx-auto">
+            Clear filters
+          </button>
+        </div>
+      )}
 
       <div className="space-y-3">
         {filtered.map(session => (
           <div key={session.id} className="border border-gray-100 rounded-xl p-4 bg-white">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="font-semibold text-gray-800">{clientMap.get(session.client_id) ?? "Unknown"}</p>
+            <div className="flex justify-between items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-gray-800 truncate">{clientMap.get(session.client_id) ?? "Unknown"}</p>
                 <p className="text-xs text-gray-400 mt-0.5">{session.date ?? new Date(session.created_at).toLocaleDateString()}</p>
-                {session.behaviors_observed && <p className="text-xs text-gray-500 mt-1">Behaviors: {session.behaviors_observed}</p>}
-                {session.programs_targeted && <p className="text-xs text-gray-500">Programs: {session.programs_targeted}</p>}
-                {session.staff_member && <p className="text-xs text-gray-400 mt-1">Staff: {session.staff_member}</p>}
+                {session.behaviors_observed && <p className="text-xs text-gray-500 mt-1 truncate">Behaviors: {session.behaviors_observed}</p>}
+                {session.programs_targeted && <p className="text-xs text-gray-500 truncate">Programs: {session.programs_targeted}</p>}
+                {session.staff_member && <p className="text-xs text-gray-400 mt-1 truncate">Staff: {session.staff_member}</p>}
               </div>
-              <span className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ml-3 ${
+              <span className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ${
                 session.status === "completed" ? "bg-green-100 text-green-700"
                 : session.status === "pending" ? "bg-yellow-100 text-yellow-700"
                 : "bg-gray-100 text-gray-600"
@@ -470,9 +507,6 @@ export default function SessionsPage() {
             </div>
           </div>
         ))}
-        {!loading && filtered.length === 0 && (
-          <p className="text-gray-400 text-sm">No sessions found.</p>
-        )}
       </div>
     </div>
   );
