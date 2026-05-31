@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 
-type Step = "profile" | "clinic" | "hipaa" | "role" | "code" | "done";
+type Step = "profile" | "clinic" | "hipaa" | "role" | "code" | "admin_bootstrap" | "done";
 
 const ROLES = [
   { value: "admin", label: "Administrator", desc: "Manage the clinic, billing, and team", requiresCode: true },
@@ -15,6 +15,12 @@ const ROLES = [
   { value: "student_analyst", label: "Student Analyst", desc: "Supervised clinical work", requiresCode: false },
   { value: "parent", label: "Parent / Caregiver", desc: "View your child's progress", requiresCode: false },
 ];
+
+function generateAdminCode(clinicCode: string): string {
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const year = new Date().getFullYear();
+  return `${clinicCode}-ADMI-${year}-${random}`;
+}
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -33,6 +39,12 @@ export default function OnboardingPage() {
   const [codeVerified, setCodeVerified] = useState(false);
   const [hipaaAccepted, setHipaaAccepted] = useState(false);
   const [hipaaSignature, setHipaaSignature] = useState("");
+
+  // Bootstrap state
+  const [generatedClinicCode, setGeneratedClinicCode] = useState("");
+  const [generatedAdminCode, setGeneratedAdminCode] = useState("");
+  const [copiedClinic, setCopiedClinic] = useState(false);
+  const [copiedAdmin, setCopiedAdmin] = useState(false);
 
   const selectedRole = ROLES.find((r) => r.value === role);
 
@@ -122,7 +134,6 @@ export default function OnboardingPage() {
       });
       if (profileError) throw new Error(profileError.message);
 
-      // SAVE HIPAA BAA
       if (hipaaSignature && !joinExisting) {
         await supabase.from("hipaa_agreements").insert([{
           user_id: user.id,
@@ -133,9 +144,9 @@ export default function OnboardingPage() {
       }
 
       let companyId = "";
+      let newClinicCode = "";
 
       if (joinExisting) {
-        // Find by clinic code
         const { data: existingCompany, error: companyError } = await supabase
           .from("companies")
           .select("id, name")
@@ -153,9 +164,10 @@ export default function OnboardingPage() {
         if (createCompanyError || !company) throw new Error(createCompanyError?.message || "Failed to create clinic.");
         companyId = company.id;
 
-        // Generate clinic code for new company
-        const shortCode = company.id.replace(/-/g, "").toUpperCase().slice(0, 4) + "-" + company.id.replace(/-/g, "").toUpperCase().slice(4, 8);
-        await supabase.from("companies").update({ clinic_code: shortCode }).eq("id", company.id);
+        // Generate clinic code
+        newClinicCode = company.id.replace(/-/g, "").toUpperCase().slice(0, 4) + "-" + company.id.replace(/-/g, "").toUpperCase().slice(4, 8);
+        await supabase.from("companies").update({ clinic_code: newClinicCode }).eq("id", company.id);
+        setGeneratedClinicCode(newClinicCode);
       }
 
       const { error: linkError } = await supabase.from("company_users").upsert({
@@ -174,12 +186,44 @@ export default function OnboardingPage() {
         }).ilike("code", verificationCode.trim());
       }
 
+      // If new clinic founder — generate bootstrap admin code
+      if (!joinExisting && newClinicCode) {
+        const adminCode = generateAdminCode(newClinicCode);
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + 7);
+
+        await supabase.from("role_codes").insert([{
+          code: adminCode,
+          role: "admin",
+          used: false,
+          expires_at: expiryDate.toISOString().split("T")[0],
+          company_id: companyId,
+          created_by: user.id,
+        }]);
+
+        setGeneratedAdminCode(adminCode);
+        setLoading(false);
+        setStep("admin_bootstrap");
+        return;
+      }
+
       setStep("done");
       setTimeout(() => { window.location.href = "/dashboard"; }, 1500);
 
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
       setLoading(false);
+    }
+  }
+
+  async function copyToClipboard(text: string, type: "clinic" | "admin") {
+    await navigator.clipboard.writeText(text);
+    if (type === "clinic") {
+      setCopiedClinic(true);
+      setTimeout(() => setCopiedClinic(false), 2000);
+    } else {
+      setCopiedAdmin(true);
+      setTimeout(() => setCopiedAdmin(false), 2000);
     }
   }
 
@@ -193,7 +237,7 @@ export default function OnboardingPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
       <div className="w-full max-w-md bg-white border border-gray-100 rounded-2xl shadow-lg p-8">
 
-        {step !== "done" && (
+        {step !== "done" && step !== "admin_bootstrap" && (
           <div className="flex gap-2 mb-8">
             {stepLabels.map((label, i) => (
               <div key={label} className="flex-1">
@@ -279,7 +323,7 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* HIPAA BAA */}
+        {/* HIPAA */}
         {step === "hipaa" && (
           <div className="space-y-4">
             <div>
@@ -288,7 +332,6 @@ export default function OnboardingPage() {
                 Before using ABA AI to store protected health information, your clinic must sign a Business Associate Agreement (BAA).
               </p>
             </div>
-
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-xs text-gray-600 space-y-2 max-h-48 overflow-y-auto">
               <p className="font-bold text-gray-800">Business Associate Agreement (BAA)</p>
               <p>This Business Associate Agreement is entered into between {clinicName} ("Covered Entity") and ABA AI ("Business Associate") pursuant to HIPAA and the HITECH Act.</p>
@@ -300,25 +343,20 @@ export default function OnboardingPage() {
               <p><strong>6. Return of PHI.</strong> Upon termination, Business Associate will return or destroy all PHI received from Covered Entity.</p>
               <p>By signing below, both parties agree to the terms of this Business Associate Agreement in accordance with HIPAA regulations (45 CFR Parts 160 and 164).</p>
             </div>
-
             <label className="flex items-start gap-3 cursor-pointer">
               <input type="checkbox" checked={hipaaAccepted} onChange={e => setHipaaAccepted(e.target.checked)}
                 className="mt-0.5 rounded border-gray-300 text-blue-600" />
               <span className="text-sm text-gray-700">
-                I have read and agree to the HIPAA Business Associate Agreement on behalf of <strong>{clinicName}</strong>. I confirm I am authorized to sign this agreement.
+                I have read and agree to the HIPAA BAA on behalf of <strong>{clinicName}</strong>. I confirm I am authorized to sign.
               </span>
             </label>
-
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Type your full name as signature *</label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Full name as signature *</label>
               <input type="text" value={hipaaSignature} onChange={e => setHipaaSignature(e.target.value)}
                 placeholder="Your full legal name"
                 className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-              <p className="text-xs text-gray-400 mt-1">
-                Date: {new Date().toLocaleDateString()} · This constitutes a legally binding electronic signature.
-              </p>
+              <p className="text-xs text-gray-400 mt-1">Date: {new Date().toLocaleDateString()} · Legally binding electronic signature.</p>
             </div>
-
             <div className="flex gap-2">
               <button onClick={() => setStep("clinic")}
                 className="flex-1 rounded-lg border py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50">
@@ -386,7 +424,7 @@ export default function OnboardingPage() {
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">Verification Code</label>
                   <input type="text" value={verificationCode} onChange={e => setVerificationCode(e.target.value)}
-                    placeholder="e.g. ABCD-SUPE-2026-XY9Z"
+                    placeholder="e.g. ABCD-ADMI-2026-XY9Z"
                     className="w-full rounded-lg border px-3 py-2 font-mono text-sm tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-300"
                     maxLength={30} />
                 </div>
@@ -409,11 +447,62 @@ export default function OnboardingPage() {
           </div>
         )}
 
+        {/* ADMIN BOOTSTRAP — shown to new clinic founders */}
+        {step === "admin_bootstrap" && (
+          <div className="space-y-6">
+            <div className="text-center">
+              <div className="text-4xl mb-3">🎉</div>
+              <h1 className="text-2xl font-bold text-gray-800">Clinic Created!</h1>
+              <p className="mt-1 text-sm text-gray-500">
+                Save these codes — you will need them to set up your admin account and invite team members.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {/* CLINIC CODE */}
+              <div className="border-2 border-blue-200 rounded-xl p-4 bg-blue-50">
+                <p className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-1">Your Clinic Code</p>
+                <p className="text-xs text-blue-600 mb-2">Share this with staff so they can join your clinic</p>
+                <div className="flex items-center gap-3">
+                  <p className="text-xl font-black font-mono tracking-widest text-blue-800 flex-1">{generatedClinicCode}</p>
+                  <button onClick={() => copyToClipboard(generatedClinicCode, "clinic")}
+                    className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    {copiedClinic ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              </div>
+
+              {/* ADMIN CODE */}
+              <div className="border-2 border-purple-200 rounded-xl p-4 bg-purple-50">
+                <p className="text-xs font-bold text-purple-700 uppercase tracking-wide mb-1">Your Admin Setup Code</p>
+                <p className="text-xs text-purple-600 mb-2">Use this code to set yourself up as Administrator — expires in 7 days</p>
+                <div className="flex items-center gap-3">
+                  <p className="text-xl font-black font-mono tracking-widest text-purple-800 flex-1">{generatedAdminCode}</p>
+                  <button onClick={() => copyToClipboard(generatedAdminCode, "admin")}
+                    className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
+                    {copiedAdmin ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-700">
+              Save these codes somewhere safe. The admin code expires in 7 days and can only be used once. You can generate more codes from the Admin panel after setup.
+            </div>
+
+            <button
+              onClick={() => { setStep("done"); setTimeout(() => { window.location.href = "/dashboard"; }, 1500); }}
+              className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700">
+              Continue to Dashboard →
+            </button>
+          </div>
+        )}
+
         {/* DONE */}
         {step === "done" && (
           <div className="space-y-4 py-4 text-center">
             <div className="text-5xl">🎉</div>
-            <h1 className="text-2xl font-bold text-gray-800">You're all set!</h1>
+            <h1 className="text-2xl font-bold text-gray-800">You&apos;re all set!</h1>
             <p className="text-sm text-gray-500">Redirecting to dashboard...</p>
             <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
           </div>

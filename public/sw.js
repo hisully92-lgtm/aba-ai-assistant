@@ -1,4 +1,5 @@
-const CACHE_NAME = "aba-ai-v1";
+const CACHE_NAME = "aba-ai-v2";
+const OFFLINE_PAGE = "/dashboard";
 
 const STATIC_ASSETS = [
   "/",
@@ -9,7 +10,7 @@ const STATIC_ASSETS = [
 ];
 
 // ========================
-// INSTALL — cache static assets
+// INSTALL
 // ========================
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -19,15 +20,13 @@ self.addEventListener("install", (event) => {
 });
 
 // ========================
-// ACTIVATE — clean old caches
+// ACTIVATE
 // ========================
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
+        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
       )
     )
   );
@@ -35,23 +34,24 @@ self.addEventListener("activate", (event) => {
 });
 
 // ========================
-// FETCH — network first, fall back to cache
+// FETCH — network first, cache fallback
 // ========================
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET, chrome-extension, and Supabase API requests
+  // Skip non-GET, extensions, Supabase, Anthropic
   if (
     request.method !== "GET" ||
     url.protocol === "chrome-extension:" ||
     url.hostname.includes("supabase.co") ||
-    url.hostname.includes("anthropic.com")
+    url.hostname.includes("anthropic.com") ||
+    url.hostname.includes("vercel.app") && url.pathname.startsWith("/api/")
   ) {
     return;
   }
 
-  // For navigation requests (pages) — network first, fall back to cache
+  // Navigation — network first, fall back to cached dashboard
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
@@ -60,19 +60,17 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
           return response;
         })
-        .catch(() => caches.match(request).then((cached) => cached || caches.match("/dashboard")))
+        .catch(() =>
+          caches.match(request).then((cached) => cached || caches.match(OFFLINE_PAGE))
+        )
     );
     return;
   }
 
-  // For static assets — cache first, fall back to network
+  // Static assets — cache first
   if (
     url.pathname.startsWith("/_next/static") ||
-    url.pathname.endsWith(".jpg") ||
-    url.pathname.endsWith(".png") ||
-    url.pathname.endsWith(".svg") ||
-    url.pathname.endsWith(".ico") ||
-    url.pathname.endsWith(".json")
+    url.pathname.match(/\.(jpg|png|svg|ico|json|webp|woff|woff2)$/)
   ) {
     event.respondWith(
       caches.match(request).then(
@@ -90,25 +88,50 @@ self.addEventListener("fetch", (event) => {
 });
 
 // ========================
+// BACKGROUND SYNC — cache key dashboard data
+// ========================
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "CACHE_DASHBOARD_DATA") {
+    const { data, key } = event.data;
+    caches.open(CACHE_NAME).then((cache) => {
+      const response = new Response(JSON.stringify(data), {
+        headers: { "Content-Type": "application/json" },
+      });
+      cache.put(`/offline-data/${key}`, response);
+    });
+  }
+
+  if (event.data?.type === "GET_CACHED_DATA") {
+    const { key } = event.data;
+    caches.open(CACHE_NAME).then((cache) => {
+      cache.match(`/offline-data/${key}`).then((response) => {
+        if (response) {
+          response.json().then((data) => {
+            event.source?.postMessage({ type: "CACHED_DATA", key, data });
+          });
+        }
+      });
+    });
+  }
+});
+
+// ========================
 // PUSH NOTIFICATIONS
 // ========================
 self.addEventListener("push", (event) => {
   if (!event.data) return;
   const data = event.data.json();
-  const options = {
-    body: data.body ?? "You have a new notification",
-    icon: "/login-banner.jpg",
-    badge: "/login-banner.jpg",
-    data: { url: data.url ?? "/dashboard/notifications" },
-  };
   event.waitUntil(
-    self.registration.showNotification(data.title ?? "ABA AI Assistant", options)
+    self.registration.showNotification(data.title ?? "ABA AI", {
+      body: data.body ?? "You have a new notification",
+      icon: "/login-banner.jpg",
+      badge: "/login-banner.jpg",
+      data: { url: data.url ?? "/dashboard/notifications" },
+    })
   );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  event.waitUntil(
-    clients.openWindow(event.notification.data.url ?? "/dashboard")
-  );
+  event.waitUntil(clients.openWindow(event.notification.data.url ?? "/dashboard"));
 });
