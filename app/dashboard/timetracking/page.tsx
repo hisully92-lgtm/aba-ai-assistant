@@ -7,246 +7,281 @@ import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
 
 type Client = { id: string; full_name: string };
-type SessionError = {
+type TimeEntry = {
   id: string;
   client_id: string | null;
-  error_type: string;
-  reason: string;
-  estimated_start: string | null;
-  estimated_end: string | null;
-  session_date: string | null;
+  clock_in: string;
+  clock_out: string | null;
+  duration_minutes: number | null;
+  session_type: string;
+  notes: string | null;
   created_at: string;
 };
 
-const ERROR_TYPES = [
-  { value: "forgot_to_start", label: "Forgot to Start Timer" },
-  { value: "forgot_to_end", label: "Forgot to End Timer" },
-  { value: "app_failed", label: "App Failed / Technical Error" },
-  { value: "incorrect_client", label: "Wrong Client Selected" },
-  { value: "other", label: "Other" },
+const SESSION_TYPES = [
+  "Direct Therapy",
+  "Supervision",
+  "Parent Training",
+  "Assessment",
+  "Documentation",
+  "Team Meeting",
+  "Telehealth",
+  "Other",
 ];
 
-const emptyForm = {
-  client_id: "",
-  error_type: "",
-  reason: "",
-  estimated_start: "",
-  estimated_end: "",
-  session_date: new Date().toISOString().split("T")[0],
-};
-
-export default function SessionErrorsPage() {
-  const [errors, setErrors] = useState<SessionError[]>([]);
+export default function TimeTrackingPage() {
+  const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
-  const [form, setForm] = useState(emptyForm);
-  const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [clockedIn, setClockedIn] = useState<TimeEntry | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [filterDate, setFilterDate] = useState(new Date().toISOString().split("T")[0]);
+
+  // Clock in form
+  const [clientId, setClientId] = useState("");
+  const [sessionType, setSessionType] = useState("Direct Therapy");
+  const [notes, setNotes] = useState("");
 
   useEffect(() => { init(); }, []);
+
+  useEffect(() => {
+    if (!clockedIn) return;
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - new Date(clockedIn.clock_in).getTime()) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [clockedIn]);
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
 
-    const [{ data: errData }, { data: clientData }] = await Promise.all([
-      supabase
-        .from("session_errors")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false }),
+    const [{ data: clientData }, { data: entryData }] = await Promise.all([
       supabase.from("clients").select("id, full_name").eq("created_by", user.id),
+      supabase.from("time_entries").select("*").eq("created_by", user.id)
+        .order("clock_in", { ascending: false }).limit(100),
     ]);
 
-    setErrors(errData ?? []);
     setClients(clientData ?? []);
+    const allEntries = entryData ?? [];
+    setEntries(allEntries);
+
+    // Check if currently clocked in
+    const active = allEntries.find((e: TimeEntry) => !e.clock_out);
+    if (active) {
+      setClockedIn(active);
+      setElapsed(Math.floor((Date.now() - new Date(active.clock_in).getTime()) / 1000));
+    }
+
     setLoading(false);
   }
 
-  async function handleSave() {
-    if (!form.error_type || !form.reason) {
-      setError("Error type and reason are required.");
-      return;
-    }
+  async function handleClockIn() {
     setSaving(true);
-    setError(null);
-
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
 
-    const { data, error: saveError } = await supabase
-      .from("session_errors")
-      .insert([{
-        user_id: user.id,
-        client_id: form.client_id || null,
-        error_type: form.error_type,
-        reason: form.reason,
-        estimated_start: form.estimated_start || null,
-        estimated_end: form.estimated_end || null,
-        session_date: form.session_date || null,
-      }])
-      .select()
-      .single();
+    const { data } = await supabase.from("time_entries").insert([{
+      client_id: clientId || null,
+      clock_in: new Date().toISOString(),
+      session_type: sessionType,
+      notes: notes || null,
+      created_by: user.id,
+    }]).select().single();
 
-    if (saveError) { setError(saveError.message); setSaving(false); return; }
-
-    setErrors((prev) => [data, ...prev]);
-    setForm(emptyForm);
-    setShowForm(false);
-    setSuccess(true);
-    setTimeout(() => setSuccess(false), 3000);
+    if (data) {
+      setClockedIn(data);
+      setElapsed(0);
+      setEntries(prev => [data, ...prev]);
+    }
     setSaving(false);
   }
 
-  const clientMap = new Map(clients.map((c) => [c.id, c.full_name]));
+  async function handleClockOut() {
+    if (!clockedIn) return;
+    setSaving(true);
 
-  function errorTypeLabel(type: string) {
-    return ERROR_TYPES.find((e) => e.value === type)?.label ?? type;
+    const clockOut = new Date().toISOString();
+    const duration = Math.floor((Date.now() - new Date(clockedIn.clock_in).getTime()) / 60000);
+
+    const { data } = await supabase.from("time_entries").update({
+      clock_out: clockOut,
+      duration_minutes: duration,
+    }).eq("id", clockedIn.id).select().single();
+
+    if (data) {
+      setEntries(prev => prev.map(e => e.id === data.id ? data : e));
+      setClockedIn(null);
+      setElapsed(0);
+      setClientId("");
+      setNotes("");
+    }
+    setSaving(false);
   }
 
-  function errorColor(type: string) {
-    if (type === "forgot_to_start") return "bg-yellow-100 text-yellow-700";
-    if (type === "forgot_to_end") return "bg-orange-100 text-orange-700";
-    if (type === "app_failed") return "bg-red-100 text-red-700";
-    return "bg-gray-100 text-gray-600";
+  function formatElapsed(seconds: number) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   }
 
-  const needsStartEnd = form.error_type === "forgot_to_start" ||
-    form.error_type === "forgot_to_end" ||
-    form.error_type === "app_failed";
+  function formatDuration(minutes: number | null) {
+    if (!minutes) return "—";
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h === 0) return `${m}m`;
+    return `${h}h ${m}m`;
+  }
+
+  const clientMap = new Map(clients.map(c => [c.id, c.full_name]));
+
+  const filteredEntries = entries.filter(e =>
+    e.clock_in.startsWith(filterDate)
+  );
+
+  const todayMinutes = filteredEntries.reduce((sum, e) => sum + (e.duration_minutes ?? 0), 0);
+  const weekEntries = entries.filter(e => {
+    const d = new Date(e.clock_in);
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return d >= weekAgo;
+  });
+  const weekMinutes = weekEntries.reduce((sum, e) => sum + (e.duration_minutes ?? 0), 0);
+
+  // Group by session type for today
+  const byType = filteredEntries.reduce((acc, e) => {
+    acc[e.session_type] = (acc[e.session_type] ?? 0) + (e.duration_minutes ?? 0);
+    return acc;
+  }, {} as Record<string, number>);
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Session Error Log">
-        <p className="text-gray-500 text-sm">Report timer and session errors for supervisor review.</p>
-        <Button onClick={() => setShowForm(!showForm)}>
-          {showForm ? "Cancel" : "+ Report Error"}
-        </Button>
+      <PageHeader title="Time Tracking">
+        <p className="text-gray-500 text-sm">Clock in and out of sessions to track billable hours.</p>
       </PageHeader>
 
-      {success && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
-          ✓ Error reported successfully. Your supervisor will be notified.
-        </div>
-      )}
-
-      {showForm && (
-        <Section title="Report Session Error">
-          {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* CLOCK IN/OUT */}
+      <Section title={clockedIn ? "Currently Clocked In" : "Clock In"}>
+        {clockedIn ? (
+          <div className="text-center space-y-4 py-4">
+            <div className={`text-5xl font-mono font-bold ${elapsed > 3600 ? "text-blue-600" : "text-green-600"}`}>
+              {formatElapsed(elapsed)}
+            </div>
+            <div className="text-sm text-gray-500 space-y-1">
+              <p>Session Type: <span className="font-medium text-gray-700">{clockedIn.session_type}</span></p>
+              {clockedIn.client_id && (
+                <p>Client: <span className="font-medium text-gray-700">{clientMap.get(clockedIn.client_id) ?? "Unknown"}</span></p>
+              )}
+              <p>Clocked in: <span className="font-medium text-gray-700">{new Date(clockedIn.clock_in).toLocaleTimeString()}</span></p>
+            </div>
+            <Button variant="danger" onClick={handleClockOut} loading={saving}>
+              Clock Out
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Error Type *</label>
-              <select
-                value={form.error_type}
-                onChange={(e) => setForm({ ...form, error_type: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
-                <option value="">Select error type...</option>
-                {ERROR_TYPES.map((e) => (
-                  <option key={e.value} value={e.value}>{e.label}</option>
-                ))}
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Session Type</label>
+              <select value={sessionType} onChange={e => setSessionType(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                {SESSION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
-
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Client</label>
-              <select
-                value={form.client_id}
-                onChange={(e) => setForm({ ...form, client_id: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
-                <option value="">Select client...</option>
-                {clients.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Client (optional)</label>
+              <select value={clientId} onChange={e => setClientId(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                <option value="">No client</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
               </select>
             </div>
-
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Session Date</label>
-              <input
-                type="date"
-                value={form.session_date}
-                onChange={(e) => setForm({ ...form, session_date: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Notes (optional)</label>
+              <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
+                placeholder="Brief description..."
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
-
-            {needsStartEnd && (
-              <>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Estimated Start Time</label>
-                  <input
-                    type="time"
-                    value={form.estimated_start}
-                    onChange={(e) => setForm({ ...form, estimated_start: e.target.value })}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Estimated End Time</label>
-                  <input
-                    type="time"
-                    value={form.estimated_end}
-                    onChange={(e) => setForm({ ...form, estimated_end: e.target.value })}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  />
-                </div>
-              </>
-            )}
-
-            <div className="md:col-span-2">
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Reason / Explanation *</label>
-              <textarea
-                value={form.reason}
-                onChange={(e) => setForm({ ...form, reason: e.target.value })}
-                placeholder="Explain what happened and why the error occurred..."
-                rows={3}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
+            <div className="md:col-span-3">
+              <Button onClick={handleClockIn} loading={saving}>
+                Clock In
+              </Button>
             </div>
           </div>
+        )}
+      </Section>
 
-          <div className="mt-4 flex gap-2">
-            <Button onClick={handleSave} loading={saving}>Submit Report</Button>
-            <Button variant="outline" onClick={() => { setShowForm(false); setForm(emptyForm); }}>Cancel</Button>
+      {/* STATS */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label: "Today", value: formatDuration(todayMinutes), color: "text-blue-600" },
+          { label: "This Week", value: formatDuration(weekMinutes), color: "text-purple-600" },
+          { label: "Today Sessions", value: filteredEntries.length, color: "text-green-600" },
+          { label: "Week Sessions", value: weekEntries.length, color: "text-orange-500" },
+        ].map(stat => (
+          <div key={stat.label} className="border rounded-xl p-4 text-center bg-white">
+            <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
+            <p className="text-xs text-gray-500 mt-1">{stat.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* TODAY BY TYPE */}
+      {Object.keys(byType).length > 0 && (
+        <Section title="Today by Session Type">
+          <div className="space-y-2">
+            {Object.entries(byType).sort((a, b) => b[1] - a[1]).map(([type, mins]) => (
+              <div key={type} className="flex items-center gap-3">
+                <p className="text-sm text-gray-600 w-40 truncate">{type}</p>
+                <div className="flex-1 bg-gray-100 rounded-full h-2">
+                  <div className="bg-blue-500 h-2 rounded-full"
+                    style={{ width: `${Math.min(100, (mins / todayMinutes) * 100)}%` }} />
+                </div>
+                <p className="text-sm font-medium text-gray-700 w-16 text-right">{formatDuration(mins)}</p>
+              </div>
+            ))}
           </div>
         </Section>
       )}
 
-      <Section title={`Error Log (${errors.length})`}>
+      {/* TIME LOG */}
+      <Section title="Time Log">
+        <div className="flex items-center gap-3 mb-4">
+          <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+          <p className="text-sm text-gray-400">{filteredEntries.length} entries · {formatDuration(todayMinutes)} total</p>
+        </div>
+
         {loading && <p className="text-gray-400 text-sm">Loading...</p>}
-        {!loading && errors.length === 0 && (
-          <p className="text-gray-400 text-sm">No errors reported yet.</p>
+        {!loading && filteredEntries.length === 0 && (
+          <p className="text-gray-400 text-sm">No entries for this date.</p>
         )}
-        <div className="space-y-3">
-          {errors.map((e) => (
-            <div key={e.id} className="border border-gray-100 rounded-xl p-4 bg-white">
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${errorColor(e.error_type)}`}>
-                      {errorTypeLabel(e.error_type)}
-                    </span>
-                    {e.client_id && (
-                      <span className="text-xs text-gray-500">
-                        {clientMap.get(e.client_id) ?? "Unknown client"}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-700">{e.reason}</p>
-                  <div className="flex gap-3 mt-1 text-xs text-gray-400">
-                    {e.session_date && <span>Date: {e.session_date}</span>}
-                    {e.estimated_start && <span>Est. start: {e.estimated_start}</span>}
-                    {e.estimated_end && <span>Est. end: {e.estimated_end}</span>}
-                  </div>
+
+        <div className="space-y-2">
+          {filteredEntries.map(entry => (
+            <div key={entry.id} className={`border rounded-xl p-4 bg-white flex justify-between items-center flex-wrap gap-2 ${!entry.clock_out ? "border-green-300 bg-green-50" : "border-gray-100"}`}>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-gray-800 text-sm">{entry.session_type}</p>
+                  {!entry.clock_out && (
+                    <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full animate-pulse">Live</span>
+                  )}
                 </div>
-                <p className="text-xs text-gray-400">
-                  {new Date(e.created_at).toLocaleDateString()}
+                {entry.client_id && (
+                  <p className="text-xs text-gray-400 mt-0.5">{clientMap.get(entry.client_id) ?? "Unknown"}</p>
+                )}
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {new Date(entry.clock_in).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  {entry.clock_out && ` → ${new Date(entry.clock_out).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
                 </p>
+                {entry.notes && <p className="text-xs text-gray-500 mt-1 italic">{entry.notes}</p>}
               </div>
+              <span className={`text-sm font-bold ${entry.clock_out ? "text-blue-600" : "text-green-600"}`}>
+                {entry.clock_out ? formatDuration(entry.duration_minutes) : formatElapsed(elapsed)}
+              </span>
             </div>
           ))}
         </div>
