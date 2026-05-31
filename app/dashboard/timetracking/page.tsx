@@ -37,21 +37,9 @@ export default function TimeTrackingPage() {
   const [elapsed, setElapsed] = useState(0);
   const [saving, setSaving] = useState(false);
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split("T")[0]);
-
-  // Clock in form
   const [clientId, setClientId] = useState("");
   const [sessionType, setSessionType] = useState("Direct Therapy");
   const [notes, setNotes] = useState("");
-
-  useEffect(() => { init(); }, []);
-
-  useEffect(() => {
-    if (!clockedIn) return;
-    const interval = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - new Date(clockedIn.clock_in).getTime()) / 1000));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [clockedIn]);
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
@@ -68,7 +56,6 @@ export default function TimeTrackingPage() {
     const allEntries = entryData ?? [];
     setEntries(allEntries);
 
-    // Check if currently clocked in
     const active = allEntries.find((e: TimeEntry) => !e.clock_out);
     if (active) {
       setClockedIn(active);
@@ -77,6 +64,17 @@ export default function TimeTrackingPage() {
 
     setLoading(false);
   }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { void init(); }, []);
+
+  useEffect(() => {
+    if (!clockedIn) return;
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - new Date(clockedIn.clock_in).getTime()) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [clockedIn]);
 
   async function handleClockIn() {
     setSaving(true);
@@ -138,21 +136,14 @@ export default function TimeTrackingPage() {
   }
 
   const clientMap = new Map(clients.map(c => [c.id, c.full_name]));
-
-  const filteredEntries = entries.filter(e =>
-    e.clock_in.startsWith(filterDate)
-  );
-
+  const filteredEntries = entries.filter(e => e.clock_in.startsWith(filterDate));
   const todayMinutes = filteredEntries.reduce((sum, e) => sum + (e.duration_minutes ?? 0), 0);
   const weekEntries = entries.filter(e => {
     const d = new Date(e.clock_in);
-    const now = new Date();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     return d >= weekAgo;
   });
   const weekMinutes = weekEntries.reduce((sum, e) => sum + (e.duration_minutes ?? 0), 0);
-
-  // Group by session type for today
   const byType = filteredEntries.reduce((acc, e) => {
     acc[e.session_type] = (acc[e.session_type] ?? 0) + (e.duration_minutes ?? 0);
     return acc;
@@ -164,7 +155,6 @@ export default function TimeTrackingPage() {
         <p className="text-gray-500 text-sm">Clock in and out of sessions to track billable hours.</p>
       </PageHeader>
 
-      {/* CLOCK IN/OUT */}
       <Section title={clockedIn ? "Currently Clocked In" : "Clock In"}>
         {clockedIn ? (
           <div className="text-center space-y-4 py-4">
@@ -178,9 +168,7 @@ export default function TimeTrackingPage() {
               )}
               <p>Clocked in: <span className="font-medium text-gray-700">{new Date(clockedIn.clock_in).toLocaleTimeString()}</span></p>
             </div>
-            <Button variant="danger" onClick={handleClockOut} loading={saving}>
-              Clock Out
-            </Button>
+            <Button variant="danger" onClick={handleClockOut} loading={saving}>Clock Out</Button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -206,15 +194,12 @@ export default function TimeTrackingPage() {
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div className="md:col-span-3">
-              <Button onClick={handleClockIn} loading={saving}>
-                Clock In
-              </Button>
+              <Button onClick={handleClockIn} loading={saving}>Clock In</Button>
             </div>
           </div>
         )}
       </Section>
 
-      {/* STATS */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: "Today", value: formatDuration(todayMinutes), color: "text-blue-600" },
@@ -229,7 +214,6 @@ export default function TimeTrackingPage() {
         ))}
       </div>
 
-      {/* TODAY BY TYPE */}
       {Object.keys(byType).length > 0 && (
         <Section title="Today by Session Type">
           <div className="space-y-2">
@@ -247,7 +231,6 @@ export default function TimeTrackingPage() {
         </Section>
       )}
 
-      {/* TIME LOG */}
       <Section title="Time Log">
         <div className="flex items-center gap-3 mb-4">
           <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)}
@@ -256,9 +239,7 @@ export default function TimeTrackingPage() {
         </div>
 
         {loading && <p className="text-gray-400 text-sm">Loading...</p>}
-        {!loading && filteredEntries.length === 0 && (
-          <p className="text-gray-400 text-sm">No entries for this date.</p>
-        )}
+        {!loading && filteredEntries.length === 0 && <p className="text-gray-400 text-sm">No entries for this date.</p>}
 
         <div className="space-y-2">
           {filteredEntries.map(entry => (
@@ -270,9 +251,7 @@ export default function TimeTrackingPage() {
                     <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full animate-pulse">Live</span>
                   )}
                 </div>
-                {entry.client_id && (
-                  <p className="text-xs text-gray-400 mt-0.5">{clientMap.get(entry.client_id) ?? "Unknown"}</p>
-                )}
+                {entry.client_id && <p className="text-xs text-gray-400 mt-0.5">{clientMap.get(entry.client_id) ?? "Unknown"}</p>}
                 <p className="text-xs text-gray-400 mt-0.5">
                   {new Date(entry.clock_in).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   {entry.clock_out && ` → ${new Date(entry.clock_out).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}

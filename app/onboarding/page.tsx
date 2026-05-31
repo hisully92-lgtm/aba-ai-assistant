@@ -334,7 +334,7 @@ export default function OnboardingPage() {
             </div>
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-xs text-gray-600 space-y-2 max-h-48 overflow-y-auto">
               <p className="font-bold text-gray-800">Business Associate Agreement (BAA)</p>
-              <p>This Business Associate Agreement is entered into between {clinicName} ("Covered Entity") and ABA AI ("Business Associate") pursuant to HIPAA and the HITECH Act.</p>
+              <p>This Business Associate Agreement is entered into between {clinicName} (&ldquo;Covered Entity&rdquo;) and ABA AI (&ldquo;Business Associate&rdquo;) pursuant to HIPAA and the HITECH Act.</p>
               <p><strong>1. Permitted Uses.</strong> Business Associate may use PHI only as necessary to provide services to Covered Entity.</p>
               <p><strong>2. Safeguards.</strong> Business Associate agrees to implement appropriate administrative, physical, and technical safeguards to protect PHI.</p>
               <p><strong>3. Breach Notification.</strong> Business Associate will notify Covered Entity of any breach of unsecured PHI within 60 days of discovery.</p>
