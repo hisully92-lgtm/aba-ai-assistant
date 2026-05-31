@@ -19,6 +19,8 @@ type Session = {
   programs_targeted: string;
   notes: string;
   staff_member: string;
+  start_time: string | null;
+  end_time: string | null;
   created_at: string;
 };
 
@@ -143,6 +145,8 @@ export default function SessionsPage() {
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [timerInterval, setTimerInterval] = useState<NodeJS.Timeout | null>(null);
+  const [sessionStartTime, setSessionStartTime] = useState<string | null>(null);
+  const [sessionEndTime, setSessionEndTime] = useState<string | null>(null);
 
   const [clientId, setClientId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
@@ -199,10 +203,17 @@ export default function SessionsPage() {
     return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   }
 
-  function startTimer() { setTimerSeconds(0); setTimerRunning(true); }
+  function startTimer() {
+    setTimerSeconds(0);
+    setTimerRunning(true);
+    setSessionStartTime(new Date().toISOString());
+    setSessionEndTime(null);
+  }
 
   function stopTimer() {
     setTimerRunning(false);
+    const endTime = new Date().toISOString();
+    setSessionEndTime(endTime);
     if (soap.objective === "") {
       setSoap(prev => ({ ...prev, objective: `Session duration: ${formatTimer(timerSeconds)}` }));
     }
@@ -225,6 +236,7 @@ export default function SessionsPage() {
     setSelectedBehaviors([]); setSelectedInterventions([]); setSelectedPrograms([]);
     setSoap({ subjective: "", objective: "", assessment: "", plan: "" });
     setTimerRunning(false); setTimerSeconds(0);
+    setSessionStartTime(null); setSessionEndTime(null);
     setShowForm(false); setSelectedTemplate(null);
   }
 
@@ -246,6 +258,8 @@ export default function SessionsPage() {
       soap_subjective: soap.subjective,
       soap_objective: soap.objective || (timerSeconds > 0 ? `Session duration: ${formatTimer(timerSeconds)}` : ""),
       soap_assessment: soap.assessment, soap_plan: soap.plan,
+      start_time: sessionStartTime || null,
+      end_time: sessionEndTime || null,
       created_by: user.id,
     }]).select().single();
 
@@ -287,6 +301,7 @@ export default function SessionsPage() {
         <Section title="New Session Note">
           {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
 
+          {/* SESSION TIMER */}
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
             <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Session Timer</p>
             <div className="flex items-center gap-4 flex-wrap">
@@ -299,11 +314,30 @@ export default function SessionsPage() {
                 ) : (
                   <Button variant="danger" onClick={stopTimer}>Stop Timer</Button>
                 )}
-                <Button variant="outline" onClick={() => { setTimerRunning(false); setTimerSeconds(0); }}>Reset</Button>
+                <Button variant="outline" onClick={() => {
+                  setTimerRunning(false);
+                  setTimerSeconds(0);
+                  setSessionStartTime(null);
+                  setSessionEndTime(null);
+                }}>Reset</Button>
               </div>
             </div>
+            {(sessionStartTime || sessionEndTime) && (
+              <div className="flex gap-4 mt-3 text-xs text-gray-500 flex-wrap">
+                {sessionStartTime && (
+                  <span>Start: <strong className="text-gray-700">{new Date(sessionStartTime).toLocaleTimeString()}</strong></span>
+                )}
+                {sessionEndTime && (
+                  <span>End: <strong className="text-gray-700">{new Date(sessionEndTime).toLocaleTimeString()}</strong></span>
+                )}
+                {sessionStartTime && sessionEndTime && (
+                  <span>Duration: <strong className="text-gray-700">{formatTimer(timerSeconds)}</strong></span>
+                )}
+              </div>
+            )}
           </div>
 
+          {/* TEMPLATES */}
           <div className="mb-4">
             <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Quick Templates</p>
             <div className="flex flex-wrap gap-2">
@@ -492,7 +526,15 @@ export default function SessionsPage() {
             <div className="flex justify-between items-start gap-3">
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-gray-800 truncate">{clientMap.get(session.client_id) ?? "Unknown"}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{session.date ?? new Date(session.created_at).toLocaleDateString()}</p>
+                <div className="flex flex-wrap gap-2 mt-0.5 text-xs text-gray-400">
+                  <span>{session.date ?? new Date(session.created_at).toLocaleDateString()}</span>
+                  {session.start_time && (
+                    <span>
+                      {new Date(session.start_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      {session.end_time && ` → ${new Date(session.end_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+                    </span>
+                  )}
+                </div>
                 {session.behaviors_observed && <p className="text-xs text-gray-500 mt-1 truncate">Behaviors: {session.behaviors_observed}</p>}
                 {session.programs_targeted && <p className="text-xs text-gray-500 truncate">Programs: {session.programs_targeted}</p>}
                 {session.staff_member && <p className="text-xs text-gray-400 mt-1 truncate">Staff: {session.staff_member}</p>}
