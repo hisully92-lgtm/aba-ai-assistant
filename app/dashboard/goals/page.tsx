@@ -52,11 +52,28 @@ const emptyGoalForm = {
   notes: "",
 };
 
+function GoalSkeleton() {
+  return (
+    <div className="border border-gray-100 rounded-xl p-4 bg-white animate-pulse space-y-3">
+      <div className="flex justify-between">
+        <div className="space-y-2 flex-1">
+          <div className="h-4 bg-gray-200 rounded w-2/3" />
+          <div className="h-3 bg-gray-200 rounded w-1/2" />
+        </div>
+        <div className="h-6 bg-gray-200 rounded-full w-16" />
+      </div>
+      <div className="h-3 bg-gray-200 rounded-full w-full" />
+      <div className="h-3 bg-gray-200 rounded w-1/4" />
+    </div>
+  );
+}
+
 export default function GoalsPage() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [generalizationData, setGeneralizationData] = useState<Record<string, GeneralizationEntry[]>>({});
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [filterClient, setFilterClient] = useState("");
@@ -65,54 +82,52 @@ export default function GoalsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [addingGen, setAddingGen] = useState<string | null>(null);
   const [form, setForm] = useState(emptyGoalForm);
-
   const [genSetting, setGenSetting] = useState("home");
   const [genPerson, setGenPerson] = useState("");
   const [genAccuracy, setGenAccuracy] = useState(0);
   const [savingGen, setSavingGen] = useState(false);
 
   async function init() {
+    setFetchError(null);
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
 
-    const [{ data: clientData }, { data: goalData }] = await Promise.all([
+    const [{ data: clientData, error: clientErr }, { data: goalData, error: goalErr }] = await Promise.all([
       supabase.from("clients").select("id, full_name"),
       supabase.from("client_goals").select("*").eq("created_by", user.id).order("created_at", { ascending: false }),
     ]);
 
-    setClients(clientData ?? []);
-    setGoals(goalData ?? []);
+    if (clientErr || goalErr) {
+      setFetchError("Failed to load goals. Please refresh and try again.");
+    } else {
+      setClients(clientData ?? []);
+      setGoals(goalData ?? []);
+    }
     setLoading(false);
   }
 
-  useEffect(() => { void init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { void init(); }, []);
 
   async function loadGeneralization(goalId: string) {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
-
     const { data } = await supabase.from("generalization_data")
       .select("*").eq("goal_id", goalId).order("session_date", { ascending: true });
-
     setGeneralizationData((prev) => ({ ...prev, [goalId]: data ?? [] }));
   }
 
   async function handleSave() {
     if (!form.client_id || !form.goal_name) return;
     setSaving(true);
-
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
-
     const { data } = await supabase.from("client_goals").insert([{
-      ...form,
-      notes: form.notes || null,
-      created_by: user.id,
+      ...form, notes: form.notes || null, created_by: user.id,
     }]).select().single();
-
     if (data) setGoals((prev) => [data, ...prev]);
     setForm(emptyGoalForm);
     setShowForm(false);
@@ -122,7 +137,6 @@ export default function GoalsPage() {
   async function updateGoalStatus(id: string, status: string) {
     await supabase.from("client_goals").update({ status }).eq("id", id);
     setGoals((prev) => prev.map((g) => g.id === id ? { ...g, status } : g));
-
     if (status === "mastered") {
       const goal = goals.find((g) => g.id === id);
       console.log(`Goal mastered: ${goal?.goal_name}`);
@@ -132,20 +146,14 @@ export default function GoalsPage() {
   async function updatePerformance(id: string, performance: number) {
     const goal = goals.find(g => g.id === id);
     if (!goal) return;
-
     const updates: Record<string, any> = { current_performance: performance };
-
     if (performance >= goal.target && goal.status === "active") {
       updates.status = "mastered";
       updates.updated_at = new Date().toISOString();
     }
-
     await supabase.from("client_goals").update(updates).eq("id", id);
     setGoals(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g));
-
-    if (updates.status === "mastered") {
-      alert(`Goal mastered: ${goal.goal_name}`);
-    }
+    if (updates.status === "mastered") alert(`Goal mastered: ${goal.goal_name}`);
   }
 
   async function saveGeneralization(goalId: string, skillName: string) {
@@ -153,28 +161,21 @@ export default function GoalsPage() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
-
     const { data } = await supabase.from("generalization_data").insert([{
       goal_id: goalId,
       client_id: goals.find((g) => g.id === goalId)?.client_id,
       skill_name: skillName,
-      setting: genSetting,
-      person: genPerson,
-      accuracy: genAccuracy,
+      setting: genSetting, person: genPerson, accuracy: genAccuracy,
       session_date: new Date().toISOString().split("T")[0],
       created_by: user.id,
     }]).select().single();
-
     if (data) {
       setGeneralizationData((prev) => ({ ...prev, [goalId]: [...(prev[goalId] ?? []), data] }));
       await supabase.from("client_goals").update({ generalized: true }).eq("id", goalId);
       setGoals((prev) => prev.map((g) => g.id === goalId ? { ...g, generalized: true } : g));
     }
-
     setAddingGen(null);
-    setGenSetting("home");
-    setGenPerson("");
-    setGenAccuracy(0);
+    setGenSetting("home"); setGenPerson(""); setGenAccuracy(0);
     setSavingGen(false);
   }
 
@@ -211,6 +212,13 @@ export default function GoalsPage() {
           {showForm ? "Cancel" : "+ Add Goal"}
         </Button>
       </PageHeader>
+
+      {fetchError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 flex justify-between items-center">
+          <span>{fetchError}</span>
+          <button onClick={init} className="text-xs underline font-medium">Retry</button>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
@@ -292,24 +300,45 @@ export default function GoalsPage() {
 
       <div className="flex flex-wrap gap-3 items-center">
         <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)}
-          className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+          className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 w-full sm:w-auto">
           <option value="">All Clients</option>
           {clients.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
         </select>
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-          className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+          className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 w-full sm:w-auto">
           <option value="">All Statuses</option>
           {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         <select value={filterDomain} onChange={(e) => setFilterDomain(e.target.value)}
-          className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+          className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 w-full sm:w-auto">
           <option value="">All Domains</option>
           {DOMAINS.map((d) => <option key={d} value={d}>{d}</option>)}
         </select>
         <p className="text-sm text-gray-400">{filtered.length} goals</p>
       </div>
 
-      {loading && <p className="text-gray-400 text-sm">Loading...</p>}
+      {loading && (
+        <div className="space-y-3">
+          {[...Array(4)].map((_, i) => <GoalSkeleton key={i} />)}
+        </div>
+      )}
+
+      {!loading && !fetchError && goals.length === 0 && (
+        <div className="text-center py-16 border border-dashed border-gray-200 rounded-2xl bg-white">
+          <div className="text-5xl mb-4">🎯</div>
+          <p className="text-gray-700 font-semibold text-lg">No goals yet</p>
+          <p className="text-gray-400 text-sm mt-1 mb-6">Add treatment goals to track client progress toward mastery.</p>
+          <Button onClick={() => setShowForm(true)}>+ Add First Goal</Button>
+        </div>
+      )}
+
+      {!loading && goals.length > 0 && filtered.length === 0 && (
+        <div className="text-center py-10 border border-dashed border-gray-200 rounded-2xl bg-white">
+          <p className="text-gray-500 text-sm">No goals match your filters.</p>
+          <button onClick={() => { setFilterClient(""); setFilterStatus(""); setFilterDomain(""); }}
+            className="text-blue-500 text-sm mt-2 hover:underline block mx-auto">Clear filters</button>
+        </div>
+      )}
 
       {Object.entries(byClient).map(([clientName, clientGoals]) => (
         <Section key={clientName} title={clientName}>
@@ -322,7 +351,7 @@ export default function GoalsPage() {
               return (
                 <div key={goal.id} className={`border rounded-xl p-4 bg-white ${goal.status === "mastered" ? "border-green-200" : "border-gray-100"}`}>
                   <div className="flex justify-between items-start flex-wrap gap-2">
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-gray-800">{goal.goal_name}</p>
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(goal.status)}`}>
@@ -340,17 +369,15 @@ export default function GoalsPage() {
                         · {goal.mastery_criteria}
                       </p>
                     </div>
-                    <div className="flex gap-2 items-center">
+                    <div className="flex gap-2 items-center shrink-0">
                       <select value={goal.status} onChange={(e) => updateGoalStatus(goal.id, e.target.value)}
                         className="text-xs border rounded-lg px-2 py-1 focus:outline-none">
                         {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
                       </select>
-                      <button
-                        onClick={() => {
-                          setExpandedId(isExpanded ? null : goal.id);
-                          if (!isExpanded) void loadGeneralization(goal.id);
-                        }}
-                        className="text-xs text-gray-400 hover:text-gray-600">
+                      <button onClick={() => {
+                        setExpandedId(isExpanded ? null : goal.id);
+                        if (!isExpanded) void loadGeneralization(goal.id);
+                      }} className="text-xs text-gray-400 hover:text-gray-600">
                         {isExpanded ? "▲" : "▼"}
                       </button>
                     </div>
@@ -363,10 +390,8 @@ export default function GoalsPage() {
                       <span>{goal.target}%</span>
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-3">
-                      <div
-                        className={`h-3 rounded-full transition-all ${pct >= 100 ? "bg-green-500" : pct >= 50 ? "bg-blue-500" : "bg-yellow-500"}`}
-                        style={{ width: `${pct}%` }}
-                      />
+                      <div className={`h-3 rounded-full transition-all ${pct >= 100 ? "bg-green-500" : pct >= 50 ? "bg-blue-500" : "bg-yellow-500"}`}
+                        style={{ width: `${pct}%` }} />
                     </div>
                     <p className="text-xs text-gray-400 mt-1">{pct}% progress toward goal</p>
                   </div>

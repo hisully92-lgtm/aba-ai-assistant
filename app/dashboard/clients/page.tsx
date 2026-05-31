@@ -18,24 +18,26 @@ type Client = {
 };
 
 const DIAGNOSES = [
-  "Autism Spectrum Disorder (ASD)",
-  "Intellectual Disability",
-  "ADHD",
-  "Down Syndrome",
-  "Cerebral Palsy",
-  "Developmental Delay",
-  "Language Disorder",
-  "Anxiety Disorder",
-  "Other",
+  "Autism Spectrum Disorder (ASD)", "Intellectual Disability", "ADHD",
+  "Down Syndrome", "Cerebral Palsy", "Developmental Delay",
+  "Language Disorder", "Anxiety Disorder", "Other",
 ];
 
-const emptyForm = {
-  full_name: "",
-  date_of_birth: "",
-  guardian_name: "",
-  diagnosis: "",
-  goals: "",
-};
+const emptyForm = { full_name: "", date_of_birth: "", guardian_name: "", diagnosis: "", goals: "" };
+
+function ClientSkeleton() {
+  return (
+    <div className="border border-gray-100 rounded-xl bg-white p-4 space-y-3 animate-pulse">
+      <div className="h-4 bg-gray-200 rounded w-3/4" />
+      <div className="h-3 bg-gray-200 rounded w-1/2" />
+      <div className="h-5 bg-gray-200 rounded-full w-32" />
+      <div className="grid grid-cols-2 gap-2 mt-2">
+        <div className="h-8 bg-gray-200 rounded-lg" />
+        <div className="h-8 bg-gray-200 rounded-lg" />
+      </div>
+    </div>
+  );
+}
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -46,6 +48,7 @@ export default function ClientsPage() {
   const [search, setSearch] = useState("");
   const [filterDiagnosis, setFilterDiagnosis] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const { plan } = usePlan();
@@ -55,17 +58,20 @@ export default function ClientsPage() {
 
   async function fetchClients() {
     setLoading(true);
+    setFetchError(null);
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) { setLoading(false); return; }
 
-    const { data } = await supabase
-      .from("clients")
-      .select("*")
-      .eq("created_by", user.id)
+    const { data, error } = await supabase
+      .from("clients").select("*").eq("created_by", user.id)
       .order("created_at", { ascending: false });
 
-    setClients(data ?? []);
+    if (error) {
+      setFetchError("Failed to load clients. Please refresh and try again.");
+    } else {
+      setClients(data ?? []);
+    }
     setLoading(false);
   }
 
@@ -79,10 +85,7 @@ export default function ClientsPage() {
     if (!user) return;
 
     const { data, error } = await supabase
-      .from("clients")
-      .insert([{ ...form, created_by: user.id }])
-      .select()
-      .single();
+      .from("clients").insert([{ ...form, created_by: user.id }]).select().single();
 
     if (error) { setError(error.message); setSaving(false); return; }
 
@@ -109,9 +112,7 @@ export default function ClientsPage() {
       (c.diagnosis ?? "").toLowerCase().includes(search.toLowerCase())
     );
   }
-  if (filterDiagnosis) {
-    filtered = filtered.filter((c) => c.diagnosis === filterDiagnosis);
-  }
+  if (filterDiagnosis) filtered = filtered.filter((c) => c.diagnosis === filterDiagnosis);
 
   function getAge(dob: string | null) {
     if (!dob) return null;
@@ -131,71 +132,62 @@ export default function ClientsPage() {
           Free plan limit reached (5 clients).{" "}
           <button className="underline font-medium" onClick={() => window.location.href = "/dashboard/upgrade"}>
             Upgrade to Pro
-          </button>{" "}
-          to add more.
+          </button>{" "}to add more.
         </div>
       )}
 
       {success && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
-          ✓ Client added successfully.
+          Client added successfully.
         </div>
       )}
 
-      {/* ADD FORM */}
+      {fetchError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 flex justify-between items-center">
+          <span>{fetchError}</span>
+          <button onClick={fetchClients} className="text-xs underline font-medium">Retry</button>
+        </div>
+      )}
+
       {showForm && (
         <Section title="Add New Client">
           {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Full Name *</label>
-              <input
-                type="text"
-                value={form.full_name}
+              <input type="text" value={form.full_name}
                 onChange={(e) => setForm({ ...form, full_name: e.target.value })}
                 placeholder="Client full name"
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Date of Birth</label>
-              <input
-                type="date"
-                value={form.date_of_birth}
+              <input type="date" value={form.date_of_birth}
                 onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Guardian Name</label>
-              <input
-                type="text"
-                value={form.guardian_name}
+              <input type="text" value={form.guardian_name}
                 onChange={(e) => setForm({ ...form, guardian_name: e.target.value })}
                 placeholder="Parent or guardian"
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Diagnosis</label>
-              <select
-                value={form.diagnosis}
+              <select value={form.diagnosis}
                 onChange={(e) => setForm({ ...form, diagnosis: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                 <option value="">Select diagnosis...</option>
                 {DIAGNOSES.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
             <div className="md:col-span-2">
               <label className="text-sm font-medium text-gray-700 mb-1 block">Goals</label>
-              <textarea
-                value={form.goals}
+              <textarea value={form.goals}
                 onChange={(e) => setForm({ ...form, goals: e.target.value })}
-                placeholder="Client's treatment goals..."
-                rows={3}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
+                placeholder="Client's treatment goals..." rows={3}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
           </div>
           <div className="mt-4 flex gap-2">
@@ -205,21 +197,13 @@ export default function ClientsPage() {
         </Section>
       )}
 
-      {/* SEARCH + FILTER */}
       {!loading && clients.length > 0 && (
         <div className="flex flex-wrap items-center gap-3">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Search clients..."
-            className="border rounded-lg px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-300"
-          />
-          <select
-            value={filterDiagnosis}
-            onChange={(e) => setFilterDiagnosis(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-          >
+            className="border rounded-lg px-3 py-2 text-sm w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-300" />
+          <select value={filterDiagnosis} onChange={(e) => setFilterDiagnosis(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 w-full sm:w-auto">
             <option value="">All Diagnoses</option>
             {DIAGNOSES.map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
@@ -227,14 +211,28 @@ export default function ClientsPage() {
         </div>
       )}
 
-      {/* CLIENT LIST */}
-      {loading && <p className="text-gray-400 text-sm">Loading clients...</p>}
-      {!loading && filtered.length === 0 && (
-        <Section title="Clients">
-          <p className="text-gray-400 text-sm">
-            {search ? "No clients match your search." : "No clients yet. Click '+ Add Client' to get started."}
-          </p>
-        </Section>
+      {loading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => <ClientSkeleton key={i} />)}
+        </div>
+      )}
+
+      {!loading && !fetchError && clients.length === 0 && (
+        <div className="text-center py-16 border border-dashed border-gray-200 rounded-2xl bg-white">
+          <div className="text-5xl mb-4">👥</div>
+          <p className="text-gray-700 font-semibold text-lg">No clients yet</p>
+          <p className="text-gray-400 text-sm mt-1 mb-6">Add your first client to start tracking sessions, goals, and progress.</p>
+          <Button onClick={() => setShowForm(true)}>+ Add First Client</Button>
+        </div>
+      )}
+
+      {!loading && clients.length > 0 && filtered.length === 0 && (
+        <div className="text-center py-12 border border-dashed border-gray-200 rounded-2xl bg-white">
+          <div className="text-4xl mb-3">🔍</div>
+          <p className="text-gray-600 font-medium">No clients match your search</p>
+          <button onClick={() => { setSearch(""); setFilterDiagnosis(""); }}
+            className="text-blue-500 text-sm mt-2 hover:underline">Clear filters</button>
+        </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -245,75 +243,58 @@ export default function ClientsPage() {
             <div key={client.id} className="border border-gray-100 rounded-xl bg-white hover:shadow-md transition-shadow">
               <div className="p-4">
                 <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <p className="font-semibold text-gray-800">{client.full_name}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-800 truncate">{client.full_name}</p>
                     {age !== null && <p className="text-xs text-gray-400 mt-0.5">Age: {age}</p>}
-                    {client.guardian_name && <p className="text-xs text-gray-400">Guardian: {client.guardian_name}</p>}
+                    {client.guardian_name && <p className="text-xs text-gray-400 truncate">Guardian: {client.guardian_name}</p>}
                     {client.diagnosis && (
                       <span className="inline-block mt-1 text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full border border-blue-200">
                         {client.diagnosis}
                       </span>
                     )}
                   </div>
-                  <button
-                    onClick={() => setExpandedId(isExpanded ? null : client.id)}
-                    className="text-xs text-gray-400 hover:text-gray-600"
-                  >
+                  <button onClick={() => setExpandedId(isExpanded ? null : client.id)}
+                    className="text-xs text-gray-400 hover:text-gray-600 ml-2 shrink-0">
                     {isExpanded ? "▲" : "▼"}
                   </button>
                 </div>
 
-                {/* EXPANDED DETAILS */}
                 {isExpanded && (
                   <div className="mt-3 space-y-3 border-t border-gray-100 pt-3">
                     <div>
                       <label className="text-xs font-medium text-gray-500 block mb-1">Diagnosis</label>
-                      <select
-                        value={client.diagnosis ?? ""}
+                      <select value={client.diagnosis ?? ""}
                         onChange={(e) => handleUpdate(client.id, "diagnosis", e.target.value)}
-                        className="w-full border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300"
-                      >
+                        className="w-full border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300">
                         <option value="">Select diagnosis...</option>
                         {DIAGNOSES.map((d) => <option key={d} value={d}>{d}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="text-xs font-medium text-gray-500 block mb-1">Goals</label>
-                      <textarea
-                        value={client.goals ?? ""}
+                      <textarea value={client.goals ?? ""}
                         onChange={(e) => handleUpdate(client.id, "goals", e.target.value)}
-                        placeholder="Treatment goals..."
-                        rows={3}
-                        className="w-full border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300"
-                      />
+                        placeholder="Treatment goals..." rows={3}
+                        className="w-full border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300" />
                     </div>
                   </div>
                 )}
 
-                {/* QUICK ACTIONS */}
                 <div className="grid grid-cols-2 gap-2 mt-3">
-                  <button
-                    onClick={() => window.location.href = `/dashboard/clients/${client.id}/case`}
-                    className="text-xs px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium transition-colors"
-                  >
+                  <button onClick={() => window.location.href = `/dashboard/clients/${client.id}/case`}
+                    className="text-xs px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium transition-colors">
                     Case
                   </button>
-                  <button
-                    onClick={() => window.location.href = `/dashboard/clients/${client.id}/timeline`}
-                    className="text-xs px-3 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 font-medium transition-colors"
-                  >
+                  <button onClick={() => window.location.href = `/dashboard/clients/${client.id}/timeline`}
+                    className="text-xs px-3 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 font-medium transition-colors">
                     Timeline
                   </button>
-                  <button
-                    onClick={() => window.location.href = `/dashboard/clients/${client.id}/exports`}
-                    className="text-xs px-3 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 font-medium transition-colors"
-                  >
+                  <button onClick={() => window.location.href = `/dashboard/clients/${client.id}/exports`}
+                    className="text-xs px-3 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 font-medium transition-colors">
                     Exports
                   </button>
-                  <button
-                    onClick={() => window.location.href = `/dashboard/clinician/${client.id}`}
-                    className="text-xs px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 font-medium transition-colors"
-                  >
+                  <button onClick={() => window.location.href = `/dashboard/clinician/${client.id}`}
+                    className="text-xs px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 font-medium transition-colors">
                     Clinician
                   </button>
                 </div>
