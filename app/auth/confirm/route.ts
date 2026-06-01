@@ -5,11 +5,15 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const code = searchParams.get("code");
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type");
+  const code = searchParams.get("code");
 
   const cookieStore = await cookies();
+
+  // Create response first so we can set cookies on it
+  const response = NextResponse.redirect(new URL("/dashboard", req.url));
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -17,9 +21,9 @@ export async function GET(req: NextRequest) {
       cookies: {
         getAll() { return cookieStore.getAll(); },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          );
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
         },
       },
     }
@@ -48,7 +52,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=no_user", req.url));
   }
 
-  // Use service role to bypass RLS for the company check
+  // Use service role to bypass RLS
   const adminClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -63,7 +67,7 @@ export async function GET(req: NextRequest) {
     .maybeSingle();
 
   if (companyUser?.company_id) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+    return response; // redirects to /dashboard with cookies set
   }
 
   return NextResponse.redirect(new URL("/onboarding", req.url));
