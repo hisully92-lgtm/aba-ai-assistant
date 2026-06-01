@@ -176,6 +176,7 @@ export default function OnboardingPage() {
         role,
         status: codeVerified ? "active" : "pending",
       });
+      
       if (linkError) throw new Error(linkError.message);
 
       if (codeVerified && verificationCode.trim()) {
