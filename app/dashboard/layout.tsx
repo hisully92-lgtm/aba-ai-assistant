@@ -41,17 +41,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       if (!user) { router.replace("/login"); return; }
 
-      const { data } = await supabase
+      const { data: companyUsers } = await supabase
         .from("company_users")
         .select("status")
         .eq("user_id", user.id)
-        .single();
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle();
 
-      if (!data) {
-        router.replace("/onboarding");
-        return;
-      }
-      if (data.status !== "active") {
+      if (!companyUsers) {
         router.replace("/onboarding");
         return;
       }
