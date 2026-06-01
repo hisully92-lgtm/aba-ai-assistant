@@ -170,7 +170,7 @@ export default function OnboardingPage() {
         // Generate clinic code
         const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I confusion
         const rand = (n: number) => Array.from({length: n}, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-        SnewClinicCode = `${rand(4)}-${rand(4)}`;
+        newClinicCode = `${rand(4)}-${rand(4)}`;
         await supabase.from("companies").update({ clinic_code: newClinicCode }).eq("id", company.id);
         setGeneratedClinicCode(newClinicCode);
       }
