@@ -180,7 +180,7 @@ export default function OnboardingPage() {
         user_id: user.id,
         role,
         status: codeVerified || !selectedRole?.requiresCode ? "active" : "pending",
-      });
+      }, { onConflict: "company_id,user_id" });
 
       if (linkError) throw new Error(linkError.message);
 
