@@ -19,7 +19,8 @@ export default function LoginPage() {
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${window.location.origin}/auth/confirm`,
+        shouldCreateUser: mode === "signup",
       },
     });
 
@@ -55,7 +56,7 @@ export default function LoginPage() {
           {/* Toggle */}
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => { setMode("signin"); setError(null); }}
+              onClick={() => { setMode("signin"); setError(null); setSent(false); }}
               className={`py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 mode === "signin"
                   ? "bg-blue-600 text-white"
@@ -65,7 +66,7 @@ export default function LoginPage() {
               Sign In
             </button>
             <button
-              onClick={() => { setMode("signup"); setError(null); }}
+              onClick={() => { setMode("signup"); setError(null); setSent(false); }}
               className={`py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 mode === "signup"
                   ? "bg-blue-600 text-white"
@@ -83,7 +84,7 @@ export default function LoginPage() {
             <p className="text-sm text-gray-500 mt-1">
               {mode === "signin"
                 ? "Enter your email and we'll send you a magic link to sign in."
-                : "Enter your email to get started. We'll send you a magic link."}
+                : "Enter your email to get started. We'll send you a verification link."}
             </p>
           </div>
 
@@ -97,9 +98,10 @@ export default function LoginPage() {
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-700 text-center space-y-2">
               <p className="text-2xl">📧</p>
               <p className="font-semibold">Check your email!</p>
-              <p>We sent a link to <strong>{email}</strong></p>
+              <p>We sent a {mode === "signin" ? "magic link" : "verification link"} to <strong>{email}</strong></p>
+              <p className="text-xs text-green-600">Click the link in your email to continue.</p>
               <button
-                onClick={() => { setSent(false); setEmail(""); }}
+                onClick={() => { setSent(false); setEmail(""); setError(null); }}
                 className="text-xs text-green-600 underline mt-2"
               >
                 Use a different email
@@ -126,8 +128,25 @@ export default function LoginPage() {
                 disabled={loading}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg text-sm transition-colors disabled:opacity-50"
               >
-                {loading ? "Sending..." : mode === "signin" ? "Send Magic Link" : "Create Account"}
+                {loading ? "Sending..." : mode === "signin" ? "Send Magic Link" : "Create Account →"}
               </button>
+
+              {mode === "signin" && (
+                <p className="text-xs text-center text-gray-400">
+                  Don&apos;t have an account?{" "}
+                  <button onClick={() => setMode("signup")} className="text-blue-500 hover:underline">
+                    Create one
+                  </button>
+                </p>
+              )}
+              {mode === "signup" && (
+                <p className="text-xs text-center text-gray-400">
+                  Already have an account?{" "}
+                  <button onClick={() => setMode("signin")} className="text-blue-500 hover:underline">
+                    Sign in
+                  </button>
+                </p>
+              )}
             </div>
           )}
         </div>
