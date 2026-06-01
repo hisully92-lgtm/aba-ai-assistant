@@ -213,8 +213,8 @@ export default function OnboardingPage() {
         return;
       }
 
-       setStep("done");
-      setTimeout(() => { window.location.href = "/dashboard"; }, 2500);
+      setStep("done");
+      setTimeout(() => { window.location.href = "/dashboard"; }, 1500);
 
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -497,7 +497,7 @@ export default function OnboardingPage() {
             </div>
 
             <button
-              onClick={() => { setStep("done"); setTimeout(() => { window.location.href = "/dashboard"; }, 2500); }}
+              onClick={() => { setStep("done"); setTimeout(() => { window.location.href = "/dashboard"; }, 1500); }}
               className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700">
               Continue to Dashboard →
             </button>
