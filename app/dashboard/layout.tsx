@@ -47,7 +47,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .eq("user_id", user.id)
         .single();
 
-      if (!data || data.status !== "active") {
+      if (!data) {
+        router.replace("/onboarding");
+        return;
+      }
+      if (data.status !== "active") {
         router.replace("/onboarding");
         return;
       }
