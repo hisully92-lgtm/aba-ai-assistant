@@ -58,7 +58,8 @@ export async function GET(req: NextRequest) {
     .select("company_id")
     .eq("user_id", user.id)
     .eq("status", "active")
-    .single();
+    .limit(1)
+    .maybeSingle();
 
   console.log("COMPANY USER:", { companyUser });
 
