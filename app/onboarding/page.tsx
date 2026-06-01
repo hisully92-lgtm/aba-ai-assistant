@@ -174,9 +174,9 @@ export default function OnboardingPage() {
         company_id: companyId,
         user_id: user.id,
         role,
-        status: codeVerified ? "active" : "pending",
+        status: codeVerified || !selectedRole?.requiresCode ? "active" : "pending",
       });
-      
+
       if (linkError) throw new Error(linkError.message);
 
       if (codeVerified && verificationCode.trim()) {
