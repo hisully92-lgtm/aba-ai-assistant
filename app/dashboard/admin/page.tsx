@@ -113,38 +113,33 @@ export default function AdminPage() {
       .single();
     setCompany(companyData);
 
-    // Fetch all company_users with their profiles joined
+    // Fetch company_users
     const { data: companyUsers } = await supabase
       .from("company_users")
-      .select("user_id, role, status, created_at, profiles(full_name)")
+      .select("user_id, role, status, created_at")
       .eq("company_id", companyUser.company_id)
       .eq("status", "active");
 
-    // Also fetch emails from auth.users via profiles
     const userIds = (companyUsers ?? []).map((u: any) => u.user_id);
 
-    // Get emails separately
-    let emailMap: Record<string, string> = {};
     if (userIds.length > 0) {
+      // Fetch profiles separately
       const { data: profileData } = await supabase
         .from("profiles")
         .select("id, full_name")
         .in("id", userIds);
 
-      // Build email map from auth metadata
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (currentUser) {
-        emailMap[currentUser.id] = currentUser.email ?? "";
-      }
-
-      const members: TeamMember[] = (companyUsers ?? []).map((cu: any) => ({
-        user_id: cu.user_id,
-        role: cu.role,
-        status: cu.status,
-        full_name: cu.profiles?.full_name ?? profileData?.find((p: any) => p.id === cu.user_id)?.full_name ?? null,
-        email: emailMap[cu.user_id] ?? null,
-        created_at: cu.created_at,
-      }));
+      const members: TeamMember[] = (companyUsers ?? []).map((cu: any) => {
+        const profile = (profileData ?? []).find((p: any) => p.id === cu.user_id);
+        return {
+          user_id: cu.user_id,
+          role: cu.role,
+          status: cu.status,
+          full_name: profile?.full_name ?? null,
+          email: null,
+          created_at: cu.created_at,
+        };
+      });
 
       setTeam(members);
       setStats(prev => ({ ...prev, totalUsers: members.length }));
