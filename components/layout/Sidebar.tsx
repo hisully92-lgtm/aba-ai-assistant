@@ -30,7 +30,7 @@ const QUICK_INDEX = [
 export default function Sidebar({ onClose }: SidebarProps) {
   const pathname = usePathname();
   const { isAdmin, isSupervisor, isClinician, isStudentAnalyst, isDeveloper } = useRole();
-  const { canAccess } = useFeatureAccess();
+  const { canAccess, loading: accessLoading } = useFeatureAccess();
   const [openSections, setOpenSections] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -352,8 +352,127 @@ export default function Sidebar({ onClose }: SidebarProps) {
     },
   ];
 
+  // Map sidebar labels to feature keys
+  const LABEL_TO_KEY: Record<string, string> = {
+    "Session Notes": "session_notes",
+    "Data Collection Hub": "data_collection",
+    "New Session": "new_session",
+    "Recent Sessions": "recent_sessions",
+    "Session Error Log": "session_error_log",
+    "Session Templates": "session_templates",
+    "Behavior Interventions": "behavior_interventions",
+    "ABC Data": "abc_data",
+    "Active Interventions": "active_interventions",
+    "Behavior Log": "behavior_log",
+    "Intervention History": "intervention_history",
+    "Interval Recording": "interval_recording",
+    "Rate Data": "rate_data",
+    "Visual Analytics": "visual_analytics",
+    "Skill Programs": "skill_programs",
+    "Active Programs": "active_programs",
+    "Add Program": "add_program",
+    "DTT Data Collection": "dtt_data",
+    "Program Books": "program_books",
+    "Program Fidelity": "program_fidelity",
+    "Program Progress": "program_progress",
+    "Clients / Learners": "clients",
+    "Add Client": "add_client",
+    "All Clients": "all_clients",
+    "Assessments": "assessments",
+    "Authorizations": "authorizations",
+    "BIP Plans": "bip_plans",
+    "Client Intake": "client_intake",
+    "Crisis Plans": "crisis_plans",
+    "Discharge Planning": "discharge_planning",
+    "Goals Dashboard": "goals_dashboard",
+    "Treatment Plans": "treatment_plans",
+    "Waitlist": "waitlist",
+    "Schedule": "schedule",
+    "Calendar View": "calendar_view",
+    "Geofence": "geofence",
+    "Reminders": "reminders",
+    "Schedule Conflicts": "schedule_conflicts",
+    "Session Changes": "session_changes",
+    "Session Recordings": "session_recordings",
+    "Signatures": "signatures",
+    "Telehealth": "telehealth",
+    "Time Tracking": "time_tracking",
+    "Waiting Room": "waiting_room",
+    "Insurance & Billing": "insurance_billing",
+    "AI Compliance Check": "ai_compliance",
+    "Claims & Auth": "claims_auth",
+    "CMS-1500 Claims": "cms1500",
+    "Co-pay Tracking": "copay_tracking",
+    "Eligibility Verification": "eligibility",
+    "ERA / EOB Posting": "era_eob",
+    "Insurance Providers": "insurance_providers",
+    "Payroll Logs": "payroll_logs",
+    "Revenue Cycle": "revenue_cycle",
+    "Superbills": "superbills",
+    "Team": "team",
+    "Accounting": "accounting",
+    "Competency Checks": "competency_checks",
+    "Locations": "locations",
+    "Staff Performance": "staff_performance",
+    "Supervision Logs": "supervision_logs",
+    "Time Off Requests": "time_off_requests",
+    "Communication": "communication",
+    "AI Parent Summary": "ai_parent_summary",
+    "Caregiver Training": "caregiver_training",
+    "Direct Messages": "direct_messages",
+    "Home Program Data": "home_program_data",
+    "Notifications": "notifications",
+    "Parent Documents": "parent_documents",
+    "Parent Portal": "parent_portal",
+    "Team Chat": "team_chat",
+    "Clinical": "clinical",
+    "AI Assistant": "ai_assistant",
+    "AI Treatment Plans": "ai_treatment_plans",
+    "Clinician View": "clinician_view",
+    "Incident Reports": "incident_reports",
+    "Preference Assessment": "preference_assessment",
+    "Progress Reports": "progress_reports",
+    "Prompt Fading": "prompt_fading",
+    "RBT Checklist": "rbt_checklist",
+    "Report Templates": "report_templates",
+    "SAFMEDS": "safmeds",
+    "Social Stories": "social_stories",
+    "Suggestions": "suggestions",
+    "Task Analysis": "task_analysis",
+    "Training Library": "training_library",
+    "Visual Supports": "visual_supports",
+    "Analytics": "analytics",
+    "ABA Graphs": "aba_graphs",
+    "Behavior Heatmap": "behavior_heatmap",
+    "Macro Trends": "macro_trends",
+    "History": "history",
+    "AI Request History": "ai_request_history",
+    "Export History": "export_history",
+    "Session History": "session_history",
+    "Profile / Settings": "settings",
+    "40-Hour RBT Course": "rbt_course",
+    "My Availability": "my_availability",
+    "My Credentials": "my_credentials",
+    "My Profile": "my_profile",
+    "Plan & Billing": "plan_billing",
+    "Security": "security",
+    "SMS Alerts": "sms_alerts",
+    "Training Certificate": "training_certificate",
+  };
+
+  const accessFilteredNav = nav.map(item => ({
+    ...item,
+    children: item.children.filter(child => {
+      const key = LABEL_TO_KEY[child.label];
+      return key ? canAccess(key) : true;
+    }),
+  })).filter(item => {
+    const key = LABEL_TO_KEY[item.label];
+    return key ? canAccess(key) : true;
+  });
+
   const filteredNav = searchQuery
-    ? nav.map((item) => ({
+    ? accessFilteredNav.map((item) => ({
         ...item,
         children: item.children.filter((child) =>
           child.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -363,7 +482,13 @@ export default function Sidebar({ onClose }: SidebarProps) {
         item.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.children.length > 0
       )
-    : nav;
+    : accessFilteredNav;
+
+  if (accessLoading) return (
+    <div className="w-64 bg-[#1a2234] flex flex-col items-center justify-center" style={{ height: "100vh" }}>
+      <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
 
   return (
     <div className="w-64 bg-[#1a2234] flex flex-col" style={{ height: "100vh", overflow: "hidden" }}>
