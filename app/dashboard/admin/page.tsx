@@ -97,11 +97,12 @@ export default function AdminPage() {
 
     // Get user's company
     const { data: companyUser } = await supabase
-      .from("company_users")
-      .select("company_id")
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .single();
+        .from("company_users")
+        .select("company_id")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle();
 
     if (companyUser?.company_id) {
       const { data: companyData } = await supabase
@@ -113,9 +114,10 @@ export default function AdminPage() {
 
       // Get users in same company
       const { data: companyUsers } = await supabase
-        .from("company_users")
-        .select("user_id")
-        .eq("company_id", companyUser.company_id);
+          .from("company_users")
+          .select("user_id, role, status")
+          .eq("company_id", companyUser.company_id)
+          .eq("status", "active");
 
       const userIds = (companyUsers ?? []).map((u: any) => u.user_id);
 
