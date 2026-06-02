@@ -22,7 +22,7 @@ const QUICK_INDEX = [
   { label: "Billing", href: "/dashboard/insurance", icon: "🏦" },
   { label: "Analytics", href: "/dashboard/analytics/graphs", icon: "📈" },
   { label: "BIP Plans", href: "/dashboard/bip", icon: "🧠" },
-  { label: "Team", href: "/dashboard/team", icon: "🏢" },
+  { label: "Team", href: "/dashboard/admin", icon: "🏢" },
   { label: "Help", href: "/dashboard/help", icon: "❓" },
 ];
 
@@ -176,16 +176,16 @@ export default function Sidebar({ onClose }: SidebarProps) {
     },
     {
       label: "Team",
-      href: "/dashboard/team",
+      href: "/dashboard/admin",
       icon: "🏢",
       children: sortChildren([
         { label: "Accounting", href: "/dashboard/accounting" },
         { label: "Competency Checks", href: "/dashboard/competency" },
-        { label: "Invite Member", href: "/dashboard/team/invite" },
-        { label: "Locations", href: "/dashboard/team/locations" },
-        { label: "Members", href: "/dashboard/team" },
+        { label: "Locations", href: "/dashboard/admin/locations" },
+        { label: "Role Codes", href: "/dashboard/admin" },
         { label: "Staff Performance", href: "/dashboard/staff-performance" },
         { label: "Supervision Logs", href: "/dashboard/supervision" },
+        { label: "Team Management", href: "/dashboard/admin" },
         { label: "Time Off Requests", href: "/dashboard/time-off" },
       ]),
     },
