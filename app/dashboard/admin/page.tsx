@@ -8,13 +8,13 @@ import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
 
-type Profile = {
-  id: string;
+type TeamMember = {
+  user_id: string;
+  role: string | null;
+  status: string;
   full_name: string | null;
   email: string | null;
-  role: string | null;
   created_at: string;
-  status: string | null;
 };
 
 type ClinicianReport = {
@@ -60,17 +60,18 @@ function generateCode(role: string, clinicCode: string): string {
 }
 
 export default function AdminPage() {
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [team, setTeam] = useState<TeamMember[]>([]);
   const [company, setCompany] = useState<Company | null>(null);
   const [roleCodes, setRoleCodes] = useState<RoleCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState("rbt");
+  const [inviteRole, setInviteRole] = useState("clinician");
   const [inviteName, setInviteName] = useState("");
   const [inviting, setInviting] = useState(false);
   const [inviteSuccess, setInviteSuccess] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"users" | "codes" | "reports" | "logs" | "system">("users");
   const [logs, setLogs] = useState<any[]>([]);
   const [stats, setStats] = useState({ totalUsers: 0, totalClients: 0, totalSessions: 0, totalIncidents: 0 });
@@ -78,7 +79,6 @@ export default function AdminPage() {
   const [expiringAuths, setExpiringAuths] = useState<any[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
 
-  // Code generator state
   const [newCodeRole, setNewCodeRole] = useState("supervisor");
   const [newCodeExpiry, setNewCodeExpiry] = useState(() => {
     const d = new Date();
@@ -88,57 +88,74 @@ export default function AdminPage() {
   const [generatingCode, setGeneratingCode] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
-  useEffect(() => { init(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { void init(); }, []);
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
 
-    // Get user's company
     const { data: companyUser } = await supabase
-        .from("company_users")
-        .select("company_id")
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .limit(1)
-        .maybeSingle();
+      .from("company_users")
+      .select("company_id")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle();
 
-    if (companyUser?.company_id) {
-      const { data: companyData } = await supabase
-        .from("companies")
-        .select("*")
-        .eq("id", companyUser.company_id)
-        .single();
-      setCompany(companyData);
+    if (!companyUser?.company_id) { setLoading(false); return; }
 
-      // Get users in same company
-      const { data: companyUsers } = await supabase
-          .from("company_users")
-          .select("user_id, role, status")
-          .eq("company_id", companyUser.company_id)
-          .eq("status", "active");
+    const { data: companyData } = await supabase
+      .from("companies")
+      .select("*")
+      .eq("id", companyUser.company_id)
+      .single();
+    setCompany(companyData);
 
-      const userIds = (companyUsers ?? []).map((u: any) => u.user_id);
+    // Fetch all company_users with their profiles joined
+    const { data: companyUsers } = await supabase
+      .from("company_users")
+      .select("user_id, role, status, created_at, profiles(full_name)")
+      .eq("company_id", companyUser.company_id)
+      .eq("status", "active");
 
-      if (userIds.length > 0) {
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("*")
-          .in("id", userIds)
-          .order("created_at", { ascending: false });
-        setProfiles(profileData ?? []);
-        setStats(prev => ({ ...prev, totalUsers: profileData?.length ?? 0 }));
+    // Also fetch emails from auth.users via profiles
+    const userIds = (companyUsers ?? []).map((u: any) => u.user_id);
+
+    // Get emails separately
+    let emailMap: Record<string, string> = {};
+    if (userIds.length > 0) {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", userIds);
+
+      // Build email map from auth metadata
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (currentUser) {
+        emailMap[currentUser.id] = currentUser.email ?? "";
       }
 
-      // Get role codes for this company
-      const { data: codesData } = await supabase
-        .from("role_codes")
-        .select("*")
-        .eq("company_id", companyUser.company_id)
-        .order("created_at", { ascending: false });
-      setRoleCodes(codesData ?? []);
+      const members: TeamMember[] = (companyUsers ?? []).map((cu: any) => ({
+        user_id: cu.user_id,
+        role: cu.role,
+        status: cu.status,
+        full_name: cu.profiles?.full_name ?? profileData?.find((p: any) => p.id === cu.user_id)?.full_name ?? null,
+        email: emailMap[cu.user_id] ?? null,
+        created_at: cu.created_at,
+      }));
+
+      setTeam(members);
+      setStats(prev => ({ ...prev, totalUsers: members.length }));
     }
+
+    const { data: codesData } = await supabase
+      .from("role_codes")
+      .select("*")
+      .eq("company_id", companyUser.company_id)
+      .order("created_at", { ascending: false });
+    setRoleCodes(codesData ?? []);
 
     const [{ count: clientCount }, { count: sessionCount }, { count: incidentCount }] = await Promise.all([
       supabase.from("clients").select("*", { count: "exact", head: true }),
@@ -153,7 +170,9 @@ export default function AdminPage() {
       totalIncidents: incidentCount ?? 0,
     }));
 
-    const { data: logData } = await supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(50);
+    const { data: logData } = await supabase
+      .from("audit_logs").select("*")
+      .order("created_at", { ascending: false }).limit(50);
     setLogs(logData ?? []);
     setLoading(false);
   }
@@ -161,23 +180,15 @@ export default function AdminPage() {
   async function generateRoleCode() {
     if (!company) return;
     setGeneratingCode(true);
-
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
-
     const clinicCode = company.clinic_code ?? company.slug.toUpperCase().slice(0, 6);
     const code = generateCode(newCodeRole, clinicCode);
-
     const { data } = await supabase.from("role_codes").insert([{
-      code,
-      role: newCodeRole,
-      used: false,
-      expires_at: newCodeExpiry,
-      company_id: company.id,
-      created_by: user.id,
+      code, role: newCodeRole, used: false,
+      expires_at: newCodeExpiry, company_id: company.id, created_by: user.id,
     }]).select().single();
-
     if (data) setRoleCodes(prev => [data, ...prev]);
     setGeneratingCode(false);
   }
@@ -209,16 +220,16 @@ export default function AdminPage() {
 
     setExpiringAuths(auths ?? []);
 
-    const clinicians = profiles.filter(p =>
-      ["clinician", "rbt", "bt", "supervisor", "student_analyst"].includes(p.role ?? "")
+    const clinicians = team.filter(m =>
+      ["clinician", "rbt", "bt", "supervisor", "student_analyst"].includes(m.role ?? "")
     );
 
     const reports: ClinicianReport[] = clinicians.map(c => {
-      const userSessions = (sessions ?? []).filter(s => s.created_by === c.id);
-      const userClients = (clients ?? []).filter(cl => cl.created_by === c.id);
+      const userSessions = (sessions ?? []).filter(s => s.created_by === c.user_id);
+      const userClients = (clients ?? []).filter(cl => cl.created_by === c.user_id);
       const pendingNotes = userSessions.filter(s => s.status === "pending").length;
       return {
-        id: c.id,
+        id: c.user_id,
         full_name: c.full_name ?? "Unknown",
         role: c.role ?? "",
         sessionCount: userSessions.length,
@@ -240,47 +251,59 @@ export default function AdminPage() {
 
   async function updateRole(userId: string, role: string) {
     await supabase.from("profiles").update({ role } as any).eq("id", userId);
-    setProfiles(prev => prev.map(p => p.id === userId ? { ...p, role } : p));
+    await supabase.from("company_users").update({ role }).eq("user_id", userId).eq("company_id", company?.id ?? "");
+    setTeam(prev => prev.map(m => m.user_id === userId ? { ...m, role } : m));
   }
 
   async function updateStatus(userId: string, status: string) {
     await supabase.from("profiles").update({ status } as any).eq("id", userId);
-    setProfiles(prev => prev.map(p => p.id === userId ? { ...p, status } : p));
-
-    // Also update company_users status
-    if (company) {
-      await supabase.from("company_users")
-        .update({ status })
-        .eq("user_id", userId)
-        .eq("company_id", company.id);
+    await supabase.from("company_users").update({ status }).eq("user_id", userId).eq("company_id", company?.id ?? "");
+    if (status === "active") {
+      setTeam(prev => prev.map(m => m.user_id === userId ? { ...m, status } : m));
+    } else {
+      setTeam(prev => prev.filter(m => m.user_id !== userId));
     }
   }
 
   async function handleInvite() {
-    if (!inviteEmail || !inviteName) return;
+    if (!inviteEmail || !company) return;
     setInviting(true);
-    const res = await fetch("/api/admin/create-user", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: inviteEmail, full_name: inviteName, role: inviteRole }),
+    setInviteError(null);
+
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email: inviteEmail.trim(),
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/confirm`,
+        shouldCreateUser: true,
+        data: {
+          full_name: inviteName.trim(),
+          invited_to_company: company.id,
+          invited_role: inviteRole,
+        }
+      },
     });
-    if (res.ok) {
+
+    if (otpError) {
+      setInviteError(otpError.message);
+    } else {
       setInviteSuccess(true);
-      setInviteEmail(""); setInviteName(""); setInviteRole("rbt");
-      setTimeout(() => setInviteSuccess(false), 3000);
-      await init();
+      setInviteEmail("");
+      setInviteName("");
+      setInviteRole("clinician");
+      setTimeout(() => setInviteSuccess(false), 4000);
     }
     setInviting(false);
   }
 
   function daysUntil(dateStr: string) {
-    const now = new Date();
-    return Math.ceil((new Date(dateStr).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.ceil((new Date(dateStr).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
   }
 
-  const filtered = profiles.filter(p => {
-    const matchesSearch = !search || p.full_name?.toLowerCase().includes(search.toLowerCase()) || p.email?.toLowerCase().includes(search.toLowerCase());
-    const matchesRole = !filterRole || p.role === filterRole;
+  const filtered = team.filter(m => {
+    const matchesSearch = !search ||
+      m.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+      m.email?.toLowerCase().includes(search.toLowerCase());
+    const matchesRole = !filterRole || m.role === filterRole;
     return matchesSearch && matchesRole;
   });
 
@@ -306,7 +329,6 @@ export default function AdminPage() {
         </div>
       </PageHeader>
 
-      {/* CLINIC ID BANNER */}
       {company && (
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-5 text-white">
           <div className="flex justify-between items-start flex-wrap gap-3">
@@ -318,7 +340,9 @@ export default function AdminPage() {
             <div className="text-right">
               <p className="text-xs text-blue-200 uppercase tracking-wide mb-1">Clinic ID Code</p>
               <div className="flex items-center gap-2">
-                <p className="text-2xl font-black font-mono tracking-widest">{company.clinic_code ?? company.slug.toUpperCase().slice(0, 8)}</p>
+                <p className="text-2xl font-black font-mono tracking-widest">
+                  {company.clinic_code ?? company.slug.toUpperCase().slice(0, 8)}
+                </p>
                 <button
                   onClick={() => navigator.clipboard.writeText(company.clinic_code ?? company.slug.toUpperCase().slice(0, 8))}
                   className="text-xs bg-white/20 hover:bg-white/30 px-2 py-1 rounded-lg transition-colors">
@@ -330,7 +354,6 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* STATS */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: "Team Members", value: stats.totalUsers, color: "text-blue-600" },
@@ -345,7 +368,6 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {/* TABS */}
       <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
         {[
           { key: "users", label: "Team" },
@@ -361,26 +383,39 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {/* USERS TAB */}
       {activeTab === "users" && (
         <>
           <Section title="Invite New Team Member">
-            {inviteSuccess && <p className="text-green-600 text-sm mb-3">Invitation sent!</p>}
+            {inviteSuccess && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700 mb-3">
+                ✓ Magic link sent to {inviteEmail || "staff member"}. They will receive an email to join your clinic.
+              </div>
+            )}
+            {inviteError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 mb-3">
+                {inviteError}
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <input type="text" value={inviteName} onChange={e => setInviteName(e.target.value)}
-                placeholder="Full name"
+                placeholder="Full name (optional)"
                 className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
               <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)}
-                placeholder="Email address"
+                placeholder="Email address *"
                 className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
               <div className="flex gap-2">
                 <select value={inviteRole} onChange={e => setInviteRole(e.target.value)}
                   className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                   {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
-                <Button onClick={handleInvite} loading={inviting} disabled={!inviteEmail || !inviteName}>Invite</Button>
+                <Button onClick={handleInvite} loading={inviting} disabled={!inviteEmail}>
+                  Send Invite
+                </Button>
               </div>
             </div>
+            <p className="text-xs text-gray-400 mt-2">
+              Staff will receive a magic link. They still need to enter your clinic code <strong>{company?.clinic_code}</strong> during onboarding.
+            </p>
           </Section>
 
           <div className="flex flex-wrap gap-3 items-center">
@@ -395,32 +430,41 @@ export default function AdminPage() {
             <p className="text-sm text-gray-400">{filtered.length} members</p>
           </div>
 
-          {loading && <p className="text-gray-400 text-sm">Loading...</p>}
+          {loading && <p className="text-gray-400 text-sm">Loading team...</p>}
+
+          {!loading && team.length === 0 && (
+            <div className="text-center py-12 border border-dashed border-gray-200 rounded-2xl">
+              <p className="text-4xl mb-3">👥</p>
+              <p className="text-gray-600 font-medium">No team members yet</p>
+              <p className="text-gray-400 text-sm mt-1">Invite staff or share your clinic code so they can join.</p>
+            </div>
+          )}
+
           <div className="space-y-2">
-            {filtered.map(user => (
-              <div key={user.id} className="border border-gray-100 rounded-xl p-4 bg-white">
+            {filtered.map(member => (
+              <div key={member.user_id} className="border border-gray-100 rounded-xl p-4 bg-white">
                 <div className="flex justify-between items-center flex-wrap gap-3">
                   <div>
-                    <p className="font-semibold text-gray-800">{user.full_name ?? "Unknown"}</p>
-                    <p className="text-xs text-gray-400">{user.email} · Joined {new Date(user.created_at).toLocaleDateString()}</p>
-                    <div className="flex gap-2 mt-1">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${roleBadge(user.role)}`}>
-                        {user.role ?? "no role"} (tier {ROLE_TIERS[user.role ?? ""] ?? 0})
+                    <p className="font-semibold text-gray-800">{member.full_name ?? "Unknown"}</p>
+                    <p className="text-xs text-gray-400">
+                      {member.email && `${member.email} · `}
+                      Joined {new Date(member.created_at).toLocaleDateString()}
+                    </p>
+                    <div className="flex gap-2 mt-1 flex-wrap">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${roleBadge(member.role)}`}>
+                        {member.role ?? "no role"} (tier {ROLE_TIERS[member.role ?? ""] ?? 0})
                       </span>
-                      {user.status === "inactive" && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">Inactive</span>
-                      )}
-                      {user.status === "suspended" && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Suspended</span>
-                      )}
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                        {member.status}
+                      </span>
                     </div>
                   </div>
                   <div className="flex gap-2 flex-wrap">
-                    <select value={user.role ?? ""} onChange={e => updateRole(user.id, e.target.value)}
+                    <select value={member.role ?? ""} onChange={e => updateRole(member.user_id, e.target.value)}
                       className="text-xs border rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300">
                       {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                     </select>
-                    <select value={user.status ?? "active"} onChange={e => updateStatus(user.id, e.target.value)}
+                    <select value={member.status} onChange={e => updateStatus(member.user_id, e.target.value)}
                       className="text-xs border rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300">
                       <option value="active">Active</option>
                       <option value="inactive">Inactive</option>
@@ -434,12 +478,11 @@ export default function AdminPage() {
         </>
       )}
 
-      {/* ROLE CODES TAB */}
       {activeTab === "codes" && (
         <div className="space-y-6">
           <Section title="Generate Role Code">
             <p className="text-sm text-gray-500 mb-4">
-              Generate a one-time code for staff who need elevated roles (Admin, Supervisor, etc). Send the code to the staff member — they enter it during signup.
+              Generate a one-time code for staff who need elevated roles. Send the code — they enter it during onboarding.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
@@ -460,7 +503,6 @@ export default function AdminPage() {
                 </Button>
               </div>
             </div>
-
             {company && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
                 Codes are prefixed with your clinic code: <strong>{company.clinic_code ?? company.slug.toUpperCase().slice(0, 6)}</strong>
@@ -468,7 +510,7 @@ export default function AdminPage() {
             )}
           </Section>
 
-          <Section title="Active Role Codes">
+          <Section title="Role Codes">
             {roleCodes.length === 0 ? (
               <p className="text-gray-400 text-sm">No codes generated yet.</p>
             ) : (
@@ -512,11 +554,9 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* REPORTS TAB */}
       {activeTab === "reports" && (
         <div className="space-y-6">
           {reportLoading && <p className="text-gray-400 text-sm">Loading reports...</p>}
-
           {expiringAuths.length > 0 && (
             <Section title="Expiring Authorizations (Next 30 Days)">
               <div className="space-y-2">
@@ -534,7 +574,6 @@ export default function AdminPage() {
               </div>
             </Section>
           )}
-
           <Section title="Team Activity Report">
             {clinicianReports.length === 0 ? (
               <p className="text-gray-400 text-sm">No clinician data yet.</p>
@@ -571,7 +610,6 @@ export default function AdminPage() {
               </div>
             )}
           </Section>
-
           <Section title="Clinic Summary">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
@@ -590,7 +628,6 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* LOGS TAB */}
       {activeTab === "logs" && (
         <Section title="Recent Audit Logs">
           {logs.length === 0 ? (
@@ -614,7 +651,6 @@ export default function AdminPage() {
         </Section>
       )}
 
-      {/* SYSTEM TAB */}
       {activeTab === "system" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
