@@ -113,37 +113,21 @@ export default function AdminPage() {
       .single();
     setCompany(companyData);
 
-    // Fetch company_users
-    const { data: companyUsers } = await supabase
-      .from("company_users")
-      .select("user_id, role, status, created_at")
-      .eq("company_id", companyUser.company_id)
-      .eq("status", "active");
+    // Fetch team using RPC
+    const { data: teamData } = await supabase
+      .rpc("get_company_team", { company_uuid: companyUser.company_id });
 
-    const userIds = (companyUsers ?? []).map((u: any) => u.user_id);
+    const members: TeamMember[] = (teamData ?? []).map((m: any) => ({
+      user_id: m.user_id,
+      role: m.role,
+      status: m.status,
+      full_name: m.full_name,
+      email: null,
+      created_at: m.created_at,
+    }));
 
-    if (userIds.length > 0) {
-      // Fetch profiles separately
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .in("id", userIds);
-
-      const members: TeamMember[] = (companyUsers ?? []).map((cu: any) => {
-        const profile = (profileData ?? []).find((p: any) => p.id === cu.user_id);
-        return {
-          user_id: cu.user_id,
-          role: cu.role,
-          status: cu.status,
-          full_name: profile?.full_name ?? null,
-          email: null,
-          created_at: cu.created_at,
-        };
-      });
-
-      setTeam(members);
-      setStats(prev => ({ ...prev, totalUsers: members.length }));
-    }
+    setTeam(members);
+    setStats(prev => ({ ...prev, totalUsers: members.length }));
 
     const { data: codesData } = await supabase
       .from("role_codes")
