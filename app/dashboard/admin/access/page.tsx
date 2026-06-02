@@ -2,380 +2,460 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
-import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
-import Button from "@/components/ui/Button";
 
-type FeatureAccess = {
-  id?: string;
-  feature_key: string;
-  feature_label: string;
-  feature_category: string;
-  roles_with_access: string[];
-  is_enabled: boolean;
-};
+const ROLES = ["clinician", "bt", "supervisor", "student_analyst", "parent"];
 
-const ROLES = ["admin", "director", "supervisor", "bcba", "clinician", "rbt", "bt", "student_analyst"];
-
-const ROLE_LABELS: Record<string, string> = {
-  admin: "Admin",
-  director: "Director",
-  supervisor: "Supervisor",
-  bcba: "BCBA",
-  clinician: "Clinician",
-  rbt: "RBT",
-  bt: "BT",
-  student_analyst: "Student Analyst",
-};
-
-const ROLE_COLORS: Record<string, string> = {
-  admin: "bg-red-100 text-red-700 border-red-200",
-  director: "bg-purple-100 text-purple-700 border-purple-200",
-  supervisor: "bg-blue-100 text-blue-700 border-blue-200",
-  bcba: "bg-green-100 text-green-700 border-green-200",
-  clinician: "bg-teal-100 text-teal-700 border-teal-200",
-  rbt: "bg-yellow-100 text-yellow-700 border-yellow-200",
-  bt: "bg-orange-100 text-orange-700 border-orange-200",
-  student_analyst: "bg-gray-100 text-gray-700 border-gray-200",
-};
-
-// All features that can be controlled
-const DEFAULT_FEATURES: Omit<FeatureAccess, "id">[] = [
-  // Session Notes
-  { feature_key: "session_notes", feature_label: "Session Notes", feature_category: "Session Notes", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "session_templates", feature_label: "Session Templates", feature_category: "Session Notes", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "data_collection", feature_label: "Data Collection Hub", feature_category: "Session Notes", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "session_errors", feature_label: "Session Error Log", feature_category: "Session Notes", roles_with_access: ["admin","director","supervisor","bcba","clinician"], is_enabled: true },
-  // Behavior
-  { feature_key: "behaviors", feature_label: "Behavior Interventions", feature_category: "Behavior", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "behavior_log", feature_label: "Behavior Log", feature_category: "Behavior", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "bip_plans", feature_label: "BIP Plans", feature_category: "Behavior", roles_with_access: ["admin","director","supervisor","bcba","clinician"], is_enabled: true },
-  { feature_key: "crisis_plans", feature_label: "Crisis Plans", feature_category: "Behavior", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "interval_recording", feature_label: "Interval Recording", feature_category: "Behavior", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "rate_data", feature_label: "Rate Data", feature_category: "Behavior", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  // Programs
-  { feature_key: "programs", feature_label: "Skill Programs", feature_category: "Programs", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "dtt", feature_label: "DTT Data Collection", feature_category: "Programs", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "prompt_fading", feature_label: "Prompt Fading", feature_category: "Programs", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "task_analysis", feature_label: "Task Analysis", feature_category: "Programs", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "program_books", feature_label: "Program Books", feature_category: "Programs", roles_with_access: ["admin","director","supervisor","bcba","clinician"], is_enabled: true },
-  // Clients
-  { feature_key: "clients", feature_label: "Client List", feature_category: "Clients", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "client_intake", feature_label: "Client Intake", feature_category: "Clients", roles_with_access: ["admin","director","supervisor","bcba","clinician"], is_enabled: true },
-  { feature_key: "assessments", feature_label: "Assessments", feature_category: "Clients", roles_with_access: ["admin","director","supervisor","bcba","clinician"], is_enabled: true },
-  { feature_key: "goals", feature_label: "Goals Dashboard", feature_category: "Clients", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "treatment_plans", feature_label: "Treatment Plans", feature_category: "Clients", roles_with_access: ["admin","director","supervisor","bcba","clinician"], is_enabled: true },
-  { feature_key: "discharge", feature_label: "Discharge Planning", feature_category: "Clients", roles_with_access: ["admin","director","supervisor","bcba","clinician"], is_enabled: true },
-  { feature_key: "authorizations", feature_label: "Authorizations", feature_category: "Clients", roles_with_access: ["admin","director","supervisor","bcba","clinician"], is_enabled: true },
-  { feature_key: "waitlist", feature_label: "Waitlist", feature_category: "Clients", roles_with_access: ["admin","director","supervisor","bcba"], is_enabled: true },
-  // Schedule
-  { feature_key: "schedule", feature_label: "Schedule / Calendar", feature_category: "Schedule", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "signatures", feature_label: "Signatures", feature_category: "Schedule", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "timetracking", feature_label: "Time Tracking", feature_category: "Schedule", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "telehealth", feature_label: "Telehealth", feature_category: "Schedule", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "geofence", feature_label: "Geofence / Clock In", feature_category: "Schedule", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  // Billing
-  { feature_key: "insurance", feature_label: "Insurance & Claims", feature_category: "Billing", roles_with_access: ["admin","director","supervisor","bcba"], is_enabled: true },
-  { feature_key: "era_eob", feature_label: "ERA / EOB Posting", feature_category: "Billing", roles_with_access: ["admin","director"], is_enabled: true },
-  { feature_key: "cms1500", feature_label: "CMS-1500 Claims", feature_category: "Billing", roles_with_access: ["admin","director","supervisor"], is_enabled: true },
-  { feature_key: "copay", feature_label: "Co-pay Tracking", feature_category: "Billing", roles_with_access: ["admin","director","supervisor","bcba"], is_enabled: true },
-  { feature_key: "superbills", feature_label: "Superbills", feature_category: "Billing", roles_with_access: ["admin","director","supervisor"], is_enabled: true },
-  { feature_key: "payroll", feature_label: "Payroll Logs", feature_category: "Billing", roles_with_access: ["admin","director"], is_enabled: true },
-  // Team
-  { feature_key: "team", feature_label: "Team Members", feature_category: "Team", roles_with_access: ["admin","director","supervisor","bcba","clinician"], is_enabled: true },
-  { feature_key: "supervision", feature_label: "Supervision Logs", feature_category: "Team", roles_with_access: ["admin","director","supervisor","bcba","student_analyst"], is_enabled: true },
-  { feature_key: "competency", feature_label: "Competency Checks", feature_category: "Team", roles_with_access: ["admin","director","supervisor","bcba"], is_enabled: true },
-  { feature_key: "staff_performance", feature_label: "Staff Performance", feature_category: "Team", roles_with_access: ["admin","director","supervisor"], is_enabled: true },
-  { feature_key: "time_off", feature_label: "Time Off Requests", feature_category: "Team", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "accounting", feature_label: "Accounting", feature_category: "Team", roles_with_access: ["admin","director"], is_enabled: true },
-  // Clinical
-  { feature_key: "progress_reports", feature_label: "Progress Reports", feature_category: "Clinical", roles_with_access: ["admin","director","supervisor","bcba","clinician"], is_enabled: true },
-  { feature_key: "incidents", feature_label: "Incident Reports", feature_category: "Clinical", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "caregiver_training", feature_label: "Caregiver Training", feature_category: "Clinical", roles_with_access: ["admin","director","supervisor","bcba","clinician"], is_enabled: true },
-  { feature_key: "fidelity", feature_label: "Program Fidelity", feature_category: "Clinical", roles_with_access: ["admin","director","supervisor","bcba","clinician"], is_enabled: true },
-  { feature_key: "preference_assessment", feature_label: "Preference Assessments", feature_category: "Clinical", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "social_stories", feature_label: "Social Stories", feature_category: "Clinical", roles_with_access: ["admin","director","supervisor","bcba","clinician"], is_enabled: true },
-  { feature_key: "visual_supports", feature_label: "Visual Supports", feature_category: "Clinical", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "safmeds", feature_label: "SAFMEDS", feature_category: "Clinical", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt","student_analyst"], is_enabled: true },
-  { feature_key: "rbt_checklist", feature_label: "RBT Daily Checklist", feature_category: "Clinical", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "ai_treatment_plans", feature_label: "AI Treatment Plans", feature_category: "Clinical", roles_with_access: ["admin","director","supervisor","bcba","clinician"], is_enabled: true },
-  // Analytics
-  { feature_key: "analytics_graphs", feature_label: "ABA Graphs", feature_category: "Analytics", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "analytics_heatmap", feature_label: "Behavior Heatmap", feature_category: "Analytics", roles_with_access: ["admin","director","supervisor","bcba","clinician"], is_enabled: true },
-  { feature_key: "analytics_macro", feature_label: "Macro Trends", feature_category: "Analytics", roles_with_access: ["admin","director","supervisor"], is_enabled: true },
-  // Communication
-  { feature_key: "parent_portal", feature_label: "Parent Portal", feature_category: "Communication", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt"], is_enabled: true },
-  { feature_key: "direct_messages", feature_label: "Direct Messages", feature_category: "Communication", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt","student_analyst"], is_enabled: true },
-  { feature_key: "notifications", feature_label: "Notifications", feature_category: "Communication", roles_with_access: ["admin","director","supervisor","bcba","clinician","rbt","bt","student_analyst"], is_enabled: true },
-  // Admin
-  { feature_key: "admin_panel", feature_label: "Admin Panel", feature_category: "Admin", roles_with_access: ["admin","director","developer"], is_enabled: true },
-  { feature_key: "feature_access", feature_label: "Feature Access Control", feature_category: "Admin", roles_with_access: ["admin","director","developer"], is_enabled: true },
-  { feature_key: "locations", feature_label: "Location Management", feature_category: "Admin", roles_with_access: ["admin","director","developer"], is_enabled: true },
-  { feature_key: "audit_logs", feature_label: "Audit Logs", feature_category: "Admin", roles_with_access: ["admin","director","developer"], is_enabled: true },
+const SECTIONS = [
+  {
+    key: "session_notes",
+    label: "Session Notes",
+    icon: "📋",
+    children: [
+      { key: "data_collection", label: "Data Collection Hub" },
+      { key: "new_session", label: "New Session" },
+      { key: "recent_sessions", label: "Recent Sessions" },
+      { key: "session_error_log", label: "Session Error Log" },
+      { key: "session_templates", label: "Session Templates" },
+    ],
+  },
+  {
+    key: "behavior_interventions",
+    label: "Behavior Interventions",
+    icon: "🧠",
+    children: [
+      { key: "abc_data", label: "ABC Data" },
+      { key: "active_interventions", label: "Active Interventions" },
+      { key: "behavior_log", label: "Behavior Log" },
+      { key: "intervention_history", label: "Intervention History" },
+      { key: "interval_recording", label: "Interval Recording" },
+      { key: "rate_data", label: "Rate Data" },
+      { key: "visual_analytics", label: "Visual Analytics" },
+    ],
+  },
+  {
+    key: "skill_programs",
+    label: "Skill Programs",
+    icon: "🎯",
+    children: [
+      { key: "active_programs", label: "Active Programs" },
+      { key: "add_program", label: "Add Program" },
+      { key: "dtt_data", label: "DTT Data Collection" },
+      { key: "program_books", label: "Program Books" },
+      { key: "program_fidelity", label: "Program Fidelity" },
+      { key: "program_progress", label: "Program Progress" },
+    ],
+  },
+  {
+    key: "clients",
+    label: "Clients / Learners",
+    icon: "👥",
+    children: [
+      { key: "add_client", label: "Add Client" },
+      { key: "all_clients", label: "All Clients" },
+      { key: "assessments", label: "Assessments" },
+      { key: "authorizations", label: "Authorizations" },
+      { key: "bip_plans", label: "BIP Plans" },
+      { key: "client_intake", label: "Client Intake" },
+      { key: "crisis_plans", label: "Crisis Plans" },
+      { key: "discharge_planning", label: "Discharge Planning" },
+      { key: "goals_dashboard", label: "Goals Dashboard" },
+      { key: "treatment_plans", label: "Treatment Plans" },
+      { key: "waitlist", label: "Waitlist" },
+    ],
+  },
+  {
+    key: "schedule",
+    label: "Schedule",
+    icon: "📅",
+    children: [
+      { key: "calendar_view", label: "Calendar View" },
+      { key: "geofence", label: "Geofence" },
+      { key: "reminders", label: "Reminders" },
+      { key: "schedule_conflicts", label: "Schedule Conflicts" },
+      { key: "session_changes", label: "Session Changes" },
+      { key: "session_recordings", label: "Session Recordings" },
+      { key: "signatures", label: "Signatures" },
+      { key: "telehealth", label: "Telehealth" },
+      { key: "time_tracking", label: "Time Tracking" },
+      { key: "waiting_room", label: "Waiting Room" },
+    ],
+  },
+  {
+    key: "insurance_billing",
+    label: "Insurance & Billing",
+    icon: "🏦",
+    children: [
+      { key: "ai_compliance", label: "AI Compliance Check" },
+      { key: "claims_auth", label: "Claims & Auth" },
+      { key: "cms1500", label: "CMS-1500 Claims" },
+      { key: "copay_tracking", label: "Co-pay Tracking" },
+      { key: "eligibility", label: "Eligibility Verification" },
+      { key: "era_eob", label: "ERA / EOB Posting" },
+      { key: "insurance_providers", label: "Insurance Providers" },
+      { key: "payroll_logs", label: "Payroll Logs" },
+      { key: "revenue_cycle", label: "Revenue Cycle" },
+      { key: "superbills", label: "Superbills" },
+    ],
+  },
+  {
+    key: "team",
+    label: "Team",
+    icon: "🏢",
+    children: [
+      { key: "accounting", label: "Accounting" },
+      { key: "competency_checks", label: "Competency Checks" },
+      { key: "locations", label: "Locations" },
+      { key: "staff_performance", label: "Staff Performance" },
+      { key: "supervision_logs", label: "Supervision Logs" },
+      { key: "time_off_requests", label: "Time Off Requests" },
+    ],
+  },
+  {
+    key: "communication",
+    label: "Communication",
+    icon: "💬",
+    children: [
+      { key: "ai_parent_summary", label: "AI Parent Summary" },
+      { key: "caregiver_training", label: "Caregiver Training" },
+      { key: "direct_messages", label: "Direct Messages" },
+      { key: "home_program_data", label: "Home Program Data" },
+      { key: "notifications", label: "Notifications" },
+      { key: "parent_documents", label: "Parent Documents" },
+      { key: "parent_portal", label: "Parent Portal" },
+      { key: "team_chat", label: "Team Chat" },
+    ],
+  },
+  {
+    key: "clinical",
+    label: "Clinical",
+    icon: "🏥",
+    children: [
+      { key: "ai_assistant", label: "AI Assistant" },
+      { key: "ai_treatment_plans", label: "AI Treatment Plans" },
+      { key: "clinician_view", label: "Clinician View" },
+      { key: "incident_reports", label: "Incident Reports" },
+      { key: "preference_assessment", label: "Preference Assessment" },
+      { key: "progress_reports", label: "Progress Reports" },
+      { key: "prompt_fading", label: "Prompt Fading" },
+      { key: "rbt_checklist", label: "RBT Checklist" },
+      { key: "report_templates", label: "Report Templates" },
+      { key: "safmeds", label: "SAFMEDS" },
+      { key: "social_stories", label: "Social Stories" },
+      { key: "suggestions", label: "Suggestions" },
+      { key: "task_analysis", label: "Task Analysis" },
+      { key: "training_library", label: "Training Library" },
+      { key: "visual_supports", label: "Visual Supports" },
+    ],
+  },
+  {
+    key: "analytics",
+    label: "Analytics",
+    icon: "📈",
+    children: [
+      { key: "aba_graphs", label: "ABA Graphs" },
+      { key: "behavior_heatmap", label: "Behavior Heatmap" },
+      { key: "macro_trends", label: "Macro Trends" },
+    ],
+  },
+  {
+    key: "history",
+    label: "History",
+    icon: "📁",
+    children: [
+      { key: "ai_request_history", label: "AI Request History" },
+      { key: "export_history", label: "Export History" },
+      { key: "progress_reports_history", label: "Progress Reports" },
+      { key: "session_history", label: "Session History" },
+    ],
+  },
+  {
+    key: "settings",
+    label: "Profile / Settings",
+    icon: "⚙️",
+    children: [
+      { key: "rbt_course", label: "40-Hour RBT Course" },
+      { key: "my_availability", label: "My Availability" },
+      { key: "my_credentials", label: "My Credentials" },
+      { key: "my_profile", label: "My Profile" },
+      { key: "notifications_settings", label: "Notifications" },
+      { key: "plan_billing", label: "Plan & Billing" },
+      { key: "security", label: "Security" },
+      { key: "sms_alerts", label: "SMS Alerts" },
+      { key: "training_certificate", label: "Training Certificate" },
+    ],
+  },
 ];
 
-export default function FeatureAccessPage() {
-  const [features, setFeatures] = useState<FeatureAccess[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
-  const [companyId, setCompanyId] = useState<string | null>(null);
-  const [filterCategory, setFilterCategory] = useState("all");
-  const [filterRole, setFilterRole] = useState("all");
-  const [unsaved, setUnsaved] = useState(false);
+type AccessMap = Record<string, Record<string, boolean>>;
 
-  useEffect(() => { init(); }, []);
+export default function FeatureAccessPage() {
+  const [company, setCompany] = useState<{ id: string; name: string } | null>(null);
+  const [accessMap, setAccessMap] = useState<AccessMap>({});
+  const [activeRole, setActiveRole] = useState(ROLES[0]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<string[]>([]);
+
+  useEffect(() => { void init(); }, []);
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("company_id")
-      .eq("id", user.id)
+    const { data: cu } = await supabase
+      .from("company_users")
+      .select("company_id, role")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle();
+
+    if (!cu || !["admin", "director", "clinical_director"].includes(cu.role ?? "")) {
+      window.location.href = "/dashboard";
+      return;
+    }
+
+    const { data: companyData } = await supabase
+      .from("companies")
+      .select("id, name")
+      .eq("id", cu.company_id)
       .single();
+    setCompany(companyData);
 
-    if (!profile?.company_id) return;
-    setCompanyId(profile.company_id);
-
-    const { data: existingFeatures } = await supabase
+    const { data: accessData } = await supabase
       .from("feature_access")
-      .select("*")
-      .eq("company_id", profile.company_id);
+      .select("role, feature_key, enabled")
+      .eq("company_id", cu.company_id);
 
-    // Merge defaults with any saved overrides
-    const merged = DEFAULT_FEATURES.map((def) => {
-      const saved = existingFeatures?.find((f) => f.feature_key === def.feature_key);
-      return saved ? {
-        ...def,
-        id: saved.id,
-        roles_with_access: saved.roles_with_access ?? def.roles_with_access,
-        is_enabled: saved.is_enabled ?? def.is_enabled,
-      } : def;
-    });
+    // Build access map — default everything to true
+    const map: AccessMap = {};
+    for (const role of ROLES) {
+      map[role] = {};
+      for (const section of SECTIONS) {
+        map[role][section.key] = true;
+        for (const child of section.children) {
+          map[role][child.key] = true;
+        }
+      }
+    }
 
-    setFeatures(merged);
+    // Override with saved values
+    for (const row of accessData ?? []) {
+      if (!map[row.role]) map[row.role] = {};
+      map[row.role][row.feature_key] = row.enabled;
+    }
+
+    setAccessMap(map);
     setLoading(false);
   }
 
-  function toggleRole(featureKey: string, role: string) {
-    setFeatures((prev) => prev.map((f) => {
-      if (f.feature_key !== featureKey) return f;
-      const has = f.roles_with_access.includes(role);
-      return {
-        ...f,
-        roles_with_access: has
-          ? f.roles_with_access.filter((r) => r !== role)
-          : [...f.roles_with_access, role],
-      };
+  function toggle(role: string, key: string) {
+    setAccessMap(prev => ({
+      ...prev,
+      [role]: {
+        ...prev[role],
+        [key]: !prev[role]?.[key],
+      },
     }));
-    setUnsaved(true);
   }
 
-  function toggleEnabled(featureKey: string) {
-    setFeatures((prev) => prev.map((f) =>
-      f.feature_key === featureKey ? { ...f, is_enabled: !f.is_enabled } : f
-    ));
-    setUnsaved(true);
+  function toggleSection(role: string, sectionKey: string, children: { key: string }[]) {
+    const allEnabled = children.every(c => accessMap[role]?.[c.key] !== false);
+    const newVal = !allEnabled;
+    setAccessMap(prev => {
+      const updated = { ...prev[role] };
+      updated[sectionKey] = newVal;
+      for (const child of children) {
+        updated[child.key] = newVal;
+      }
+      return { ...prev, [role]: updated };
+    });
   }
 
-  function setAllRoles(featureKey: string, roles: string[]) {
-    setFeatures((prev) => prev.map((f) =>
-      f.feature_key === featureKey ? { ...f, roles_with_access: roles } : f
-    ));
-    setUnsaved(true);
+  function toggleExpand(key: string) {
+    setExpandedSections(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
   }
 
-  async function saveAll() {
-    if (!companyId) return;
-    setSaving("all");
+  async function handleSave() {
+    if (!company) return;
+    setSaving(true);
 
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
 
-    for (const feature of features) {
-      await supabase.from("feature_access").upsert({
-        company_id: companyId,
-        feature_key: feature.feature_key,
-        feature_label: feature.feature_label,
-        feature_category: feature.feature_category,
-        roles_with_access: feature.roles_with_access,
-        is_enabled: feature.is_enabled,
-        created_by: user.id,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "company_id,feature_key" });
+    const rows: any[] = [];
+    for (const role of ROLES) {
+      for (const section of SECTIONS) {
+        rows.push({
+          company_id: company.id,
+          role,
+          feature_key: section.key,
+          enabled: accessMap[role]?.[section.key] ?? true,
+          updated_by: user.id,
+          updated_at: new Date().toISOString(),
+        });
+        for (const child of section.children) {
+          rows.push({
+            company_id: company.id,
+            role,
+            feature_key: child.key,
+            enabled: accessMap[role]?.[child.key] ?? true,
+            updated_by: user.id,
+            updated_at: new Date().toISOString(),
+          });
+        }
+      }
     }
 
-    setUnsaved(false);
-    setSaving(null);
+    await supabase.from("feature_access").upsert(rows, {
+      onConflict: "company_id,role,feature_key",
+    });
+
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
   }
 
-  async function resetToDefaults() {
-    setFeatures(DEFAULT_FEATURES.map((f) => ({ ...f })));
-    setUnsaved(true);
+  function isAllEnabled(role: string) {
+    return SECTIONS.every(s =>
+      s.children.every(c => accessMap[role]?.[c.key] !== false)
+    );
   }
 
-  const categories = ["all", ...new Set(DEFAULT_FEATURES.map((f) => f.feature_category))];
+  function enableAll(role: string, enabled: boolean) {
+    setAccessMap(prev => {
+      const updated = { ...prev[role] };
+      for (const section of SECTIONS) {
+        updated[section.key] = enabled;
+        for (const child of section.children) {
+          updated[child.key] = enabled;
+        }
+      }
+      return { ...prev, [role]: updated };
+    });
+  }
 
-  let filtered = features;
-  if (filterCategory !== "all") filtered = filtered.filter((f) => f.feature_category === filterCategory);
-  if (filterRole !== "all") filtered = filtered.filter((f) => f.roles_with_access.includes(filterRole));
-
-  const groupedByCategory = filtered.reduce((acc, f) => {
-    acc[f.feature_category] = acc[f.feature_category] ?? [];
-    acc[f.feature_category].push(f);
-    return acc;
-  }, {} as Record<string, FeatureAccess[]>);
+  if (loading) return <div className="p-8 text-gray-400">Loading access settings...</div>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-5xl">
       <PageHeader title="Feature Access Control">
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={resetToDefaults}>Reset Defaults</Button>
-          <Button onClick={saveAll} loading={saving === "all"} disabled={!unsaved}>
-            {unsaved ? "💾 Save Changes" : "✓ Saved"}
-          </Button>
-        </div>
+        <p className="text-sm text-gray-500">
+          Control which sections and pages each role can see in {company?.name}.
+        </p>
       </PageHeader>
 
-      {/* INFO */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
-        <p className="font-bold mb-1">🔐 Role-Based Feature Access</p>
-        <p className="text-xs">Control which roles can see and access each feature. Changes apply immediately after saving.
-        Admin, Director, and Developer always retain access to this page regardless of settings.</p>
-      </div>
-
-      {/* UNSAVED BANNER */}
-      {unsaved && (
-        <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 flex items-center justify-between">
-          <p className="text-sm text-orange-700 font-medium">⚠️ You have unsaved changes</p>
-          <Button onClick={saveAll} loading={saving === "all"}>Save Now</Button>
+      {saved && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
+          ✓ Access settings saved successfully.
         </div>
       )}
 
-      {/* FILTERS */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <div>
-          <label className="text-xs text-gray-500 block mb-1">Category</label>
-          <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-            {categories.map((c) => <option key={c} value={c}>{c === "all" ? "All Categories" : c}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs text-gray-500 block mb-1">Filter by Role</label>
-          <select value={filterRole} onChange={(e) => setFilterRole(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-            <option value="all">All Roles</option>
-            {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-          </select>
-        </div>
-        <div className="text-sm text-gray-400 mt-4">{filtered.length} features</div>
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-800">
+        <strong>Note:</strong> Admin and Director roles always have full access and cannot be restricted here.
+        These settings apply to: Clinician, BT, Supervisor, Student Analyst, and Parent roles.
       </div>
 
-      {loading && <p className="text-gray-400 text-sm">Loading...</p>}
-
-      {/* ROLE LEGEND */}
-      <div className="flex flex-wrap gap-2">
-        {ROLES.map((role) => (
-          <span key={role} className={`text-xs px-3 py-1.5 rounded-full border font-medium ${ROLE_COLORS[role]}`}>
-            {ROLE_LABELS[role]}
-          </span>
+      {/* ROLE TABS */}
+      <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
+        {ROLES.map(role => (
+          <button key={role} onClick={() => setActiveRole(role)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap capitalize ${activeRole === role ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
+            {role.replace("_", " ")}
+          </button>
         ))}
       </div>
 
-      {/* FEATURES BY CATEGORY */}
-      {Object.entries(groupedByCategory).map(([category, categoryFeatures]) => (
-        <Section key={category} title={category}>
-          <div className="space-y-3">
-            {/* HEADER ROW */}
-            <div className="hidden md:grid grid-cols-12 gap-2 text-xs font-medium text-gray-400 uppercase tracking-wide px-3">
-              <div className="col-span-3">Feature</div>
-              <div className="col-span-1 text-center">Enabled</div>
-              <div className="col-span-6">Role Access</div>
-              <div className="col-span-2 text-right">Quick Set</div>
-            </div>
+      {/* ENABLE ALL / DISABLE ALL */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-600 capitalize font-medium">
+          {activeRole.replace("_", " ")} — {Object.values(accessMap[activeRole] ?? {}).filter(Boolean).length} features enabled
+        </p>
+        <div className="flex gap-2">
+          <button onClick={() => enableAll(activeRole, true)}
+            className="text-xs px-3 py-1.5 border border-green-300 text-green-600 rounded-lg hover:bg-green-50 transition-colors">
+            Enable All
+          </button>
+          <button onClick={() => enableAll(activeRole, false)}
+            className="text-xs px-3 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 transition-colors">
+            Disable All
+          </button>
+        </div>
+      </div>
 
-            {categoryFeatures.map((feature) => (
-              <div key={feature.feature_key}
-                className={`border rounded-xl p-3 transition-all ${!feature.is_enabled ? "bg-gray-50 border-gray-100 opacity-60" : "bg-white border-gray-100"}`}>
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+      {/* SECTIONS */}
+      <div className="space-y-3">
+        {SECTIONS.map(section => {
+          const allChildrenEnabled = section.children.every(c => accessMap[activeRole]?.[c.key] !== false);
+          const someEnabled = section.children.some(c => accessMap[activeRole]?.[c.key] !== false);
+          const isExpanded = expandedSections.includes(section.key);
 
-                  {/* FEATURE NAME */}
-                  <div className="md:col-span-3">
-                    <p className="font-medium text-gray-800 text-sm">{feature.feature_label}</p>
-                    <p className="text-xs text-gray-400">{feature.feature_key}</p>
-                  </div>
-
-                  {/* ENABLED TOGGLE */}
-                  <div className="md:col-span-1 flex md:justify-center">
-                    <button
-                      onClick={() => toggleEnabled(feature.feature_key)}
-                      className={`w-11 h-6 rounded-full transition-all relative shrink-0 ${feature.is_enabled ? "bg-green-500" : "bg-gray-300"}`}
-                    >
-                      <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${feature.is_enabled ? "left-6" : "left-1"}`} />
-                    </button>
-                  </div>
-
-                  {/* ROLE TOGGLES */}
-                  <div className="md:col-span-6 flex flex-wrap gap-1.5">
-                    {ROLES.map((role) => {
-                      const hasAccess = feature.roles_with_access.includes(role);
-                      return (
-                        <button
-                          key={role}
-                          onClick={() => toggleRole(feature.feature_key, role)}
-                          disabled={!feature.is_enabled}
-                          className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-all ${
-                            hasAccess && feature.is_enabled
-                              ? ROLE_COLORS[role]
-                              : "border-gray-200 text-gray-300 bg-white"
-                          }`}
-                        >
-                          {ROLE_LABELS[role]}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* QUICK SET */}
-                  <div className="md:col-span-2 flex gap-1 justify-end">
-                    <button
-                      onClick={() => setAllRoles(feature.feature_key, ROLES)}
-                      className="text-xs px-2 py-1 border border-green-200 text-green-600 rounded hover:bg-green-50"
-                      title="Grant all roles"
-                    >All</button>
-                    <button
-                      onClick={() => setAllRoles(feature.feature_key, ["admin","director","developer"])}
-                      className="text-xs px-2 py-1 border border-red-200 text-red-500 rounded hover:bg-red-50"
-                      title="Admin only"
-                    >Admin</button>
-                    <button
-                      onClick={() => setAllRoles(feature.feature_key, [])}
-                      className="text-xs px-2 py-1 border border-gray-200 text-gray-400 rounded hover:bg-gray-50"
-                      title="Revoke all access"
-                    >None</button>
-                  </div>
+          return (
+            <div key={section.key} className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+              {/* SECTION HEADER */}
+              <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
+                <div className="flex items-center gap-3">
+                  <button onClick={() => toggleExpand(section.key)}
+                    className="text-gray-400 hover:text-gray-600 text-xs">
+                    {isExpanded ? "▼" : "▶"}
+                  </button>
+                  <span className="text-base">{section.icon}</span>
+                  <span className="font-semibold text-gray-800 text-sm">{section.label}</span>
+                  <span className="text-xs text-gray-400">
+                    ({section.children.filter(c => accessMap[activeRole]?.[c.key] !== false).length}/{section.children.length} enabled)
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  {/* SECTION TOGGLE */}
+                  <button
+                    onClick={() => toggleSection(activeRole, section.key, section.children)}
+                    className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${allChildrenEnabled ? "bg-blue-500" : someEnabled ? "bg-blue-200" : "bg-gray-300"}`}>
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${allChildrenEnabled ? "translate-x-5" : "translate-x-1"}`} />
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
-        </Section>
-      ))}
 
-      {/* SAVE FOOTER */}
-      {unsaved && (
-        <div className="sticky bottom-4 flex justify-center">
-          <div className="bg-gray-900 text-white rounded-2xl px-6 py-3 flex items-center gap-4 shadow-xl">
-            <p className="text-sm">You have unsaved changes</p>
-            <Button onClick={saveAll} loading={saving === "all"} className="bg-blue-500 hover:bg-blue-600">
-              💾 Save All Changes
-            </Button>
-          </div>
+              {/* CHILDREN */}
+              {isExpanded && (
+                <div className="divide-y divide-gray-50">
+                  {section.children.map(child => {
+                    const enabled = accessMap[activeRole]?.[child.key] !== false;
+                    return (
+                      <div key={child.key} className="flex items-center justify-between px-6 py-2.5">
+                        <span className={`text-sm ${enabled ? "text-gray-700" : "text-gray-400 line-through"}`}>
+                          {child.label}
+                        </span>
+                        <button
+                          onClick={() => toggle(activeRole, child.key)}
+                          className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${enabled ? "bg-blue-500" : "bg-gray-300"}`}>
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${enabled ? "translate-x-5" : "translate-x-1"}`} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* SAVE */}
+      <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 -mx-4 md:-mx-6 lg:-mx-8">
+        <div className="flex items-center justify-between max-w-5xl">
+          <p className="text-xs text-gray-400">Changes take effect immediately after saving.</p>
+          <button onClick={handleSave} disabled={saving}
+            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+            {saving ? "Saving..." : "Save Access Settings"}
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
