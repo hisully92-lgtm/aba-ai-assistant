@@ -7,6 +7,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { useRole } from "@/lib/hooks/useRole";
 import { clearCompanyCache } from "@/lib/hooks/useCompany";
+import { useFeatureAccess } from "@/lib/hooks/useFeatureAccess";
 
 type NavChild = { label: string; href: string };
 type NavItem = { label: string; href: string; icon: string; children: NavChild[] };
@@ -29,6 +30,7 @@ const QUICK_INDEX = [
 export default function Sidebar({ onClose }: SidebarProps) {
   const pathname = usePathname();
   const { isAdmin, isSupervisor, isClinician, isStudentAnalyst, isDeveloper } = useRole();
+  const { canAccess } = useFeatureAccess();
   const [openSections, setOpenSections] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
