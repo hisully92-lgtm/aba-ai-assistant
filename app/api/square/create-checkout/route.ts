@@ -18,7 +18,7 @@ export async function POST(req: Request) {
 
     const authHeader = req.headers.get("Authorization");
     const token = authHeader?.replace("Bearer ", "");
-    
+
     if (!token) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -41,16 +41,17 @@ export async function POST(req: Request) {
     }
 
     const result = await createSquarePaymentLink(user.id, plan, months ?? 1);
-    const url = result?.paymentLink?.url ?? result?.payment_link?.url;
+    const url = result?.payment_link?.url ?? result?.paymentLink?.url;
 
     if (!url) {
+      console.error("Square response:", JSON.stringify(result));
       return NextResponse.json({ error: "Failed to create payment link" }, { status: 500 });
     }
 
     return NextResponse.json({ url });
 
   } catch (err: any) {
-    console.error("Checkout failed:", err);
+    console.error("Checkout failed:", err?.message);
     return NextResponse.json({ error: "Checkout creation failed" }, { status: 500 });
   }
 }
