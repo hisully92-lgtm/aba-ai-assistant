@@ -57,8 +57,10 @@ export async function createSquarePaymentLink(
   const data = await res.json();
 
   if (!res.ok) {
+    console.error("Square API error:", JSON.stringify(data));
     throw new Error(JSON.stringify(data));
   }
 
+  console.log("Square API success:", JSON.stringify(data));
   return data;
 }
