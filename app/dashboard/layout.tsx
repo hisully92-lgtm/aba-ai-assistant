@@ -41,37 +41,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       if (!user) { router.replace("/login"); return; }
 
-      const { data: companyUser } = await supabase
-        .from("company_users")
-        .select("status, role")
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .limit(1)
-        .maybeSingle();
+      const [{ data: companyUser }, { data: contract }] = await Promise.all([
+        supabase
+          .from("company_users")
+          .select("status, role")
+          .eq("user_id", user.id)
+          .eq("status", "active")
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("subscription_contracts")
+          .select("status, end_date")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
 
       if (!companyUser) {
         router.replace("/onboarding");
         return;
       }
 
-      // Check subscription status for admin/director roles
-      if (["admin", "director"].includes(companyUser.role ?? "")) {
-        const { data: contract } = await supabase
-          .from("subscription_contracts")
-          .select("status, end_date")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (contract) {
-          const isExpired = new Date(contract.end_date) < new Date();
-          const isActive = contract.status === "active" || contract.status === "trial";
-
-          if (isExpired || !isActive) {
-            router.replace("/dashboard/settings/billing?expired=true");
-            return;
-          }
+      if (["admin", "director"].includes(companyUser.role ?? "") && contract) {
+        const isExpired = new Date(contract.end_date) < new Date();
+        const isActive = contract.status === "active" || contract.status === "trial";
+        if (isExpired || !isActive) {
+          router.replace("/dashboard/settings/billing?expired=true");
+          return;
         }
       }
 
