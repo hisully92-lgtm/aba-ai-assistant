@@ -193,9 +193,13 @@ export default function BillingPage() {
 
     // Paid subscription — redirect to Square
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch("/api/square/create-checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token}`,
+        },
         body: JSON.stringify({ plan: selectedPlan, months }),
       });
 
