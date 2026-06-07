@@ -95,6 +95,8 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [urlMessage, setUrlMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"plans" | "contracts" | "history">("plans");
 
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
@@ -106,7 +108,18 @@ export default function BillingPage() {
   const [paymentMethod, setPaymentMethod] = useState("Credit Card");
   const [showCheckout, setShowCheckout] = useState(false);
 
-  useEffect(() => { init(); }, []);
+  useEffect(() => {
+    void init();
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("success") === "true") {
+      setUrlMessage("Payment successful! Your subscription is now active.");
+      setActiveTab("contracts");
+    }
+    if (params.get("expired") === "true") {
+      setUrlMessage("Your trial or subscription has expired. Please renew to continue.");
+      setActiveTab("plans");
+    }
+  }, []);
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
@@ -136,45 +149,70 @@ export default function BillingPage() {
   async function handleSubscribe() {
     if (!selectedPlan) return;
     setSaving(true);
+    setError(null);
 
-    const { data: auth } = await supabase.auth.getUser();
-    const user = auth?.user;
-    if (!user) return;
-
-    const plan = PLANS.find(p => p.type === selectedPlan)!;
     const months = selectedMonths[selectedPlan];
-    const monthly = getPrice(selectedPlan, months);
-    const total = monthly * months;
-    const isFirstSubscription = contracts.length === 0;
 
-    const startDate = new Date();
-    const endDate = new Date();
-    endDate.setMonth(endDate.getMonth() + months + (isFirstSubscription ? 1 : 0));
+    // First subscription — free trial, no payment needed
+    if (isFirstSubscription) {
+      const { data: auth } = await supabase.auth.getUser();
+      const user = auth?.user;
+      if (!user) { setSaving(false); return; }
 
-    const { data } = await supabase.from("subscription_contracts").insert([{
-      user_id: user.id,
-      plan_name: plan.name,
-      plan_type: selectedPlan,
-      contract_length_months: months,
-      price_per_month: isFirstSubscription ? 0 : monthly,
-      total_price: isFirstSubscription ? 0 : total,
-      discount_percent: 0,
-      start_date: startDate.toISOString().split("T")[0],
-      end_date: endDate.toISOString().split("T")[0],
-      auto_renew: autoRenew,
-      renewal_reminder_days: reminderDays,
-      status: "active",
-      payment_method: paymentMethod,
-    }]).select().single();
+      const plan = PLANS.find(p => p.type === selectedPlan)!;
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setMonth(endDate.getMonth() + months + 1);
 
-    if (data) {
-      setContracts(prev => [data, ...prev]);
-      setShowCheckout(false);
-      setSuccess(true);
-      setActiveTab("contracts");
-      setTimeout(() => setSuccess(false), 4000);
+      const { data } = await supabase.from("subscription_contracts").insert([{
+        user_id: user.id,
+        plan_name: plan.name,
+        plan_type: selectedPlan,
+        contract_length_months: months,
+        price_per_month: 0,
+        total_price: 0,
+        discount_percent: 0,
+        start_date: startDate.toISOString().split("T")[0],
+        end_date: endDate.toISOString().split("T")[0],
+        auto_renew: autoRenew,
+        renewal_reminder_days: reminderDays,
+        status: "trial",
+        payment_method: paymentMethod,
+      }]).select().single();
+
+      if (data) {
+        setContracts(prev => [data, ...prev]);
+        setShowCheckout(false);
+        setSuccess(true);
+        setActiveTab("contracts");
+        setTimeout(() => setSuccess(false), 5000);
+      }
+      setSaving(false);
+      return;
     }
-    setSaving(false);
+
+    // Paid subscription — redirect to Square
+    try {
+      const res = await fetch("/api/square/create-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: selectedPlan, months }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.url) {
+        setError(data.error ?? "Failed to create checkout. Please try again.");
+        setSaving(false);
+        return;
+      }
+
+      window.location.href = data.url;
+
+    } catch {
+      setError("Something went wrong. Please try again.");
+      setSaving(false);
+    }
   }
 
   async function toggleAutoRenew(contractId: string, current: boolean) {
@@ -191,12 +229,14 @@ export default function BillingPage() {
     return Math.ceil((new Date(endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   }
 
-  const activeContract = contracts.find(c => c.status === "active");
+  const activeContract = contracts.find(c => c.status === "active" || c.status === "trial");
   const isFirstSubscription = contracts.length === 0;
 
   function statusColor(status: string) {
     if (status === "active") return "bg-green-100 text-green-700";
+    if (status === "trial") return "bg-blue-100 text-blue-700";
     if (status === "cancelled") return "bg-red-100 text-red-700";
+    if (status === "expired") return "bg-orange-100 text-orange-700";
     return "bg-gray-100 text-gray-500";
   }
 
@@ -210,33 +250,42 @@ export default function BillingPage() {
     <div className="space-y-6">
       <PageHeader title="Plan & Billing" />
 
+      {/* URL message — expired or success */}
+      {urlMessage && (
+        <div className={`rounded-xl p-4 text-sm border ${urlMessage.includes("expired") ? "bg-red-50 border-red-200 text-red-700" : "bg-green-50 border-green-200 text-green-700"}`}>
+          {urlMessage}
+        </div>
+      )}
+
       {success && (
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700">
-          {isFirstSubscription
-            ? "Your first month is free! You will be charged starting next month."
-            : "Subscription activated! A confirmation email will be sent with your contract details."}
+          Your first month is free! You will be charged starting next month.
         </div>
       )}
 
       {activeContract && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <div className={`border rounded-xl p-4 ${activeContract.status === "trial" ? "bg-blue-50 border-blue-200" : "bg-green-50 border-green-200"}`}>
           <div className="flex justify-between items-start flex-wrap gap-3">
             <div>
-              <p className="font-bold text-blue-800">
+              <p className="font-bold text-gray-800">
                 {activeContract.plan_name} Plan —{" "}
                 {activeContract.contract_length_months === 1 ? "Monthly" : `${activeContract.contract_length_months}-Month Contract`}
               </p>
-              <p className="text-sm text-blue-600 mt-1">
-                ${activeContract.price_per_month.toFixed(2)}/mo · Renews {activeContract.end_date}
+              <p className="text-sm text-gray-600 mt-1">
+                {activeContract.status === "trial"
+                  ? `Free trial ends ${activeContract.end_date}`
+                  : `$${activeContract.price_per_month.toFixed(2)}/mo · Renews ${activeContract.end_date}`}
                 {activeContract.auto_renew ? " · Auto-renew ON" : " · Auto-renew OFF"}
               </p>
-              {daysUntilRenewal(activeContract.end_date) <= activeContract.renewal_reminder_days && (
+              {daysUntilRenewal(activeContract.end_date) <= 30 && daysUntilRenewal(activeContract.end_date) > 0 && (
                 <p className="text-xs text-orange-600 mt-1 font-medium">
-                  Renews in {daysUntilRenewal(activeContract.end_date)} days
+                  {activeContract.status === "trial" ? "Trial ends" : "Renews"} in {daysUntilRenewal(activeContract.end_date)} days
                 </p>
               )}
             </div>
-            <span className="text-xs px-3 py-1 bg-green-100 text-green-700 rounded-full font-medium">Active</span>
+            <span className={`text-xs px-3 py-1 rounded-full font-medium ${statusColor(activeContract.status)}`}>
+              {activeContract.status === "trial" ? "Free Trial" : "Active"}
+            </span>
           </div>
         </div>
       )}
@@ -262,10 +311,16 @@ export default function BillingPage() {
               <p className="text-2xl font-black mb-1">First Month Free</p>
               <p className="text-sm opacity-90 mb-3">Try any plan free for 30 days. No credit card required to start.</p>
               <div className="flex justify-center gap-6 text-sm flex-wrap">
-                <span>Full access</span>
-                <span>Cancel anytime</span>
-                <span>No hidden fees</span>
+                <span>✓ Full access</span>
+                <span>✓ Cancel anytime</span>
+                <span>✓ No hidden fees</span>
               </div>
+            </div>
+          )}
+
+          {activeContract?.status === "trial" && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-800">
+              <strong>Your free trial ends {activeContract.end_date}.</strong> Select a plan below to continue uninterrupted access after your trial.
             </div>
           )}
 
@@ -289,14 +344,12 @@ export default function BillingPage() {
                   <p className="font-bold text-gray-800 text-xl">{plan.name}</p>
                   <p className="text-xs text-gray-500 mt-1 mb-4">{plan.description}</p>
 
-                  {/* CONTRACT DROPDOWN */}
                   <div className="mb-3">
                     <label className="text-xs font-medium text-gray-500 mb-1 block">Contract Length</label>
                     <select
                       value={months}
                       onChange={e => setSelectedMonths(prev => ({ ...prev, [plan.type]: parseInt(e.target.value) }))}
-                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
-                    >
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">
                       {CONTRACT_OPTIONS.map(opt => {
                         const p = getPrice(plan.type, opt.months);
                         const s = getSavings(plan.type, opt.months);
@@ -309,7 +362,6 @@ export default function BillingPage() {
                     </select>
                   </div>
 
-                  {/* PRICE */}
                   {isFirstSubscription ? (
                     <div className="mb-1">
                       <p className="text-3xl font-bold text-green-600">Free</p>
@@ -321,9 +373,7 @@ export default function BillingPage() {
                         ${monthly}<span className="text-sm font-normal text-gray-500">/mo</span>
                       </p>
                       {savings > 0 && (
-                        <p className="text-xs text-green-600 font-medium mt-0.5">
-                          Save ${savings} over {months} months
-                        </p>
+                        <p className="text-xs text-green-600 font-medium mt-0.5">Save ${savings} over {months} months</p>
                       )}
                       {months === 12 && (
                         <p className="text-xs text-blue-600 font-medium mt-0.5">Best value</p>
@@ -341,15 +391,14 @@ export default function BillingPage() {
 
                   <button
                     onClick={() => { setSelectedPlan(plan.type); setShowCheckout(true); }}
-                    className={`w-full mt-5 py-2.5 rounded-xl text-sm font-bold transition-colors ${isSelected ? "bg-blue-600 text-white" : "border-2 border-blue-300 text-blue-600 hover:bg-blue-50"}`}>
-                    {isSelected && showCheckout ? "Selected" : `Select ${plan.name}`}
+                    className={`w-full mt-5 py-2.5 rounded-xl text-sm font-bold transition-colors ${isSelected && showCheckout ? "bg-blue-600 text-white" : "border-2 border-blue-300 text-blue-600 hover:bg-blue-50"}`}>
+                    {isSelected && showCheckout ? "Selected ✓" : `Select ${plan.name}`}
                   </button>
                 </div>
               );
             })}
           </div>
 
-          {/* CHECKOUT */}
           {showCheckout && currentPlan && (
             <Section title="Complete Your Subscription">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -357,7 +406,7 @@ export default function BillingPage() {
                   <p className="font-bold text-gray-700">Order Summary</p>
                   {isFirstSubscription && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700 font-medium">
-                      First month free applied automatically
+                      ✓ First month free applied automatically
                     </div>
                   )}
                   <div className="space-y-2 text-sm">
@@ -367,9 +416,7 @@ export default function BillingPage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Contract</span>
-                      <span className="font-medium">
-                        {CONTRACT_OPTIONS.find(c => c.months === currentMonths)?.label}
-                      </span>
+                      <span className="font-medium">{CONTRACT_OPTIONS.find(c => c.months === currentMonths)?.label}</span>
                     </div>
                     {isFirstSubscription ? (
                       <>
@@ -403,9 +450,7 @@ export default function BillingPage() {
                           <span className="text-blue-600">${currentTotal}</span>
                         </div>
                         {currentMonths > 1 && (
-                          <p className="text-xs text-gray-400">
-                            Billed as ${currentTotal} for {currentMonths} months
-                          </p>
+                          <p className="text-xs text-gray-400">Billed as ${currentTotal} for {currentMonths} months</p>
                         )}
                       </>
                     )}
@@ -429,12 +474,8 @@ export default function BillingPage() {
                         <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${autoRenew ? "left-7" : "left-1"}`} />
                       </button>
                       <div>
-                        <p className="text-sm font-medium text-gray-700">
-                          {autoRenew ? "Auto-renew enabled" : "Auto-renew disabled"}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {autoRenew ? "Plan renews automatically" : "You will be notified before expiry"}
-                        </p>
+                        <p className="text-sm font-medium text-gray-700">{autoRenew ? "Auto-renew enabled" : "Auto-renew disabled"}</p>
+                        <p className="text-xs text-gray-400">{autoRenew ? "Plan renews automatically" : "You will be notified before expiry"}</p>
                       </div>
                     </div>
                     <div>
@@ -454,12 +495,18 @@ export default function BillingPage() {
                     Renewal reminder email will be sent {reminderDays} days before your contract ends.
                   </div>
 
+                  {error && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                      {error}
+                    </div>
+                  )}
+
                   <Button onClick={handleSubscribe} loading={saving} className="w-full">
                     {isFirstSubscription
-                      ? "Start Free Trial"
-                      : `Subscribe — $${currentTotal} ${currentMonths > 1 ? `for ${currentMonths} months` : "/month"}`}
+                      ? "Start Free Trial →"
+                      : `Pay with Square — $${currentTotal} ${currentMonths > 1 ? `for ${currentMonths} months` : "/month"}`}
                   </Button>
-                  <Button variant="outline" onClick={() => setShowCheckout(false)} className="w-full">
+                  <Button variant="outline" onClick={() => { setShowCheckout(false); setError(null); }} className="w-full">
                     Cancel
                   </Button>
                 </div>
@@ -488,22 +535,24 @@ export default function BillingPage() {
                     <div className="flex items-center gap-2">
                       <p className="font-bold text-gray-800">{contract.plan_name} Plan</p>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(contract.status)}`}>
-                        {contract.status}
+                        {contract.status === "trial" ? "Free Trial" : contract.status}
                       </span>
                     </div>
                     <p className="text-sm text-gray-500 mt-1">
                       {contract.contract_length_months === 1 ? "Monthly" : `${contract.contract_length_months}-Month Contract`} ·
-                      ${contract.price_per_month.toFixed(2)}/mo · ${contract.total_price.toFixed(2)} total
+                      {contract.status === "trial" ? " Free trial" : ` $${contract.price_per_month.toFixed(2)}/mo`}
                     </p>
                     <div className="flex gap-3 mt-1 text-xs text-gray-400">
                       <span>{contract.start_date} → {contract.end_date}</span>
                       <span>{contract.payment_method}</span>
                     </div>
                     {isExpiringSoon && (
-                      <p className="text-xs text-orange-600 font-medium mt-1">Renews in {days} days</p>
+                      <p className="text-xs text-orange-600 font-medium mt-1">
+                        {contract.status === "trial" ? "Trial ends" : "Renews"} in {days} days
+                      </p>
                     )}
                   </div>
-                  {contract.status === "active" && (
+                  {(contract.status === "active" || contract.status === "trial") && (
                     <div className="flex flex-col gap-2 items-end">
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-gray-500">Auto-renew</span>
@@ -543,7 +592,9 @@ export default function BillingPage() {
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-gray-800">${contract.total_price.toFixed(2)}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${statusColor(contract.status)}`}>{contract.status}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${statusColor(contract.status)}`}>
+                      {contract.status === "trial" ? "Free Trial" : contract.status}
+                    </span>
                   </div>
                 </div>
               ))}
