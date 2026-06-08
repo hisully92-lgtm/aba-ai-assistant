@@ -11,7 +11,7 @@ export async function POST(req: Request) {
   const ip = extractIp(req);
 
   try {
-    const ipAllowed = await rateLimit(`checkout:ip:${ip}`, 10, 60 * 60_000);
+    const ipAllowed = await rateLimit(`checkout:ip:${ip}`, 100, 60 * 60_000);
     if (!ipAllowed) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userAllowed = await rateLimit(`checkout:user:${user.id}`, 5, 60 * 60_000);
+    const userAllowed = await rateLimit(`checkout:user:${user.id}`, 100, 60 * 60_000);
     if (!userAllowed) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
