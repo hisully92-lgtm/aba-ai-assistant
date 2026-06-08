@@ -14,6 +14,7 @@ type NavItem = { label: string; href: string; icon: string; children: NavChild[]
 
 interface SidebarProps {
   onClose?: () => void;
+  collapsed?: boolean;
 }
 
 const QUICK_INDEX = [
@@ -27,7 +28,7 @@ const QUICK_INDEX = [
   { label: "Help", href: "/dashboard/help", icon: "❓" },
 ];
 
-export default function Sidebar({ onClose }: SidebarProps) {
+export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
   const pathname = usePathname();
   const { isAdmin, isSupervisor, isClinician, isStudentAnalyst, isDeveloper } = useRole();
   const { canAccess, loading: accessLoading } = useFeatureAccess();
@@ -352,7 +353,6 @@ export default function Sidebar({ onClose }: SidebarProps) {
     },
   ];
 
-  // Map sidebar labels to feature keys
   const LABEL_TO_KEY: Record<string, string> = {
     "Session Notes": "session_notes",
     "Data Collection Hub": "data_collection",
@@ -490,6 +490,35 @@ export default function Sidebar({ onClose }: SidebarProps) {
     </div>
   );
 
+  // COLLAPSED VIEW — icon strip only
+  if (collapsed) {
+    return (
+      <div className="w-14 bg-[#1a2234] flex flex-col items-center py-4 gap-2" style={{ height: "100vh", overflow: "hidden" }}>
+        <div className="mb-2 text-xl">🧠</div>
+        <div className="flex flex-col gap-1 flex-1 overflow-y-auto w-full px-1">
+          {filteredNav.map((item) => (
+            <Link
+              key={item.href + item.label}
+              href={item.href}
+              title={item.label}
+              className={`flex items-center justify-center w-full py-2 rounded-lg text-lg transition-colors ${isActive(item.href) ? "bg-[#2a3a54]" : "hover:bg-[#243044]"}`}
+            >
+              {item.icon}
+            </Link>
+          ))}
+        </div>
+        <button
+          onClick={handleLogout}
+          title="Log out"
+          className="mt-2 w-10 h-10 flex items-center justify-center rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm transition-colors"
+        >
+          ⏻
+        </button>
+      </div>
+    );
+  }
+
+  // FULL SIDEBAR
   return (
     <div className="w-64 bg-[#1a2234] flex flex-col" style={{ height: "100vh", overflow: "hidden" }}>
 
@@ -507,18 +536,12 @@ export default function Sidebar({ onClose }: SidebarProps) {
 
       {/* DESKTOP LOGO */}
       <div className="px-4 pt-4 pb-1 hidden lg:block">
-        <Image
-          src="/login-banner.jpg"
-          alt="ABA AI"
-          width={220}
-          height={80}
-          className="rounded-lg mb-2"
-        />
+        <Image src="/login-banner.jpg" alt="ABA AI" width={220} height={80} className="rounded-lg mb-2" />
         <h1 className="text-white font-bold text-xl">ABA AI</h1>
         <p className="text-gray-500 text-xs mt-0.5">Practice Management</p>
       </div>
 
-      {/* FIXED QUICK INDEX */}
+      {/* QUICK INDEX */}
       <div className="px-3 py-2 border-b border-[#2a3a54]">
         <p className="text-gray-500 text-xs uppercase tracking-wide font-medium px-1 mb-1.5">Quick Access</p>
         <div className="grid grid-cols-4 gap-1">
@@ -546,10 +569,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           {searchQuery && (
-            <button onClick={() => setSearchQuery("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xs">
-              ✕
-            </button>
+            <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xs">✕</button>
           )}
         </div>
       </div>
@@ -561,34 +581,23 @@ export default function Sidebar({ onClose }: SidebarProps) {
           {filteredNav.map((item) => (
             <div key={`${item.href}-${item.label}`}>
               <div className="flex items-center gap-0.5">
-                <Link
-                  href={item.href}
-                  onClick={handleNavClick}
-                  className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg text-white text-xs font-medium transition-colors ${isActive(item.href) ? "bg-[#2a3a54]" : "bg-[#243044] hover:bg-[#2a3a54]"}`}
-                >
+                <Link href={item.href} onClick={handleNavClick}
+                  className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg text-white text-xs font-medium transition-colors ${isActive(item.href) ? "bg-[#2a3a54]" : "bg-[#243044] hover:bg-[#2a3a54]"}`}>
                   <span className="text-sm">{item.icon}</span>
                   <span>{item.label}</span>
                 </Link>
                 {item.children.length > 0 && (
-                  <button
-                    onClick={() => toggleSection(item.href + item.label)}
-                    className="px-1.5 py-2 text-gray-400 hover:text-white transition-colors text-xs"
-                    type="button"
-                  >
+                  <button onClick={() => toggleSection(item.href + item.label)}
+                    className="px-1.5 py-2 text-gray-400 hover:text-white transition-colors text-xs" type="button">
                     {isSectionOpen(item) ? "▲" : "▼"}
                   </button>
                 )}
               </div>
-
               {item.children.length > 0 && isSectionOpen(item) && (
                 <div className="ml-3 mt-0.5 flex flex-col gap-0.5 border-l border-[#2a3a54] pl-2.5 mb-1">
                   {item.children.map((child) => (
-                    <Link
-                      key={`${child.href}-${child.label}`}
-                      href={child.href}
-                      onClick={handleNavClick}
-                      className={`px-2 py-1.5 rounded text-xs font-medium transition-colors ${pathname === child.href ? "text-white bg-[#2a3a54]" : "text-gray-400 hover:text-white hover:bg-[#2a3a54]"}`}
-                    >
+                    <Link key={`${child.href}-${child.label}`} href={child.href} onClick={handleNavClick}
+                      className={`px-2 py-1.5 rounded text-xs font-medium transition-colors ${pathname === child.href ? "text-white bg-[#2a3a54]" : "text-gray-400 hover:text-white hover:bg-[#2a3a54]"}`}>
                       {child.label}
                     </Link>
                   ))}
@@ -601,10 +610,8 @@ export default function Sidebar({ onClose }: SidebarProps) {
 
       {/* LOGOUT */}
       <div className="p-3 border-t border-[#2a3a54]">
-        <button
-          onClick={handleLogout}
-          className="w-full px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
-        >
+        <button onClick={handleLogout}
+          className="w-full px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors">
           Log out
         </button>
       </div>

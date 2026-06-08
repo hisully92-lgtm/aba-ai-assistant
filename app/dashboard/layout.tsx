@@ -42,16 +42,13 @@ function ExpiredScreen({ isAdmin }: { isAdmin: boolean }) {
               : "Your clinic's subscription has expired. Please contact your administrator to renew access."}
           </p>
         </div>
-
         {isAdmin ? (
           <div className="space-y-3">
             <Link href="/dashboard/settings/billing"
               className="block w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm transition-colors">
               Renew Subscription →
             </Link>
-            <p className="text-xs text-gray-400">
-              All team members are locked out until payment is made.
-            </p>
+            <p className="text-xs text-gray-400">All team members are locked out until payment is made.</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -72,6 +69,7 @@ function ExpiredScreen({ isAdmin }: { isAdmin: boolean }) {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [expired, setExpired] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -81,44 +79,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const checkAccess = async () => {
       const { data: sessionData } = await supabase.auth.getUser();
       const user = sessionData?.user;
-
       if (!user) { router.replace("/login"); return; }
 
       const [{ data: companyUser }, { data: contract }] = await Promise.all([
-        supabase
-          .from("company_users")
-          .select("status, role, company_id")
-          .eq("user_id", user.id)
-          .eq("status", "active")
-          .limit(1)
-          .maybeSingle(),
-        supabase
-          .from("subscription_contracts")
-          .select("status, end_date")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
+        supabase.from("company_users").select("status, role, company_id").eq("user_id", user.id).eq("status", "active").limit(1).maybeSingle(),
+        supabase.from("subscription_contracts").select("status, end_date").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       ]);
 
-      if (!companyUser) {
-        router.replace("/onboarding");
-        return;
-      }
+      if (!companyUser) { router.replace("/onboarding"); return; }
 
       const adminRole = ["admin", "director", "clinical_director"].includes(companyUser.role ?? "");
       setIsAdmin(adminRole);
 
-      // Check if subscription is expired
       if (contract) {
         const isExpired = new Date(contract.end_date) < new Date();
         const isActive = contract.status === "active" || contract.status === "trial";
-
-        if (isExpired || !isActive) {
-          setExpired(true);
-          setLoading(false);
-          return;
-        }
+        if (isExpired || !isActive) { setExpired(true); setLoading(false); return; }
       }
 
       setLoading(false);
@@ -128,23 +104,51 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [router]);
 
   if (loading) return <SkeletonLoader />;
-
-  // Block everyone when expired — admin sees renew button, others see contact admin message
   if (expired) return <ExpiredScreen isAdmin={isAdmin} />;
 
   return (
     <div className="flex min-h-screen bg-gray-50" style={{ height: "100vh", overflow: "hidden" }}>
 
+      {/* MOBILE OVERLAY */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={() => setSidebarOpen(false)}
           style={{ touchAction: "none" }} />
       )}
 
-      <div className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 lg:z-auto lg:flex-shrink-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <Sidebar onClose={() => setSidebarOpen(false)} />
+      {/* SIDEBAR WRAPPER */}
+      <div className={`
+        fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
+        lg:relative lg:translate-x-0 lg:z-auto lg:flex-shrink-0
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+      `}>
+        <div className="relative h-full">
+          <Sidebar
+            onClose={() => setSidebarOpen(false)}
+            collapsed={sidebarCollapsed}
+          />
+
+          {/* COLLAPSE ARROW BUTTON — desktop only */}
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed((prev) => !prev)}
+            className="hidden lg:flex absolute -right-3 top-1/2 -translate-y-1/2 z-50
+              w-6 h-6 rounded-full bg-[#2a3a54] border border-[#3a4a64]
+              items-center justify-center text-gray-300 hover:text-white
+              hover:bg-[#3a4a64] transition-all shadow-md"
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <svg
+              className={`w-3 h-3 transition-transform duration-300 ${sidebarCollapsed ? "rotate-0" : "rotate-180"}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+        </div>
       </div>
 
+      {/* MAIN CONTENT */}
       <div className="flex flex-1 flex-col min-w-0"
         style={{
           height: "100vh",
@@ -157,6 +161,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           overscrollBehavior: "contain",
         }}>
 
+        {/* MOBILE TOPBAR */}
         <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-[#2a3a54] bg-[#1a2234] px-4 py-3 lg:hidden">
           <button type="button" aria-label="Open sidebar"
             onClick={() => setSidebarOpen(true)}
