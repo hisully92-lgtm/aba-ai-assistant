@@ -29,9 +29,52 @@ function SkeletonLoader() {
   );
 }
 
+function ExpiredScreen({ isAdmin }: { isAdmin: boolean }) {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+      <div className="w-full max-w-md bg-white border border-red-100 rounded-2xl shadow-lg p-8 text-center space-y-6">
+        <div className="text-5xl">🔒</div>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Subscription Expired</h1>
+          <p className="text-gray-500 text-sm mt-2">
+            {isAdmin
+              ? "Your clinic's subscription has expired. Please renew to restore access for your entire team."
+              : "Your clinic's subscription has expired. Please contact your administrator to renew access."}
+          </p>
+        </div>
+
+        {isAdmin ? (
+          <div className="space-y-3">
+            <Link href="/dashboard/settings/billing"
+              className="block w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm transition-colors">
+              Renew Subscription →
+            </Link>
+            <p className="text-xs text-gray-400">
+              All team members are locked out until payment is made.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-800">
+              Your administrator needs to renew the subscription to restore access.
+            </div>
+            <button
+              onClick={async () => { await supabase.auth.signOut(); window.location.href = "/login"; }}
+              className="block w-full py-3 border border-gray-200 text-gray-600 rounded-xl font-medium text-sm hover:bg-gray-50 transition-colors">
+              Sign Out
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [expired, setExpired] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -44,7 +87,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const [{ data: companyUser }, { data: contract }] = await Promise.all([
         supabase
           .from("company_users")
-          .select("status, role")
+          .select("status, role, company_id")
           .eq("user_id", user.id)
           .eq("status", "active")
           .limit(1)
@@ -63,11 +106,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         return;
       }
 
-      if (["admin", "director"].includes(companyUser.role ?? "") && contract) {
+      const adminRole = ["admin", "director", "clinical_director"].includes(companyUser.role ?? "");
+      setIsAdmin(adminRole);
+
+      // Check if subscription is expired
+      if (contract) {
         const isExpired = new Date(contract.end_date) < new Date();
         const isActive = contract.status === "active" || contract.status === "trial";
+
         if (isExpired || !isActive) {
-          router.replace("/dashboard/settings/billing?expired=true");
+          setExpired(true);
+          setLoading(false);
           return;
         }
       }
@@ -79,6 +128,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [router]);
 
   if (loading) return <SkeletonLoader />;
+
+  // Block everyone when expired — admin sees renew button, others see contact admin message
+  if (expired) return <ExpiredScreen isAdmin={isAdmin} />;
 
   return (
     <div className="flex min-h-screen bg-gray-50" style={{ height: "100vh", overflow: "hidden" }}>
