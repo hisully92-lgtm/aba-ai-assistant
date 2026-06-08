@@ -154,6 +154,47 @@ export async function POST(req: Request) {
         })
         .eq("id", userId);
 
+      // Update most recent contract to active
+      const { data: latestContract } = await supabaseAdmin
+        .from("subscription_contracts")
+        .select("id, contract_length_months")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestContract) {
+        const endDate = new Date();
+        endDate.setMonth(endDate.getMonth() + (latestContract.contract_length_months ?? 1));
+        
+        await supabaseAdmin
+          .from("subscription_contracts")
+          .update({
+            status: "active",
+            end_date: endDate.toISOString().split("T")[0],
+          })
+          .eq("id", latestContract.id);
+      } else {
+        // No contract yet — create one
+        await supabaseAdmin
+          .from("subscription_contracts")
+          .insert({
+            user_id: userId,
+            plan_name: "Professional",
+            plan_type: "professional",
+            contract_length_months: 1,
+            price_per_month: 11900,
+            total_price: 11900,
+            status: "active",
+            start_date: new Date().toISOString().split("T")[0],
+            end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+            payment_method: "Credit Card",
+            auto_renew: true,
+            renewal_reminder_days: 30,
+            discount_percent: 0,
+          });
+      }
+
       await safe(logAudit, {
         userId,
         action: "subscription_upgraded",
