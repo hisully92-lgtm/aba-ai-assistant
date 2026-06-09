@@ -1,120 +1,54 @@
-import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { createSquarePaymentLink } from "@/lib/square";
-import { logBillingEvent } from "@/lib/billing/logBillingEvent";
-import { logEvent } from "@/lib/monitoring/logEvent";
-import { rateLimit } from "@/lib/rate-limit";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
-    // =========================
-    // 🔐 AUTH CHECK
-    // =========================
-    const { data: auth } = await supabaseAdmin.auth.getUser();
-    const user = auth?.user;
+    // AUTH
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.replace("Bearer ", "");
 
-    if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // =========================
-    // 🚫 CHECKOUT SPAM PROTECTION
-    // =========================
-    if (!rateLimit(`checkout:${user.id}`, 5, 60_000)) {
-      return NextResponse.json(
-        { error: "Too many checkout attempts" },
-        { status: 429 }
-      );
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // =========================
-    // 🧠 FETCH USER PLAN
-    // =========================
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("plan")
-      .eq("id", user.id)
-      .maybeSingle();
+    // BODY
+    const body = await req.json();
+    const planType: string = body.plan ?? "professional";
+    const months: number = parseInt(body.months ?? "1");
 
-    // =========================
-    // 📊 BILLING TRACKING
-    // =========================
-
-    // Always log checkout attempt
-    await logBillingEvent({
-      userId: user.id,
-      event: "checkout_attempt",
-    });
-
-    // Flag suspicious repeat checkout from pro users
-    if (profile?.plan === "pro") {
-      await logBillingEvent({
-        userId: user.id,
-        event: "suspicious_checkout_attempt",
-      });
+    if (!["starter", "professional", "clinic"].includes(planType)) {
+      return NextResponse.json({ error: "Invalid plan type" }, { status: 400 });
     }
 
-    // =========================
-    // 🚫 BLOCK IF ALREADY PRO
-    // =========================
-    if (profile?.plan === "pro") {
-      await logBillingEvent({
-        userId: user.id,
-        event: "checkout_blocked",
-        metadata: {
-          reason: "already_pro",
-        },
-      });
-
-      return NextResponse.json(
-        { error: "Already subscribed" },
-        { status: 403 }
-      );
+    if (![1, 3, 6, 9, 12].includes(months)) {
+      return NextResponse.json({ error: "Invalid contract length" }, { status: 400 });
     }
 
-    // =========================
-    // 💳 CREATE PAYMENT LINK
-    // =========================
-    const result = await createSquarePaymentLink(user.id);
-    const url = result?.paymentLink?.url;
+    // CREATE SQUARE CHECKOUT
+    const result = await createSquarePaymentLink(user.id, planType, months);
+    const url = result?.paymentLink?.url ?? result?.payment_link?.url;
 
     if (!url) {
-      await logEvent({
-        type: "error",
-        event: "checkout_link_failed",
-        metadata: {
-          userId: user.id,
-        },
-      });
-
-      return NextResponse.json(
-        { error: "Failed to create payment link" },
-        { status: 500 }
-      );
+      console.error("No URL in Square response:", JSON.stringify(result));
+      return NextResponse.json({ error: "Failed to create payment link" }, { status: 500 });
     }
 
     return NextResponse.json({ url });
 
   } catch (err) {
-    // =========================
-    // 🚨 CRASH LOGGING
-    // =========================
-    await logEvent({
-      type: "error",
-      event: "server_crash",
-      metadata: {
-        message: err instanceof Error ? err.message : "Unknown error",
-      },
-    });
-
-    console.error("Checkout failed:", err);
-
-    return NextResponse.json(
-      { error: "Checkout failed" },
-      { status: 500 }
-    );
+    console.error("Checkout error:", err);
+    return NextResponse.json({ error: "Checkout failed" }, { status: 500 });
   }
 }
