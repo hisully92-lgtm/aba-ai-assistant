@@ -136,9 +136,12 @@ export async function POST(req: Request) {
 
     // PAYMENT SUCCESS → UPGRADE
     if (
-      eventType === "payment.created" ||
-      eventType === "payment.updated"
-    ) {
+  eventType === "payment.created" ||
+  eventType === "payment.updated" ||
+  eventType === "payment.completed" ||
+  eventType === "order.fulfillment.updated" ||
+  eventType === "checkout.order.updated"
+) {
       if (!userId || userId === "unknown") {
         return NextResponse.json(
           { error: "Missing userId" },
