@@ -6,47 +6,33 @@ import { logAudit } from "@/lib/observability/logAudit";
 import { logBillingAudit } from "@/lib/observability/logBillingAudit";
 import { rateLimit } from "@/lib/rate-limit";
 
-// =========================
-// SAFE LOGGING
-// =========================
 async function safe(fn: any, ...args: any[]) {
-  try {
-    await fn(...args);
-  } catch {}
+  try { await fn(...args); } catch {}
 }
 
-// =========================
-// SIGNATURE VERIFICATION
-// =========================
 function verifySquareSignature(
   body: string,
   signature: string,
-  secret: string
+  secret: string,
+  url: string
 ): boolean {
   const hash = crypto
     .createHmac("sha256", secret)
-    .update(body)
+    .update(url + body)
     .digest("base64");
 
   const hashBuf = Buffer.from(hash);
   const sigBuf = Buffer.from(signature || "");
 
-  if (hashBuf.length !== sigBuf.length) {
-    return false;
-  }
-
+  if (hashBuf.length !== sigBuf.length) return false;
   return crypto.timingSafeEqual(hashBuf, sigBuf);
 }
 
-// =========================
-// MAIN ROUTE
-// =========================
 export async function POST(req: Request) {
   let bodyText = "";
   let userId = "unknown";
 
   try {
-    // RAW BODY
     bodyText = await req.text();
 
     let body: any;
@@ -56,7 +42,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
 
-    // EXTRACT DATA
     const eventId = body?.id;
     const eventType = body?.type;
     const payment = body?.data?.object?.payment;
@@ -66,27 +51,20 @@ export async function POST(req: Request) {
       body?.data?.object?.customer?.reference_id ||
       "unknown";
 
-    const ip =
-      (req.headers.get("x-forwarded-for") ?? "")
-        .split(",")[0]
-        .trim() || "unknown";
+    const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
 
-    // RATE LIMIT
     const rateKey = `webhook:${eventId || "no-event"}:${ip}`;
     const allowed = await rateLimit(rateKey, 1, 60_000);
+    if (!allowed) return NextResponse.json({ received: true });
 
-    if (!allowed) {
-      return NextResponse.json({ received: true });
-    }
-
-    // SIGNATURE CHECK
-    const signature =
-      req.headers.get("x-square-hmacsha256-signature") || "";
+    const signature = req.headers.get("x-square-hmacsha256-signature") || "";
+    const webhookUrl = "https://aba-ai-assistant.com/api/square/webhook";
 
     const isValid = verifySquareSignature(
       bodyText,
       signature,
-      process.env.SQUARE_WEBHOOK_SIGNATURE_KEY!
+      process.env.SQUARE_WEBHOOK_SIGNATURE_KEY!,
+      webhookUrl
     );
 
     if (!isValid) {
@@ -96,7 +74,6 @@ export async function POST(req: Request) {
         resource: "square",
         metadata: { eventId, eventType, ip },
       });
-
       await safe(logBillingAudit, {
         userId,
         action: "webhook_invalid_signature",
@@ -104,11 +81,9 @@ export async function POST(req: Request) {
         metadata: { eventId, eventType },
         ip,
       });
-
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
-    // IDEMPOTENCY CHECK
     const { data: existing } = await supabaseAdmin
       .from("billing_events")
       .select("event_id")
@@ -122,11 +97,9 @@ export async function POST(req: Request) {
         resource: "square",
         metadata: { eventId, eventType },
       });
-
       return NextResponse.json({ received: true });
     }
 
-    // MARK EVENT PROCESSED
     await supabaseAdmin.from("billing_events").insert({
       event_id: eventId,
       event_type: eventType,
@@ -134,31 +107,23 @@ export async function POST(req: Request) {
       created_at: new Date().toISOString(),
     });
 
-    // PAYMENT SUCCESS → UPGRADE
     if (
-  eventType === "payment.created" ||
-  eventType === "payment.updated" ||
-  eventType === "payment.completed" ||
-  eventType === "invoice.payment_made" ||
-  eventType === "order.fulfillment.updated" ||
-  eventType === "order.updated"
-) {
+      eventType === "payment.created" ||
+      eventType === "payment.updated" ||
+      eventType === "payment.completed" ||
+      eventType === "invoice.payment_made" ||
+      eventType === "order.fulfillment.updated" ||
+      eventType === "order.updated"
+    ) {
       if (!userId || userId === "unknown") {
-        return NextResponse.json(
-          { error: "Missing userId" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "Missing userId" }, { status: 400 });
       }
 
       await supabaseAdmin
         .from("profiles")
-        .update({
-          plan: "pro",
-          subscription_status: "active",
-        })
+        .update({ plan: "pro", subscription_status: "active" })
         .eq("id", userId);
 
-      // Update most recent contract to active
       const { data: latestContract } = await supabaseAdmin
         .from("subscription_contracts")
         .select("id, contract_length_months")
@@ -170,7 +135,6 @@ export async function POST(req: Request) {
       if (latestContract) {
         const endDate = new Date();
         endDate.setMonth(endDate.getMonth() + (latestContract.contract_length_months ?? 1));
-        
         await supabaseAdmin
           .from("subscription_contracts")
           .update({
@@ -179,24 +143,21 @@ export async function POST(req: Request) {
           })
           .eq("id", latestContract.id);
       } else {
-        // No contract yet — create one
-        await supabaseAdmin
-          .from("subscription_contracts")
-          .insert({
-            user_id: userId,
-            plan_name: "Professional",
-            plan_type: "professional",
-            contract_length_months: 1,
-            price_per_month: 11900,
-            total_price: 11900,
-            status: "active",
-            start_date: new Date().toISOString().split("T")[0],
-            end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-            payment_method: "Credit Card",
-            auto_renew: true,
-            renewal_reminder_days: 30,
-            discount_percent: 0,
-          });
+        await supabaseAdmin.from("subscription_contracts").insert({
+          user_id: userId,
+          plan_name: "Professional",
+          plan_type: "professional",
+          contract_length_months: 1,
+          price_per_month: 11900,
+          total_price: 11900,
+          status: "active",
+          start_date: new Date().toISOString().split("T")[0],
+          end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+          payment_method: "Credit Card",
+          auto_renew: true,
+          renewal_reminder_days: 30,
+          discount_percent: 0,
+        });
       }
 
       await safe(logAudit, {
@@ -205,7 +166,6 @@ export async function POST(req: Request) {
         resource: "square",
         metadata: { eventType, eventId, payment_id: payment?.id },
       });
-
       await safe(logBillingAudit, {
         userId,
         action: "subscription_upgraded",
@@ -217,23 +177,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true });
     }
 
-    // PAYMENT FAILED
     if (eventType === "payment.failed") {
       if (userId && userId !== "unknown") {
         await supabaseAdmin
           .from("profiles")
-          .update({
-            subscription_status: "past_due",
-          })
+          .update({ subscription_status: "past_due" })
           .eq("id", userId);
-
         await safe(logAudit, {
           userId,
           action: "payment_failed",
           resource: "square",
           metadata: { eventId, payment_id: payment?.id },
         });
-
         await safe(logBillingAudit, {
           userId,
           action: "payment_failed",
@@ -242,11 +197,9 @@ export async function POST(req: Request) {
           ip,
         });
       }
-
       return NextResponse.json({ received: true });
     }
 
-    // GRACE / CANCELLATION
     if (
       eventType === "subscription.canceled" ||
       eventType === "payment.declined"
@@ -254,18 +207,14 @@ export async function POST(req: Request) {
       if (userId && userId !== "unknown") {
         await supabaseAdmin
           .from("profiles")
-          .update({
-            subscription_status: "grace_period",
-          })
+          .update({ subscription_status: "grace_period" })
           .eq("id", userId);
-
         await safe(logAudit, {
           userId,
           action: "subscription_grace_period",
           resource: "square",
           metadata: { eventId, eventType },
         });
-
         await safe(logBillingAudit, {
           userId,
           action: "subscription_grace_period",
@@ -274,11 +223,9 @@ export async function POST(req: Request) {
           ip,
         });
       }
-
       return NextResponse.json({ received: true });
     }
 
-    // UNRECOGNIZED EVENT
     await safe(logAudit, {
       userId,
       action: "webhook_unrecognized_event",
@@ -293,23 +240,14 @@ export async function POST(req: Request) {
       userId,
       action: "webhook_error",
       resource: "square",
-      metadata: {
-        message: err instanceof Error ? err.message : "Unknown error",
-      },
+      metadata: { message: err instanceof Error ? err.message : "Unknown error" },
     });
-
     await safe(logBillingAudit, {
       userId,
       action: "webhook_error",
       resource: "square",
-      metadata: {
-        message: err instanceof Error ? err.message : "Unknown error",
-      },
+      metadata: { message: err instanceof Error ? err.message : "Unknown error" },
     });
-
-    return NextResponse.json(
-      { error: "Webhook failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Webhook failed" }, { status: 500 });
   }
 }
