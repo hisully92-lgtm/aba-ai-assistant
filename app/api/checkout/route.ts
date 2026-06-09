@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 
     // CREATE SQUARE CHECKOUT
     const result = await createSquarePaymentLink(user.id, planType, months);
-    const url = result?.paymentLink?.url ?? result?.payment_link?.url;
+    const url = result?.payment_link?.url;
 
     if (!url) {
       console.error("No URL in Square response:", JSON.stringify(result));
