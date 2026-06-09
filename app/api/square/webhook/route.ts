@@ -139,8 +139,9 @@ export async function POST(req: Request) {
   eventType === "payment.created" ||
   eventType === "payment.updated" ||
   eventType === "payment.completed" ||
+  eventType === "invoice.payment_made" ||
   eventType === "order.fulfillment.updated" ||
-  eventType === "checkout.order.updated"
+  eventType === "order.updated"
 ) {
       if (!userId || userId === "unknown") {
         return NextResponse.json(
