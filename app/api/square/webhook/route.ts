@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/observability/logAudit";
 import { logBillingAudit } from "@/lib/observability/logBillingAudit";
@@ -20,10 +19,8 @@ function verifySquareSignature(
     .createHmac("sha256", secret)
     .update(url + body)
     .digest("base64");
-
   const hashBuf = Buffer.from(hash);
   const sigBuf = Buffer.from(signature || "");
-
   if (hashBuf.length !== sigBuf.length) return false;
   return crypto.timingSafeEqual(hashBuf, sigBuf);
 }
@@ -53,10 +50,12 @@ export async function POST(req: Request) {
 
     const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
 
+    // RATE LIMIT
     const rateKey = `webhook:${eventId || "no-event"}:${ip}`;
     const allowed = await rateLimit(rateKey, 1, 60_000);
     if (!allowed) return NextResponse.json({ received: true });
 
+    // SIGNATURE VERIFICATION
     const signature = req.headers.get("x-square-hmacsha256-signature") || "";
     const webhookUrl = "https://aba-ai-assistant.com/api/square/webhook";
 
@@ -84,6 +83,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
+    // IDEMPOTENCY CHECK
     const { data: existing } = await supabaseAdmin
       .from("billing_events")
       .select("event_id")
@@ -91,15 +91,10 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (existing) {
-      await safe(logAudit, {
-        userId,
-        action: "webhook_duplicate",
-        resource: "square",
-        metadata: { eventId, eventType },
-      });
       return NextResponse.json({ received: true });
     }
 
+    // LOG EVENT
     await supabaseAdmin.from("billing_events").insert({
       event_id: eventId,
       event_type: eventType,
@@ -107,6 +102,7 @@ export async function POST(req: Request) {
       created_at: new Date().toISOString(),
     });
 
+    // PAYMENT SUCCESS
     if (
       eventType === "payment.created" ||
       eventType === "payment.updated" ||
@@ -116,7 +112,7 @@ export async function POST(req: Request) {
       eventType === "order.updated"
     ) {
       if (!userId || userId === "unknown") {
-        return NextResponse.json({ error: "Missing userId" }, { status: 400 });
+        return NextResponse.json({ received: true });
       }
 
       await supabaseAdmin
@@ -177,6 +173,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true });
     }
 
+    // PAYMENT FAILED
     if (eventType === "payment.failed") {
       if (userId && userId !== "unknown") {
         await supabaseAdmin
@@ -200,6 +197,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true });
     }
 
+    // CANCELLATION / GRACE
     if (
       eventType === "subscription.canceled" ||
       eventType === "payment.declined"
@@ -226,6 +224,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true });
     }
 
+    // UNRECOGNIZED EVENT
     await safe(logAudit, {
       userId,
       action: "webhook_unrecognized_event",
