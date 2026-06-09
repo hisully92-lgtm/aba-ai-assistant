@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
-import { useAIStream } from "@/lib/hooks/useAIStream";
 
 type Message = {
   role: "user" | "assistant";
@@ -64,11 +63,9 @@ export default function HelpPage() {
   async function handleSend(text?: string) {
     const msg = text ?? input.trim();
     if (!msg) return;
-
     setMessages((prev) => [...prev, { role: "user", content: msg }]);
     setInput("");
     setSending(true);
-
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -83,7 +80,6 @@ export default function HelpPage() {
           ],
         }),
       });
-
       const data = await res.json();
       const reply = data.content?.[0]?.text ?? "Sorry, I couldn't process that. Please try again.";
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
@@ -99,6 +95,62 @@ export default function HelpPage() {
       <PageHeader title="Help Center">
         <p className="text-gray-500 text-sm">Get answers about the platform and ABA clinical concepts.</p>
       </PageHeader>
+
+      {/* CONTACT SUPPORT */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="border border-blue-100 bg-blue-50 rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-2xl">💬</span>
+            <span className="text-xs font-bold px-2 py-1 rounded-full bg-blue-100 text-blue-700">General Inquiries</span>
+          </div>
+          <p className="text-xs text-gray-600 mb-3">Questions about ABA AI Assistant, features, or getting started.</p>
+          <a href="mailto:hello@aba-ai-assistant.com" className="text-sm font-semibold text-blue-600 hover:underline break-all">
+            hello@aba-ai-assistant.com
+          </a>
+        </div>
+        <div className="border border-green-100 bg-green-50 rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-2xl">🛠️</span>
+            <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700">Technical Support</span>
+          </div>
+          <p className="text-xs text-gray-600 mb-3">Having trouble with the platform? Report bugs or get technical help.</p>
+          <a href="mailto:support@aba-ai-assistant.com" className="text-sm font-semibold text-blue-600 hover:underline break-all">
+            support@aba-ai-assistant.com
+          </a>
+        </div>
+        <div className="border border-purple-100 bg-purple-50 rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-2xl">💳</span>
+            <span className="text-xs font-bold px-2 py-1 rounded-full bg-purple-100 text-purple-700">Billing Support</span>
+          </div>
+          <p className="text-xs text-gray-600 mb-3">Questions about your subscription, payments, or account billing.</p>
+          <a href="mailto:support@aba-ai-assistant.com" className="text-sm font-semibold text-blue-600 hover:underline break-all">
+            support@aba-ai-assistant.com
+          </a>
+        </div>
+      </div>
+
+      {/* RESPONSE TIMES */}
+      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-wrap gap-6 text-sm text-gray-600">
+        <div className="flex items-center gap-2">
+          <span className="text-green-500 font-bold">●</span>
+          <span>General inquiries — response within 24 hours</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-blue-500 font-bold">●</span>
+          <span>Technical support — response within 12 hours</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-purple-500 font-bold">●</span>
+          <span>Billing support — response within 24 hours</span>
+        </div>
+      </div>
+
+      {/* DISCLAIMER */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-xs text-yellow-800">
+        <p className="font-bold mb-1">Important Notice</p>
+        <p>ABA AI Assistant is a clinical documentation and practice management platform. It does not currently support direct electronic claims submission (EDI 837) to insurance payers. Claims submission requires your existing billing software or clearinghouse (such as Availity, Office Ally, or Change Healthcare). Your clinicians are responsible for their own provider credentialing with individual insurance companies. ABA AI Assistant is not a billing service and does not guarantee insurance reimbursement.</p>
+      </div>
 
       {/* QUICK QUESTIONS */}
       <Section title="Common Questions">
@@ -120,14 +172,9 @@ export default function HelpPage() {
         <div className="flex flex-col" style={{ height: "420px" }}>
           <div className="flex-1 overflow-y-auto space-y-3 mb-4 pr-1">
             {messages.map((msg, i) => (
-              <div
-                key={i}
-                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-              >
+              <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-sm px-4 py-3 rounded-2xl text-sm ${
-                  msg.role === "user"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-100 text-gray-800"
+                  msg.role === "user" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-800"
                 }`}>
                   {msg.role === "assistant" && (
                     <p className="text-xs font-semibold text-blue-600 mb-1">ABA AI Assistant</p>
@@ -145,7 +192,6 @@ export default function HelpPage() {
             )}
             <div ref={bottomRef} />
           </div>
-
           <div className="flex gap-2">
             <input
               type="text"
