@@ -92,12 +92,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       setIsAdmin(adminRole);
 
       if (contract) {
-        const isExpired = new Date(contract.end_date) < new Date();
-        const isActive = contract.status === "active" || contract.status === "trial";
-        if (isExpired || !isActive) { setExpired(true); setLoading(false); return; }
-      }
+  const isExpired = new Date(contract.end_date) < new Date();
+  const isActive = contract.status === "active" || contract.status === "trial";
+  if (isExpired || !isActive) { setExpired(true); setLoading(false); return; }
+} 
+// No contract at all — admins get billing prompt, staff get contact admin message
+else if (adminRole) {
+  setExpired(true); setLoading(false); return;
+}
 
-      setLoading(false);
+setLoading(false);
     };
 
     checkAccess();
