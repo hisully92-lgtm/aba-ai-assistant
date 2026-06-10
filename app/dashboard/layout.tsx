@@ -184,9 +184,20 @@ setLoading(false);
         <CompanyBanner />
 
         <main className="flex-1 p-4 md:p-6 lg:p-8">
-          <OnboardingTutorial />
-          {children}
-        </main>
+  <OnboardingTutorial />
+  {children}
+</main>
+
+{/* COMPLIANCE FOOTER */}
+<footer className="border-t border-gray-200 bg-white px-4 py-3 text-xs text-gray-400 flex flex-wrap gap-3 items-center justify-between">
+  <span>© {new Date().getFullYear()} ABA AI Assistant · HIPAA Compliant Platform</span>
+  <div className="flex gap-4 flex-wrap">
+    <a href="/notice-of-privacy-practices" target="_blank" className="hover:text-blue-500 transition-colors">Notice of Privacy Practices</a>
+    <a href="/data-retention" target="_blank" className="hover:text-blue-500 transition-colors">Data Retention</a>
+    <a href="/security-policy" target="_blank" className="hover:text-blue-500 transition-colors">Security Policy</a>
+    <a href="/dashboard/help" className="hover:text-blue-500 transition-colors">Help & Support</a>
+  </div>
+</footer>
       </div>
     </div>
   );
