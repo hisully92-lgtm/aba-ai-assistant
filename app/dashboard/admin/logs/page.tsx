@@ -55,7 +55,7 @@ type BillingLog = {
 
 const TAB_LABELS: Record<LogType, string> = {
   system: "System",
-  access: "Access",
+  access: "PHI Access",
   ai_usage: "AI Usage",
   billing: "Billing",
 };
@@ -271,7 +271,7 @@ export default function AdminLogsPage() {
 
       {/* ACCESS LOGS */}
       {!loading && activeTab === "access" && (
-        <Section title={`Access Logs (${accessLogs.length})`}>
+        <Section title={`PHI Access Logs (${accessLogs.length}) — HIPAA Audit Trail`}>
           {accessLogs.length === 0 ? (
             <p className="text-gray-400 text-sm">No access logs found.</p>
           ) : (
