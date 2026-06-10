@@ -40,7 +40,6 @@ export default function OnboardingPage() {
   const [hipaaAccepted, setHipaaAccepted] = useState(false);
   const [hipaaSignature, setHipaaSignature] = useState("");
 
-  // Bootstrap state
   const [generatedClinicCode, setGeneratedClinicCode] = useState("");
   const [generatedAdminCode, setGeneratedAdminCode] = useState("");
   const [copiedClinic, setCopiedClinic] = useState(false);
@@ -58,11 +57,7 @@ export default function OnboardingPage() {
     if (!joinExisting && !clinicName.trim()) { setError("Please enter your clinic name."); return; }
     if (joinExisting && !clinicCode.trim()) { setError("Please enter your clinic code."); return; }
     setError("");
-    if (joinExisting) {
-      setStep("role");
-    } else {
-      setStep("hipaa");
-    }
+    setStep(joinExisting ? "role" : "hipaa");
   }
 
   function handleHipaaStep() {
@@ -76,10 +71,7 @@ export default function OnboardingPage() {
 
   function handleRoleStep() {
     setError("");
-    if (selectedRole?.requiresCode) {
-      setStep("code");
-      return;
-    }
+    if (selectedRole?.requiresCode) { setStep("code"); return; }
     handleComplete();
   }
 
@@ -153,12 +145,8 @@ export default function OnboardingPage() {
           .ilike("clinic_code", clinicCode.trim())
           .maybeSingle();
 
-        if (companyError) {
-          throw new Error(`Database error: ${companyError.message}`);
-        }
-        if (!existingCompany) {
-          throw new Error("Clinic code not found. Double-check the code — codes look like XXXX-XXXX.");
-        }
+        if (companyError) throw new Error(`Database error: ${companyError.message}`);
+        if (!existingCompany) throw new Error("Clinic code not found. Double-check the code — codes look like XXXX-XXXX.");
         companyId = existingCompany.id;
       } else {
         const slug = clinicName.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
@@ -167,8 +155,7 @@ export default function OnboardingPage() {
         if (createCompanyError || !company) throw new Error(createCompanyError?.message || "Failed to create clinic.");
         companyId = company.id;
 
-        // Generate clinic code
-        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I confusion
+        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
         const rand = (n: number) => Array.from({length: n}, () => chars[Math.floor(Math.random() * chars.length)]).join("");
         newClinicCode = `${rand(4)}-${rand(4)}`;
         await supabase.from("companies").update({ clinic_code: newClinicCode }).eq("id", company.id);
@@ -181,7 +168,6 @@ export default function OnboardingPage() {
         role,
         status: codeVerified || !selectedRole?.requiresCode ? "active" : "pending",
       });
-
       if (linkError) throw new Error(linkError.message);
 
       if (codeVerified && verificationCode.trim()) {
@@ -192,7 +178,6 @@ export default function OnboardingPage() {
         }).ilike("code", verificationCode.trim());
       }
 
-      // If new clinic founder — generate bootstrap admin code
       if (!joinExisting && newClinicCode) {
         const adminCode = generateAdminCode(newClinicCode);
         const expiryDate = new Date();
@@ -205,6 +190,28 @@ export default function OnboardingPage() {
           expires_at: expiryDate.toISOString().split("T")[0],
           company_id: companyId,
           created_by: user.id,
+        }]);
+
+        // AUTO-CREATE 30-DAY FREE TRIAL
+        const trialStart = new Date();
+        const trialEnd = new Date();
+        trialEnd.setDate(trialEnd.getDate() + 30);
+
+        await supabase.from("subscription_contracts").insert([{
+          user_id: user.id,
+          company_id: companyId,
+          plan_name: "Professional",
+          plan_type: "professional",
+          contract_length_months: 1,
+          price_per_month: 0,
+          total_price: 0,
+          discount_percent: 100,
+          start_date: trialStart.toISOString().split("T")[0],
+          end_date: trialEnd.toISOString().split("T")[0],
+          auto_renew: false,
+          renewal_reminder_days: 7,
+          status: "trial",
+          payment_method: "Trial",
         }]);
 
         setGeneratedAdminCode(adminCode);
@@ -224,20 +231,19 @@ export default function OnboardingPage() {
 
   async function copyToClipboard(text: string, type: "clinic" | "admin") {
     await navigator.clipboard.writeText(text);
-    if (type === "clinic") {
-      setCopiedClinic(true);
-      setTimeout(() => setCopiedClinic(false), 2000);
-    } else {
-      setCopiedAdmin(true);
-      setTimeout(() => setCopiedAdmin(false), 2000);
-    }
+    if (type === "clinic") { setCopiedClinic(true); setTimeout(() => setCopiedClinic(false), 2000); }
+    else { setCopiedAdmin(true); setTimeout(() => setCopiedAdmin(false), 2000); }
   }
 
-  const stepLabels = ["Profile", "Clinic", ...(!joinExisting ? ["HIPAA"] : []), "Role", ...(selectedRole?.requiresCode ? ["Verify"] : [])];
   const stepKeys: Step[] = selectedRole?.requiresCode
     ? (joinExisting ? ["profile", "clinic", "role", "code"] : ["profile", "clinic", "hipaa", "role", "code"])
     : (joinExisting ? ["profile", "clinic", "role"] : ["profile", "clinic", "hipaa", "role"]);
+  const stepLabels = ["Profile", "Clinic", ...(!joinExisting ? ["HIPAA"] : []), "Role", ...(selectedRole?.requiresCode ? ["Verify"] : [])];
   const stepIndex = stepKeys.indexOf(step);
+
+  const btnPrimary = "w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 cursor-pointer select-none";
+  const btnSecondary = "flex-1 rounded-lg border py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 cursor-pointer select-none";
+  const inputClass = "w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300";
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
@@ -269,11 +275,9 @@ export default function OnboardingPage() {
               <label className="mb-1 block text-sm font-medium text-gray-700">Full Name</label>
               <input type="text" value={name} onChange={e => setName(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleProfileStep()}
-                placeholder="First and last name"
-                className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                placeholder="First and last name" className={inputClass} />
             </div>
-            <button onClick={handleProfileStep}
-              className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700">
+            <button type="button" onClick={handleProfileStep} className={btnPrimary}>
               Continue →
             </button>
           </div>
@@ -287,12 +291,12 @@ export default function OnboardingPage() {
               <p className="mt-1 text-sm text-gray-500">Create a new clinic or join an existing one.</p>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => setJoinExisting(false)}
-                className={`rounded-xl border p-3 text-sm font-medium transition-all ${!joinExisting ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-blue-300"}`}>
+              <button type="button" onClick={() => setJoinExisting(false)}
+                className={`rounded-xl border p-3 text-sm font-medium transition-all cursor-pointer ${!joinExisting ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-blue-300"}`}>
                 🏥 New Clinic
               </button>
-              <button onClick={() => setJoinExisting(true)}
-                className={`rounded-xl border p-3 text-sm font-medium transition-all ${joinExisting ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-blue-300"}`}>
+              <button type="button" onClick={() => setJoinExisting(true)}
+                className={`rounded-xl border p-3 text-sm font-medium transition-all cursor-pointer ${joinExisting ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-blue-300"}`}>
                 🔗 Join Existing
               </button>
             </div>
@@ -302,8 +306,7 @@ export default function OnboardingPage() {
                 <label className="mb-1 block text-sm font-medium text-gray-700">Clinic Name</label>
                 <input type="text" value={clinicName} onChange={e => setClinicName(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && handleClinicStep()}
-                  placeholder="e.g. Sunshine ABA Therapy"
-                  className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                  placeholder="e.g. Sunshine ABA Therapy" className={inputClass} />
               </div>
             ) : (
               <div>
@@ -317,12 +320,8 @@ export default function OnboardingPage() {
             )}
 
             <div className="flex gap-2">
-              <button onClick={() => setStep("profile")}
-                className="flex-1 rounded-lg border py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50">
-                ← Back
-              </button>
-              <button onClick={handleClinicStep}
-                className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700">
+              <button type="button" onClick={() => setStep("profile")} className={btnSecondary}>← Back</button>
+              <button type="button" onClick={handleClinicStep} className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 cursor-pointer">
                 Continue →
               </button>
             </div>
@@ -359,17 +358,13 @@ export default function OnboardingPage() {
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Full name as signature *</label>
               <input type="text" value={hipaaSignature} onChange={e => setHipaaSignature(e.target.value)}
-                placeholder="Your full legal name"
-                className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                placeholder="Your full legal name" className={inputClass} />
               <p className="text-xs text-gray-400 mt-1">Date: {new Date().toLocaleDateString()} · Legally binding electronic signature.</p>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setStep("clinic")}
-                className="flex-1 rounded-lg border py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50">
-                ← Back
-              </button>
-              <button onClick={handleHipaaStep} disabled={!hipaaAccepted || !hipaaSignature.trim()}
-                className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50">
+              <button type="button" onClick={() => setStep("clinic")} className={btnSecondary}>← Back</button>
+              <button type="button" onClick={handleHipaaStep} disabled={!hipaaAccepted || !hipaaSignature.trim()}
+                className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
                 Accept and Continue →
               </button>
             </div>
@@ -385,8 +380,8 @@ export default function OnboardingPage() {
             </div>
             <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
               {ROLES.map(r => (
-                <button key={r.value} onClick={() => setRole(r.value)}
-                  className={`w-full rounded-xl border p-4 text-left transition-all ${role === r.value ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"}`}>
+                <button type="button" key={r.value} onClick={() => setRole(r.value)}
+                  className={`w-full rounded-xl border p-4 text-left transition-all cursor-pointer ${role === r.value ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"}`}>
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-800">{r.label}</p>
@@ -400,12 +395,9 @@ export default function OnboardingPage() {
               ))}
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setStep(joinExisting ? "clinic" : "hipaa")}
-                className="flex-1 rounded-lg border py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50">
-                ← Back
-              </button>
-              <button onClick={handleRoleStep} disabled={loading}
-                className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50">
+              <button type="button" onClick={() => setStep(joinExisting ? "clinic" : "hipaa")} className={btnSecondary}>← Back</button>
+              <button type="button" onClick={handleRoleStep} disabled={loading}
+                className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
                 {loading ? "Setting up..." : selectedRole?.requiresCode ? "Next →" : "Complete Setup →"}
               </button>
             </div>
@@ -434,26 +426,23 @@ export default function OnboardingPage() {
                     className="w-full rounded-lg border px-3 py-2 font-mono text-sm tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-300"
                     maxLength={30} />
                 </div>
-                <button onClick={handleVerifyCode} disabled={verifyingCode}
-                  className="w-full rounded-lg border border-blue-500 py-2.5 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:opacity-50">
+                <button type="button" onClick={handleVerifyCode} disabled={verifyingCode}
+                  className="w-full rounded-lg border border-blue-500 py-2.5 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:opacity-50 cursor-pointer">
                   {verifyingCode ? "Verifying..." : "Verify Code"}
                 </button>
               </div>
             )}
             <div className="flex gap-2">
-              <button onClick={() => { setStep("role"); setCodeVerified(false); setVerificationCode(""); }}
-                className="flex-1 rounded-lg border py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50">
-                ← Back
-              </button>
-              <button onClick={handleComplete} disabled={!codeVerified || loading}
-                className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50">
+              <button type="button" onClick={() => { setStep("role"); setCodeVerified(false); setVerificationCode(""); }} className={btnSecondary}>← Back</button>
+              <button type="button" onClick={handleComplete} disabled={!codeVerified || loading}
+                className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
                 {loading ? "Setting up..." : "Complete Setup →"}
               </button>
             </div>
           </div>
         )}
 
-        {/* ADMIN BOOTSTRAP — shown to new clinic founders */}
+        {/* ADMIN BOOTSTRAP */}
         {step === "admin_bootstrap" && (
           <div className="space-y-6">
             <div className="text-center">
@@ -464,28 +453,30 @@ export default function OnboardingPage() {
               </p>
             </div>
 
+            <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-xs text-green-700 text-center">
+              ✅ Your <strong>30-day free trial</strong> has started automatically. No payment required until your trial ends.
+            </div>
+
             <div className="space-y-3">
-              {/* CLINIC CODE */}
               <div className="border-2 border-blue-200 rounded-xl p-4 bg-blue-50">
                 <p className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-1">Your Clinic Code</p>
                 <p className="text-xs text-blue-600 mb-2">Share this with staff so they can join your clinic</p>
                 <div className="flex items-center gap-3">
                   <p className="text-xl font-black font-mono tracking-widest text-blue-800 flex-1">{generatedClinicCode}</p>
-                  <button onClick={() => copyToClipboard(generatedClinicCode, "clinic")}
-                    className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                  <button type="button" onClick={() => copyToClipboard(generatedClinicCode, "clinic")}
+                    className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer">
                     {copiedClinic ? "Copied!" : "Copy"}
                   </button>
                 </div>
               </div>
 
-              {/* ADMIN CODE */}
               <div className="border-2 border-purple-200 rounded-xl p-4 bg-purple-50">
                 <p className="text-xs font-bold text-purple-700 uppercase tracking-wide mb-1">Your Admin Setup Code</p>
                 <p className="text-xs text-purple-600 mb-2">Use this code to set yourself up as Administrator — expires in 7 days</p>
                 <div className="flex items-center gap-3">
                   <p className="text-xl font-black font-mono tracking-widest text-purple-800 flex-1">{generatedAdminCode}</p>
-                  <button onClick={() => copyToClipboard(generatedAdminCode, "admin")}
-                    className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
+                  <button type="button" onClick={() => copyToClipboard(generatedAdminCode, "admin")}
+                    className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors cursor-pointer">
                     {copiedAdmin ? "Copied!" : "Copy"}
                   </button>
                 </div>
@@ -493,12 +484,12 @@ export default function OnboardingPage() {
             </div>
 
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-700">
-              Save these codes somewhere safe. The admin code expires in 7 days and can only be used once. You can generate more codes from the Admin panel after setup.
+              Save these codes somewhere safe. The admin code expires in 7 days and can only be used once.
             </div>
 
-            <button
+            <button type="button"
               onClick={() => { setStep("done"); setTimeout(() => { window.location.href = "/dashboard"; }, 1500); }}
-              className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700">
+              className={btnPrimary}>
               Continue to Dashboard →
             </button>
           </div>
