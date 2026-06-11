@@ -86,18 +86,17 @@ export default function ProgressReportsPage() {
 
       const prompt = `You are a BCBA writing a clinical progress report. Based on the following session data and goals, write a professional progress report with three sections: Goals Addressed, Progress Summary, and Recommendations.\n\nGoals:\n${goalText || "No goals on file"}\n\nRecent Sessions:\n${sessionText || "No session data available"}\n\nWrite in clinical language suitable for insurance and supervisory review.`;
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-
-      const data = await response.json();
-      const text = data.content?.[0]?.text ?? "";
+      const response = await fetch("/api/ai", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    type: "summary",
+    client_id: clientId,
+    context: { prompt },
+  }),
+});
+const data = await response.json();
+const text = data.result ?? data.text ?? data.content?.[0]?.text ?? "";
 
       const goalsMatch = text.match(/Goals Addressed[:\s]+([\s\S]*?)(?=Progress Summary|$)/i);
       const progressMatch = text.match(/Progress Summary[:\s]+([\s\S]*?)(?=Recommendations|$)/i);

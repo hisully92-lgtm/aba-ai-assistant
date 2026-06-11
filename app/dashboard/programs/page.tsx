@@ -97,8 +97,8 @@ export default function ProgramsPage() {
     if (!user) return;
 
     const [{ data: clientData }, { data: programData }] = await Promise.all([
-      supabase.from("clients").select("id, full_name").eq("created_by", user.id),
-      supabase.from("programs").select("*").eq("created_by", user.id).order("created_at", { ascending: true }),
+      supabase.from("clients").select("id, full_name").order("full_name"),
+      supabase.from("programs").select("*").order("created_at", { ascending: true }),
     ]);
 
     setClients(clientData ?? []);
