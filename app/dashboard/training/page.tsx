@@ -140,13 +140,14 @@ export default function TrainingPage() {
     setUserId(user.id);
 
     const { data: companyUser } = await supabase
-      .from("company_users")
-      .select("company_id, role")
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .single();
+  .from("company_users")
+  .select("company_id, role")
+  .eq("user_id", user.id)
+  .eq("status", "active")
+  .limit(1)
+  .maybeSingle();
 
-    if (!companyUser) return;
+if (!companyUser) return;
     setRole(companyUser.role);
     setCompanyId(companyUser.company_id);
 

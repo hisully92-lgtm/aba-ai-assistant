@@ -27,21 +27,21 @@ type Session = {
 
 const BEHAVIORS_LIST = [
   "Aggression", "Self-Injurious Behavior", "Elopement", "Property Destruction",
-  "Tantrum", "Non-Compliance", "Vocal Disruption", "Stereotypy", "No behaviors observed"
+  "Tantrum", "Non-Compliance", "Vocal Disruption", "Stereotypy", "No behaviors observed",
 ];
 const INTERVENTIONS_LIST = [
   "Redirection", "Planned ignoring", "Differential reinforcement",
   "Response blocking", "NCR", "Token economy", "Visual supports",
-  "First-Then board", "Praise/Reinforcement", "Prompting hierarchy"
+  "First-Then board", "Praise/Reinforcement", "Prompting hierarchy",
 ];
 const PROGRAMS_LIST = [
   "Mand Training", "Tact Training", "Imitation", "Matching",
   "Receptive ID", "Expressive ID", "LRFFC", "Intraverbal",
-  "Social Skills", "Daily Living Skills", "Gross Motor", "Fine Motor"
+  "Social Skills", "Daily Living Skills", "Gross Motor", "Fine Motor",
 ];
 const CLIENT_RESPONSES = [
   "Responded well", "Required multiple prompts", "Refused task",
-  "Partial compliance", "Independent", "Needed full physical assistance"
+  "Partial compliance", "Independent", "Needed full physical assistance",
 ];
 
 type Template = {
@@ -182,7 +182,8 @@ function CptCodeSelector({ staffMember, onSelect, selectedCpt }: {
       </p>
       <div className="flex flex-wrap gap-2">
         {codes.map((c) => (
-          <button type="button" key={c.code} onClick={() => onSelect(selectedCpt === c.code ? "" : c.code)}
+          <button type="button" key={c.code}
+            onClick={() => onSelect(selectedCpt === c.code ? "" : c.code)}
             className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${selectedCpt === c.code ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300 hover:border-blue-300"}`}>
             {c.label}
           </button>
@@ -262,6 +263,7 @@ export default function SessionsPage() {
   const [filterClient, setFilterClient] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [companyId, setCompanyId] = useState<string | null>(null);
 
   // TIMER STATE
   const [timerRunning, setTimerRunning] = useState(false);
@@ -288,7 +290,6 @@ export default function SessionsPage() {
 
   useEffect(() => {
     init();
-    // Restore timer if running before navigation
     const savedStart = localStorage.getItem("session_timer_start");
     if (savedStart) {
       timerStartRef.current = Number(savedStart);
@@ -299,7 +300,6 @@ export default function SessionsPage() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // BACKGROUND-SAFE TIMER
   useEffect(() => {
     if (!timerRunning) return;
     const tick = () => {
@@ -320,10 +320,23 @@ export default function SessionsPage() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
+
+    // Fetch company_id for session inserts
+    const { data: companyUser } = await supabase
+      .from("company_users")
+      .select("company_id")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle();
+
+    setCompanyId(companyUser?.company_id ?? null);
+
     const [{ data: clientData, error: clientErr }, { data: sessionData, error: sessionErr }] = await Promise.all([
-      supabase.from("clients").select("id, full_name"),
+      supabase.from("clients").select("id, full_name").order("full_name"),
       supabase.from("sessions").select("*").order("created_at", { ascending: false }).limit(50),
     ]);
+
     if (clientErr || sessionErr) {
       setFetchError("Failed to load sessions. Please refresh and try again.");
     } else {
@@ -402,20 +415,28 @@ export default function SessionsPage() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
+
     const { data, error: saveError } = await supabase.from("sessions").insert([{
-      client_id: clientId, date, status,
-      client_response: clientResponse, notes, staff_member: staffMember,
+      client_id: clientId,
+      date,
+      status,
+      client_response: clientResponse,
+      notes,
+      staff_member: staffMember,
       cpt_code: cptCode || null,
       behaviors_observed: selectedBehaviors.join(", "),
       interventions_used: selectedInterventions.join(", "),
       programs_targeted: selectedPrograms.join(", "),
       soap_subjective: soap.subjective,
       soap_objective: soap.objective || (timerSeconds > 0 ? `Session duration: ${formatTimer(timerSeconds)}` : ""),
-      soap_assessment: soap.assessment, soap_plan: soap.plan,
+      soap_assessment: soap.assessment,
+      soap_plan: soap.plan,
       start_time: sessionStartTime || null,
       end_time: sessionEndTime || null,
       created_by: user.id,
+      company_id: companyId,
     }]).select().single();
+
     if (saveError) { setError(saveError.message); setSaving(false); return; }
     if (data) setSessions(prev => [data, ...prev]);
     setSuccess(true);
@@ -456,7 +477,6 @@ export default function SessionsPage() {
 
           <GeofenceCheck />
 
-          {/* SESSION TIMER */}
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold text-gray-500 uppercase">Session Timer</p>
@@ -514,7 +534,6 @@ export default function SessionsPage() {
             )}
           </div>
 
-          {/* TEMPLATES */}
           <div className="mb-4">
             <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Quick Templates</p>
             <div className="flex flex-wrap gap-2">

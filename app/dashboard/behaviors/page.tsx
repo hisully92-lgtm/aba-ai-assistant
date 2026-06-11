@@ -33,18 +33,9 @@ const FUNCTIONS = ["Attention", "Escape/Avoidance", "Tangible", "Sensory/Automat
 const INTERVENTIONS = ["Redirection", "Planned ignoring", "Differential reinforcement", "Response blocking", "NCR", "Token economy", "Visual supports", "First-Then board", "Other"];
 
 const emptyForm = {
-  client_id: "",
-  staff_member: "",
-  behavior_name: "",
-  antecedent: "",
-  behavior: "",
-  consequence: "",
-  frequency: "",
-  duration: "",
-  intensity: "",
-  function_hypothesis: "",
-  intervention_used: "",
-  replacement_behavior: "",
+  client_id: "", staff_member: "", behavior_name: "", antecedent: "",
+  behavior: "", consequence: "", frequency: "", duration: "",
+  intensity: "", function_hypothesis: "", intervention_used: "", replacement_behavior: "",
 };
 
 export default function BehaviorsPage() {
@@ -69,9 +60,10 @@ export default function BehaviorsPage() {
     const user = auth?.user;
     if (!user) return;
 
+    // RLS handles role-based filtering — no created_by filter needed
     const [{ data: clientData }, { data: behaviorData }] = await Promise.all([
-      supabase.from("clients").select("id, full_name").eq("created_by", user.id),
-      supabase.from("behaviors").select("*").eq("created_by", user.id).order("created_at", { ascending: false }),
+      supabase.from("clients").select("id, full_name").order("full_name"),
+      supabase.from("behaviors").select("*").order("created_at", { ascending: false }),
     ]);
 
     setClients(clientData ?? []);
@@ -91,13 +83,13 @@ export default function BehaviorsPage() {
     const user = auth?.user;
     if (!user) return;
 
-    const { data, error } = await supabase
+    const { data, error: saveError } = await supabase
       .from("behaviors")
       .insert([{ ...form, created_by: user.id }])
       .select()
       .single();
 
-    if (error) { setError(error.message); setSaving(false); return; }
+    if (saveError) { setError(saveError.message); setSaving(false); return; }
 
     setBehaviors((prev) => [data, ...prev]);
     setForm(emptyForm);
@@ -137,138 +129,99 @@ export default function BehaviorsPage() {
         </div>
       )}
 
-      {/* FORM */}
       {showForm && (
         <Section title="Log Behavior">
           {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <label className="text-sm font-medium text-gray-700 mb-1 block">Client *</label>
-              <select
-                value={form.client_id}
-                onChange={(e) => setForm({ ...form, client_id: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
+              <select value={form.client_id} onChange={(e) => setForm({ ...form, client_id: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                 <option value="">Select client...</option>
                 {clients.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
               </select>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Staff Member</label>
-              <input
-                type="text"
-                value={form.staff_member}
+              <input type="text" value={form.staff_member}
                 onChange={(e) => setForm({ ...form, staff_member: e.target.value })}
                 placeholder="Your name"
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Behavior *</label>
-              <select
-                value={form.behavior_name}
-                onChange={(e) => setForm({ ...form, behavior_name: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
+              <select value={form.behavior_name} onChange={(e) => setForm({ ...form, behavior_name: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                 <option value="">Select behavior...</option>
                 {BEHAVIOR_NAMES.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Antecedent</label>
-              <select
-                value={form.antecedent}
-                onChange={(e) => setForm({ ...form, antecedent: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
+              <select value={form.antecedent} onChange={(e) => setForm({ ...form, antecedent: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                 <option value="">Select antecedent...</option>
                 {ANTECEDENTS.map((a) => <option key={a} value={a}>{a}</option>)}
               </select>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Behavior Description</label>
-              <textarea
-                value={form.behavior}
-                onChange={(e) => setForm({ ...form, behavior: e.target.value })}
-                placeholder="Describe the behavior..."
-                rows={2}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
+              <textarea value={form.behavior} onChange={(e) => setForm({ ...form, behavior: e.target.value })}
+                placeholder="Describe the behavior..." rows={2}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Consequence</label>
-              <textarea
-                value={form.consequence}
-                onChange={(e) => setForm({ ...form, consequence: e.target.value })}
-                placeholder="What happened after..."
-                rows={2}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
+              <textarea value={form.consequence} onChange={(e) => setForm({ ...form, consequence: e.target.value })}
+                placeholder="What happened after..." rows={2}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Frequency</label>
-              <select
-                value={form.frequency}
-                onChange={(e) => setForm({ ...form, frequency: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
+              <select value={form.frequency} onChange={(e) => setForm({ ...form, frequency: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                 <option value="">Select frequency...</option>
                 {FREQUENCIES.map((f) => <option key={f} value={f}>{f}</option>)}
               </select>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Duration</label>
-              <select
-                value={form.duration}
-                onChange={(e) => setForm({ ...form, duration: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
+              <select value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                 <option value="">Select duration...</option>
                 {DURATIONS.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Intensity</label>
-              <select
-                value={form.intensity}
-                onChange={(e) => setForm({ ...form, intensity: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
+              <select value={form.intensity} onChange={(e) => setForm({ ...form, intensity: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                 <option value="">Select intensity...</option>
                 {INTENSITIES.map((i) => <option key={i} value={i}>{i}</option>)}
               </select>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Function Hypothesis</label>
-              <select
-                value={form.function_hypothesis}
-                onChange={(e) => setForm({ ...form, function_hypothesis: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
+              <select value={form.function_hypothesis} onChange={(e) => setForm({ ...form, function_hypothesis: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                 <option value="">Select function...</option>
                 {FUNCTIONS.map((f) => <option key={f} value={f}>{f}</option>)}
               </select>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Intervention Used</label>
-              <select
-                value={form.intervention_used}
-                onChange={(e) => setForm({ ...form, intervention_used: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
+              <select value={form.intervention_used} onChange={(e) => setForm({ ...form, intervention_used: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                 <option value="">Select intervention...</option>
                 {INTERVENTIONS.map((i) => <option key={i} value={i}>{i}</option>)}
               </select>
             </div>
             <div className="md:col-span-2">
               <label className="text-sm font-medium text-gray-700 mb-1 block">Replacement Behavior</label>
-              <input
-                type="text"
-                value={form.replacement_behavior}
+              <input type="text" value={form.replacement_behavior}
                 onChange={(e) => setForm({ ...form, replacement_behavior: e.target.value })}
                 placeholder="Target replacement behavior..."
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
           </div>
           <div className="mt-4 flex gap-2">
@@ -278,68 +231,48 @@ export default function BehaviorsPage() {
         </Section>
       )}
 
-      {/* FILTERS */}
       {!loading && behaviors.length > 0 && (
         <Section title="Filters">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
               <label className="text-xs text-gray-500 mb-1 block">Client</label>
-              <select
-                value={filterClient}
-                onChange={(e) => setFilterClient(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
+              <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                 <option value="">All Clients</option>
                 {clients.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">Behavior</label>
-              <select
-                value={filterBehavior}
-                onChange={(e) => setFilterBehavior(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
+              <select value={filterBehavior} onChange={(e) => setFilterBehavior(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                 <option value="">All Behaviors</option>
                 {BEHAVIOR_NAMES.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">Intensity</label>
-              <select
-                value={filterIntensity}
-                onChange={(e) => setFilterIntensity(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              >
+              <select value={filterIntensity} onChange={(e) => setFilterIntensity(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                 <option value="">All Intensities</option>
                 {INTENSITIES.map((i) => <option key={i} value={i}>{i}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">From Date</label>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
+              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">To Date</label>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
+              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
           </div>
           <div className="flex items-center gap-3 mt-2">
             {filtersActive && (
-              <button
-                onClick={() => { setFilterClient(""); setFilterBehavior(""); setFilterIntensity(""); setDateFrom(""); setDateTo(""); }}
-                className="text-sm text-gray-400 hover:text-gray-600 underline"
-              >
+              <button onClick={() => { setFilterClient(""); setFilterBehavior(""); setFilterIntensity(""); setDateFrom(""); setDateTo(""); }}
+                className="text-sm text-gray-400 hover:text-gray-600 underline">
                 Clear filters
               </button>
             )}
@@ -348,7 +281,6 @@ export default function BehaviorsPage() {
         </Section>
       )}
 
-      {/* LIST */}
       {loading && <p className="text-gray-400 text-sm">Loading...</p>}
       {!loading && filtered.length === 0 && (
         <Section title="Behavior Log">
@@ -368,9 +300,7 @@ export default function BehaviorsPage() {
               </div>
               <div className="flex gap-2 flex-wrap">
                 {b.intensity && (
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${intensityColor(b.intensity)}`}>
-                    {b.intensity}
-                  </span>
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${intensityColor(b.intensity)}`}>{b.intensity}</span>
                 )}
                 {b.frequency && (
                   <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">{b.frequency}</span>

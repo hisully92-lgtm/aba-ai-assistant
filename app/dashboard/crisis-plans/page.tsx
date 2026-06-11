@@ -74,7 +74,7 @@ export default function CrisisPlansPage() {
   const TOTAL_STEPS = 4;
   const { isAdmin, isSupervisor } = useRole();
 
-  useEffect(() => { init(); }, []);
+  useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
@@ -82,7 +82,7 @@ export default function CrisisPlansPage() {
     if (!user) return;
 
     const [{ data: clientData }, { data: planData }] = await Promise.all([
-      supabase.from("clients").select("id, full_name"),
+      supabase.from("clients").select("id, full_name").order("full_name"),
       supabase.from("crisis_plans").select("*").order("created_at", { ascending: false }),
     ]);
 
@@ -204,7 +204,6 @@ export default function CrisisPlansPage() {
   if (filterClient) filtered = filtered.filter((p) => p.client_id === filterClient);
 
   const inputClass = "w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300";
-
   const STEPS = ["Plan Type & Info", "Contacts & Triggers", "Crisis Response", "Post-Crisis & Review"];
 
   return (
@@ -222,7 +221,6 @@ export default function CrisisPlansPage() {
 
       {showForm && (
         <Section title="New Crisis Plan">
-          {/* STEP INDICATOR */}
           <div className="flex gap-1 overflow-x-auto pb-2 mb-4">
             {STEPS.map((step, i) => (
               <button key={i} onClick={() => setCurrentStep(i + 1)}
@@ -236,7 +234,6 @@ export default function CrisisPlansPage() {
 
           {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
 
-          {/* STEP 1 */}
           {currentStep === 1 && (
             <div className="space-y-4">
               <div>
@@ -254,7 +251,6 @@ export default function CrisisPlansPage() {
                   </button>
                 </div>
               </div>
-
               {form.plan_type === "client" && (
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1 block">Client *</label>
@@ -264,19 +260,16 @@ export default function CrisisPlansPage() {
                   </select>
                 </div>
               )}
-
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Plan Title *</label>
                 <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
                   placeholder="e.g. Aggression Crisis Protocol, Elopement Response Plan" className={inputClass} />
               </div>
-
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Description / Purpose</label>
                 <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
                   placeholder="Brief description of this plan's purpose and when it should be used..." rows={3} className={inputClass} />
               </div>
-
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Status</label>
                 <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className={inputClass}>
@@ -289,7 +282,6 @@ export default function CrisisPlansPage() {
             </div>
           )}
 
-          {/* STEP 2 */}
           {currentStep === 2 && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -333,7 +325,6 @@ export default function CrisisPlansPage() {
             </div>
           )}
 
-          {/* STEP 3 */}
           {currentStep === 3 && (
             <div className="space-y-4">
               <div>
@@ -364,7 +355,6 @@ export default function CrisisPlansPage() {
             </div>
           )}
 
-          {/* STEP 4 */}
           {currentStep === 4 && (
             <div className="space-y-4">
               <div>
@@ -381,8 +371,6 @@ export default function CrisisPlansPage() {
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Last Reviewed / Effective Date</label>
                 <input type="date" value={form.last_reviewed} onChange={(e) => setForm({ ...form, last_reviewed: e.target.value })} className={inputClass} />
               </div>
-
-              {/* SUMMARY */}
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
                 <p className="text-sm font-semibold text-gray-700 mb-3">Plan Summary</p>
                 <div className="grid grid-cols-2 gap-2 text-xs">
@@ -404,7 +392,6 @@ export default function CrisisPlansPage() {
             </div>
           )}
 
-          {/* NAV BUTTONS */}
           <div className="flex justify-between items-center pt-4 border-t border-gray-100 mt-4">
             <Button variant="outline" onClick={() => setCurrentStep((s) => Math.max(1, s - 1))} disabled={currentStep === 1}>← Previous</Button>
             <span className="text-sm text-gray-400">{currentStep} / {TOTAL_STEPS}</span>
@@ -417,7 +404,6 @@ export default function CrisisPlansPage() {
         </Section>
       )}
 
-      {/* FILTERS */}
       <div className="flex flex-wrap gap-3 items-center">
         <div className="flex rounded-lg border border-gray-200 p-1">
           {(["all", "client", "company"] as const).map((type) => (
@@ -501,7 +487,6 @@ export default function CrisisPlansPage() {
                         <p className="text-sm text-gray-700 whitespace-pre-line">{field.value}</p>
                       </div>
                     ))}
-
                     <div className="grid grid-cols-2 gap-3 border-t border-gray-100 pt-3">
                       {plan.bcba_name && (
                         <div>
