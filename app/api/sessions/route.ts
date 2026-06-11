@@ -77,10 +77,10 @@ export async function GET(req: Request) {
     if (error) throw new Error(error.message);
 
     // DECRYPT PHI FIELDS
-    const decrypted = sessions?.map((s) => ({
-      ...s,
-      ...decryptSessionFields(s),
-    }));
+    const decrypted = sessions?.map((s: any) => ({
+  ...s,
+  ...decryptSessionFields(s as any),
+}));
 
     await safe(logAccess, {
       userId: user.id,
@@ -172,7 +172,7 @@ export async function POST(req: Request) {
 
     const id = crypto.randomUUID();
 
-    const { error } = await supabaseAdmin.from("sessions").insert({
+    const { error } = await (supabaseAdmin.from("sessions") as any).insert({
       id,
       client_id,
       company_id: company_id || null,
@@ -281,10 +281,10 @@ export async function PATCH(req: Request) {
       ...encrypted,
     };
 
-    const { error } = await supabaseAdmin
-      .from("sessions")
-      .update(updateData)
-      .eq("id", session_id);
+    const { error } = await (supabaseAdmin
+  .from("sessions") as any)
+  .update(updateData)
+  .eq("id", session_id);
 
     if (error) throw new Error(error.message);
 

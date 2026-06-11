@@ -55,12 +55,12 @@ export async function POST(req: Request) {
     logModelSelection(type as AITaskType);
 
     // FETCH SESSION DATA
-    const { data: sessions, error } = await supabaseAdmin
-      .from("sessions")
-      .select("date, behaviors_observed, interventions_used, client_response, programs_targeted")
-      .eq("client_id", client_id)
-      .order("created_at", { ascending: false })
-      .limit(20);
+    const { data: sessions, error } = await (supabaseAdmin
+  .from("sessions") as any)
+  .select("date, behaviors_observed, interventions_used, client_response, programs_targeted")
+  .eq("client_id", client_id)
+  .order("created_at", { ascending: false })
+  .limit(20);
 
     if (error) throw new Error(error.message);
 
@@ -74,8 +74,7 @@ export async function POST(req: Request) {
     });
 
     const historyText =
-      sessions
-        ?.map((s) => {
+      sessions?.map((s: any) => {
           const decrypted = decryptSessionFields(s);
           return `
 Date: ${s.date}
