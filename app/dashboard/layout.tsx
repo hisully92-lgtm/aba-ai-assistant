@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -7,6 +7,8 @@ import Sidebar from "@/components/layout/Sidebar";
 import CompanyBanner from "@/components/layout/CompanyBanner";
 import Link from "next/link";
 import OnboardingTutorial from "@/components/OnboardingTutorials";
+import { TimerProvider } from "@/lib/contexts/TimerContext";
+import FloatingTimerBar from "@/components/timers/FloatingTimerBar";
 
 function SkeletonLoader() {
   return (
@@ -92,16 +94,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       setIsAdmin(adminRole);
 
       if (contract) {
-  const isExpired = new Date(contract.end_date) < new Date();
-  const isActive = contract.status === "active" || contract.status === "trial";
-  if (isExpired || !isActive) { setExpired(true); setLoading(false); return; }
-} 
-// No contract at all — admins get billing prompt, staff get contact admin message
-else if (adminRole) {
-  setExpired(true); setLoading(false); return;
-}
+        const isExpired = new Date(contract.end_date) < new Date();
+        const isActive = contract.status === "active" || contract.status === "trial";
+        if (isExpired || !isActive) { setExpired(true); setLoading(false); return; }
+      } else if (adminRole) {
+        setExpired(true); setLoading(false); return;
+      }
 
-setLoading(false);
+      setLoading(false);
     };
 
     checkAccess();
@@ -111,94 +111,100 @@ setLoading(false);
   if (expired) return <ExpiredScreen isAdmin={isAdmin} />;
 
   return (
-    <div className="flex min-h-screen bg-gray-50" style={{ height: "100vh", overflow: "hidden" }}>
+    <TimerProvider>
+      <div className="flex min-h-screen bg-gray-50" style={{ height: "100vh", overflow: "hidden" }}>
 
-      {/* MOBILE OVERLAY */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-          style={{ touchAction: "none" }} />
-      )}
+        {/* MOBILE OVERLAY */}
+        {sidebarOpen && (
+          <div className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+            style={{ touchAction: "none" }} />
+        )}
 
-      {/* SIDEBAR WRAPPER */}
-      <div className={`
-        fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
-        lg:relative lg:translate-x-0 lg:z-auto lg:flex-shrink-0
-        ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
-      `}>
-        <div className="relative h-full">
-          <Sidebar
-            onClose={() => setSidebarOpen(false)}
-            collapsed={sidebarCollapsed}
-          />
+        {/* SIDEBAR WRAPPER */}
+        <div className={`
+          fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
+          lg:relative lg:translate-x-0 lg:z-auto lg:flex-shrink-0
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+        `}>
+          <div className="relative h-full">
+            <Sidebar
+              onClose={() => setSidebarOpen(false)}
+              collapsed={sidebarCollapsed}
+            />
 
-          {/* COLLAPSE ARROW BUTTON — desktop only */}
-          <button
-            type="button"
-            onClick={() => setSidebarCollapsed((prev) => !prev)}
-            className="hidden lg:flex absolute -right-3 top-1/2 -translate-y-1/2 z-50
-              w-6 h-6 rounded-full bg-[#2a3a54] border border-[#3a4a64]
-              items-center justify-center text-gray-300 hover:text-white
-              hover:bg-[#3a4a64] transition-all shadow-md"
-            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            <svg
-              className={`w-3 h-3 transition-transform duration-300 ${sidebarCollapsed ? "rotate-0" : "rotate-180"}`}
-              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            {/* COLLAPSE ARROW BUTTON — desktop only */}
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed((prev) => !prev)}
+              className="hidden lg:flex absolute -right-3 top-1/2 -translate-y-1/2 z-50
+                w-6 h-6 rounded-full bg-[#2a3a54] border border-[#3a4a64]
+                items-center justify-center text-gray-300 hover:text-white
+                hover:bg-[#3a4a64] transition-all shadow-md"
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      {/* MAIN CONTENT */}
-      <div className="flex flex-1 flex-col min-w-0"
-        style={{
-          height: "100vh",
-          overflow: "auto",
-          overflowX: "hidden",
-          WebkitOverflowScrolling: "touch",
-          scrollbarWidth: "thin",
-          scrollbarColor: "#cbd5e1 transparent",
-          touchAction: "pan-y",
-          overscrollBehavior: "contain",
-        }}>
-
-        {/* MOBILE TOPBAR */}
-        <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-[#2a3a54] bg-[#1a2234] px-4 py-3 lg:hidden">
-          <button type="button" aria-label="Open sidebar"
-            onClick={() => setSidebarOpen(true)}
-            className="rounded-lg p-1.5 text-white transition-colors hover:bg-[#2a3a54]">
-            ☰
-          </button>
-          <h1 className="text-lg font-bold text-white">ABA AI</h1>
-          <div className="ml-auto">
-            <Link href="/dashboard/search" aria-label="Search"
-              className="inline-block rounded-lg p-1.5 text-white transition-colors hover:bg-[#2a3a54]">
-              🔍
-            </Link>
+              <svg
+                className={`w-3 h-3 transition-transform duration-300 ${sidebarCollapsed ? "rotate-0" : "rotate-180"}`}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
           </div>
         </div>
 
-        <CompanyBanner />
+        {/* MAIN CONTENT */}
+        <div className="flex flex-1 flex-col min-w-0"
+          style={{
+            height: "100vh",
+            overflow: "auto",
+            overflowX: "hidden",
+            WebkitOverflowScrolling: "touch",
+            scrollbarWidth: "thin",
+            scrollbarColor: "#cbd5e1 transparent",
+            touchAction: "pan-y",
+            overscrollBehavior: "contain",
+          }}>
 
-        <main className="flex-1 p-4 md:p-6 lg:p-8">
-  <OnboardingTutorial />
-  {children}
-</main>
+          {/* MOBILE TOPBAR */}
+          <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-[#2a3a54] bg-[#1a2234] px-4 py-3 lg:hidden">
+            <button type="button" aria-label="Open sidebar"
+              onClick={() => setSidebarOpen(true)}
+              className="rounded-lg p-1.5 text-white transition-colors hover:bg-[#2a3a54]">
+              ☰
+            </button>
+            <h1 className="text-lg font-bold text-white">ABA AI</h1>
+            <div className="ml-auto">
+              <Link href="/dashboard/search" aria-label="Search"
+                className="inline-block rounded-lg p-1.5 text-white transition-colors hover:bg-[#2a3a54]">
+                🔍
+              </Link>
+            </div>
+          </div>
 
-{/* COMPLIANCE FOOTER */}
-<footer className="border-t border-gray-200 bg-white px-4 py-3 text-xs text-gray-400 flex flex-wrap gap-3 items-center justify-between">
-  <span>© {new Date().getFullYear()} ABA AI Assistant · HIPAA Compliant Platform</span>
-  <div className="flex gap-4 flex-wrap">
-    <a href="/notice-of-privacy-practices" target="_blank" className="hover:text-blue-500 transition-colors">Notice of Privacy Practices</a>
-    <a href="/data-retention" target="_blank" className="hover:text-blue-500 transition-colors">Data Retention</a>
-    <a href="/security-policy" target="_blank" className="hover:text-blue-500 transition-colors">Security Policy</a>
-    <a href="/dashboard/help" className="hover:text-blue-500 transition-colors">Help & Support</a>
-  </div>
-</footer>
+          <CompanyBanner />
+
+          <main className="flex-1 p-4 md:p-6 lg:p-8 pb-24">
+            <OnboardingTutorial />
+            {children}
+          </main>
+
+          {/* COMPLIANCE FOOTER */}
+          <footer className="border-t border-gray-200 bg-white px-4 py-3 text-xs text-gray-400 flex flex-wrap gap-3 items-center justify-between">
+            <span>© {new Date().getFullYear()} ABA AI Assistant · HIPAA Compliant Platform</span>
+            <div className="flex gap-4 flex-wrap">
+              <a href="/notice-of-privacy-practices" target="_blank" className="hover:text-blue-500 transition-colors">Notice of Privacy Practices</a>
+              <a href="/data-retention" target="_blank" className="hover:text-blue-500 transition-colors">Data Retention</a>
+              <a href="/security-policy" target="_blank" className="hover:text-blue-500 transition-colors">Security Policy</a>
+              <a href="/dashboard/help" className="hover:text-blue-500 transition-colors">Help & Support</a>
+            </div>
+          </footer>
+        </div>
+
+        {/* FLOATING TIMER BAR — renders above everything, persists across pages */}
+        <FloatingTimerBar />
+
       </div>
-    </div>
+    </TimerProvider>
   );
 }

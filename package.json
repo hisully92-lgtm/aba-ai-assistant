@@ -37,6 +37,7 @@
     "@types/react-dom": "^19",
     "@types/swagger-ui-react": "^5.18.0",
     "@types/web-push": "^3.6.4",
+    "canvas": "^3.2.3",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",

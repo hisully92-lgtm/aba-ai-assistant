@@ -74,6 +74,8 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [summary, setSummary] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => { void init(); }, [clientId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
@@ -86,26 +88,28 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       { data: behaviorData },
       { data: intakeData },
     ] = await Promise.all([
-      supabase.from("clients").select("*").eq("id", clientId).single(),
-      supabase.from("sessions").select("id, date, status, behaviors_observed, programs_targeted, staff_member, created_at")
+      supabase.from("clients").select("*").eq("id", clientId).limit(1).maybeSingle(),
+      supabase.from("sessions")
+        .select("id, date, status, behaviors_observed, programs_targeted, staff_member, created_at")
         .eq("client_id", clientId).order("created_at", { ascending: false }).limit(20),
-      supabase.from("client_goals").select("id, goal_name, domain, current_performance, target, status")
+      supabase.from("client_goals")
+        .select("id, goal_name, domain, current_performance, target, status")
         .eq("client_id", clientId).order("created_at", { ascending: false }),
-      supabase.from("behaviors").select("id, behavior_name, frequency, recording_method, created_at")
+      supabase.from("behaviors")
+        .select("id, behavior_name, frequency, recording_method, created_at")
         .eq("client_id", clientId).order("created_at", { ascending: false }).limit(20),
-      supabase.from("client_intake").select("*").eq("client_id", clientId).order("created_at", { ascending: false }).limit(1).single(),
+      supabase.from("client_intake")
+        .select("*").eq("client_id", clientId)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
 
-    setClient(clientData);
+    setClient(clientData ?? null);
     setSessions(sessionData ?? []);
     setGoals(goalData ?? []);
     setBehaviors(behaviorData ?? []);
-    setIntake(intakeData);
+    setIntake(intakeData ?? null);
     setLoading(false);
   }
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
-  useEffect(() => { void init(); }, [clientId]);
 
   async function handleGenerateSummary() {
     setGenerating(true);
@@ -113,27 +117,27 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     setSummary(null);
 
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      // Route through /api/ai — never call Anthropic directly from the client
+      const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [{
-            role: "user",
-            content: `Generate a brief clinical summary for a client with the following info:
-Name: ${client?.full_name}
-Diagnosis: ${client?.diagnosis ?? "Not specified"}
-Active Goals: ${goals.filter(g => g.status === "active").map(g => g.goal_name).join(", ") || "None"}
-Recent Behaviors: ${behaviors.slice(0, 5).map(b => b.behavior_name).join(", ") || "None"}
-Recent Sessions: ${sessions.length} sessions on record
-Write 2-3 sentences suitable for a clinical chart note.`
-          }],
+          type: "summary",
+          client_id: clientId,
+          context: {
+            name: client?.full_name,
+            diagnosis: client?.diagnosis ?? "Not specified",
+            active_goals: goals.filter(g => g.status === "active").map(g => g.goal_name),
+            recent_behaviors: behaviors.slice(0, 5).map(b => b.behavior_name),
+            session_count: sessions.length,
+          },
         }),
       });
 
-      const data = await response.json();
-      const text = data.content?.[0]?.text ?? "";
+      const data = await res.json();
+      if (data.error) { setError(data.error); return; }
+
+      const text = data.content?.[0]?.text ?? data.result ?? data.text ?? "";
       setSummary(text);
     } catch {
       setError("AI generation failed. Please try again.");
@@ -144,14 +148,11 @@ Write 2-3 sentences suitable for a clinical chart note.`
 
   function age(dob: string | null) {
     if (!dob) return null;
-    const now = new Date();
-    const diff = now.getTime() - new Date(dob).getTime();
-    return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
+    return Math.floor((Date.now() - new Date(dob).getTime()) / (1000 * 60 * 60 * 24 * 365.25));
   }
 
   function daysUntil(dateStr: string) {
-    const now = new Date();
-    return Math.ceil((new Date(dateStr).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   }
 
   function progressPct(goal: Goal) {
@@ -218,7 +219,9 @@ Write 2-3 sentences suitable for a clinical chart note.`
           { key: "intake", label: "Intake" },
         ].map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key as any)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.key ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === tab.key ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}>
             {tab.label}
           </button>
         ))}
@@ -445,7 +448,7 @@ Write 2-3 sentences suitable for a clinical chart note.`
                 <div>
                   <p className="text-xs text-gray-500">Authorization Expires</p>
                   <p className={`font-medium ${authExpiring ? "text-red-600" : "text-gray-800"}`}>
-                    {intake.authorization_end} {authExpiring ? `(${daysUntil(intake.authorization_end)} days)` : ""}
+                    {intake.authorization_end}{authExpiring ? ` (${daysUntil(intake.authorization_end)} days)` : ""}
                   </p>
                 </div>
               )}

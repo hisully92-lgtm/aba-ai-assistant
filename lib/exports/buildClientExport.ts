@@ -4,22 +4,17 @@ import { TimelineItem } from "@/lib/timeline/getClientTimeline";
 export type ClientExport = {
   clientId: string;
   generatedAt: string;
-
   summary: {
     totalSessions: number;
     totalBehaviors: number;
     totalPrograms: number;
   };
-
   timeline: TimelineItem[];
-
   sections: {
     sessions: TimelineItem[];
     behaviors: TimelineItem[];
     programs: TimelineItem[];
   };
-
-  // 🧠 optional future extension (safe placeholder)
   insights?: {
     riskFlags: string[];
     recommendations: string[];
@@ -31,17 +26,14 @@ export async function buildClientExport(
 ): Promise<ClientExport> {
   const groupedTimeline = await getClientTimeline(clientId);
 
-  // ✅ flatten grouped timeline safely
   const timeline: TimelineItem[] = groupedTimeline.flatMap(
     (group) => group.items
   );
 
-  // 🔥 clean categorization
   const sessions = timeline.filter((t) => t.type === "session");
   const behaviors = timeline.filter((t) => t.type === "behavior");
   const programs = timeline.filter((t) => t.type === "program");
 
-  // 🧠 simple clinical insights layer (lightweight, no AI yet)
   const riskFlags: string[] = [];
 
   if (behaviors.length > sessions.length * 2) {
@@ -61,21 +53,17 @@ export async function buildClientExport(
   return {
     clientId,
     generatedAt: new Date().toISOString(),
-
     summary: {
       totalSessions: sessions.length,
       totalBehaviors: behaviors.length,
       totalPrograms: programs.length,
     },
-
     timeline,
-
     sections: {
       sessions,
       behaviors,
       programs,
     },
-
     insights: {
       riskFlags,
       recommendations,
