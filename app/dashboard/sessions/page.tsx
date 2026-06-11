@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
@@ -151,6 +151,22 @@ function detectRole(staffMember: string): string {
   return "rbt";
 }
 
+function playAlertSound() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    osc.type = "sine";
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.8);
+  } catch {}
+}
+
 function CptCodeSelector({ staffMember, onSelect, selectedCpt }: {
   staffMember: string;
   onSelect: (code: string) => void;
@@ -158,7 +174,6 @@ function CptCodeSelector({ staffMember, onSelect, selectedCpt }: {
 }) {
   const role = detectRole(staffMember);
   const codes = CPT_BY_ROLE[role] ?? CPT_BY_ROLE.rbt;
-
   return (
     <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
       <p className="text-xs font-semibold text-blue-700 uppercase mb-1">CPT Code</p>
@@ -167,34 +182,29 @@ function CptCodeSelector({ staffMember, onSelect, selectedCpt }: {
       </p>
       <div className="flex flex-wrap gap-2">
         {codes.map((c) => (
-          <button key={c.code} onClick={() => onSelect(selectedCpt === c.code ? "" : c.code)}
+          <button type="button" key={c.code} onClick={() => onSelect(selectedCpt === c.code ? "" : c.code)}
             className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${selectedCpt === c.code ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300 hover:border-blue-300"}`}>
             {c.label}
           </button>
         ))}
       </div>
-      {selectedCpt && (
-        <p className="text-xs text-blue-700 font-medium mt-2">Selected: {selectedCpt}</p>
-      )}
+      {selectedCpt && <p className="text-xs text-blue-700 font-medium mt-2">Selected: {selectedCpt}</p>}
     </div>
   );
 }
 
 function GeofenceCheck() {
   const [status, setStatus] = useState<"idle" | "checking" | "inside" | "skipped">("idle");
-
   if (status === "inside") return (
     <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4 text-xs font-medium text-green-700 flex items-center gap-2">
       ✓ Location verified — you are at the session location
     </div>
   );
-
   if (status === "skipped") return (
     <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-4 text-xs text-gray-500 flex items-center gap-2">
       📍 Location check skipped
     </div>
   );
-
   return (
     <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -203,7 +213,7 @@ function GeofenceCheck() {
           <p className="text-xs text-gray-500 mt-0.5">Verify you are at the session location before starting.</p>
         </div>
         <div className="flex gap-2">
-          <button
+          <button type="button"
             onClick={() => {
               setStatus("checking");
               navigator.geolocation.getCurrentPosition(
@@ -215,7 +225,7 @@ function GeofenceCheck() {
             className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
             {status === "checking" ? "Checking..." : "Check Location"}
           </button>
-          <button onClick={() => setStatus("skipped")}
+          <button type="button" onClick={() => setStatus("skipped")}
             className="text-xs px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-100">
             Skip
           </button>
@@ -253,12 +263,16 @@ export default function SessionsPage() {
   const [filterStatus, setFilterStatus] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
 
+  // TIMER STATE
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(0);
-  const [timerInterval, setTimerInterval] = useState<NodeJS.Timeout | null>(null);
   const [sessionStartTime, setSessionStartTime] = useState<string | null>(null);
   const [sessionEndTime, setSessionEndTime] = useState<string | null>(null);
+  const [timerRepeat, setTimerRepeat] = useState(false);
+  const [recentDurations, setRecentDurations] = useState<number[]>([]);
+  const timerStartRef = useRef<number | null>(null);
 
+  // FORM STATE
   const [clientId, setClientId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [status, setStatus] = useState("completed");
@@ -274,15 +288,21 @@ export default function SessionsPage() {
 
   useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // BACKGROUND-SAFE TIMER
   useEffect(() => {
-    if (timerRunning) {
-      const interval = setInterval(() => setTimerSeconds(s => s + 1), 1000);
-      setTimerInterval(interval);
-      return () => clearInterval(interval);
-    } else {
-      if (timerInterval) clearInterval(timerInterval);
-    }
-  }, [timerRunning]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!timerRunning) return;
+    const tick = () => {
+      if (timerStartRef.current !== null) {
+        setTimerSeconds(Math.floor((Date.now() - timerStartRef.current) / 1000));
+      }
+    };
+    const interval = setInterval(tick, 500);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [timerRunning]);
 
   async function init() {
     setFetchError(null);
@@ -290,8 +310,8 @@ export default function SessionsPage() {
     const user = auth?.user;
     if (!user) return;
     const [{ data: clientData, error: clientErr }, { data: sessionData, error: sessionErr }] = await Promise.all([
-      supabase.from("clients").select("id, full_name").eq("created_by", user.id),
-      supabase.from("sessions").select("*").eq("created_by", user.id).order("created_at", { ascending: false }).limit(50),
+      supabase.from("clients").select("id, full_name"),
+      supabase.from("sessions").select("*").order("created_at", { ascending: false }).limit(50),
     ]);
     if (clientErr || sessionErr) {
       setFetchError("Failed to load sessions. Please refresh and try again.");
@@ -314,6 +334,7 @@ export default function SessionsPage() {
   }
 
   function startTimer() {
+    timerStartRef.current = Date.now();
     setTimerSeconds(0);
     setTimerRunning(true);
     setSessionStartTime(new Date().toISOString());
@@ -322,9 +343,17 @@ export default function SessionsPage() {
 
   function stopTimer() {
     setTimerRunning(false);
-    setSessionEndTime(new Date().toISOString());
-    if (soap.objective === "") {
-      setSoap(prev => ({ ...prev, objective: `Session duration: ${formatTimer(timerSeconds)}` }));
+    const endTime = new Date().toISOString();
+    setSessionEndTime(endTime);
+    const duration = timerSeconds;
+    setRecentDurations(prev => [duration, ...prev.filter(d => d !== duration)].slice(0, 5));
+    playAlertSound();
+    if (timerRepeat) {
+      setTimeout(() => startTimer(), 500);
+    } else {
+      if (soap.objective === "") {
+        setSoap(prev => ({ ...prev, objective: `Session duration: ${formatTimer(duration)}` }));
+      }
     }
   }
 
@@ -346,6 +375,7 @@ export default function SessionsPage() {
     setSelectedBehaviors([]); setSelectedInterventions([]); setSelectedPrograms([]);
     setSoap({ subjective: "", objective: "", assessment: "", plan: "" });
     setTimerRunning(false); setTimerSeconds(0);
+    timerStartRef.current = null;
     setSessionStartTime(null); setSessionEndTime(null);
     setShowForm(false); setSelectedTemplate(null);
   }
@@ -401,7 +431,7 @@ export default function SessionsPage() {
       {fetchError && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 flex justify-between items-center">
           <span>{fetchError}</span>
-          <button onClick={init} className="text-xs underline font-medium">Retry</button>
+          <button type="button" onClick={init} className="text-xs underline font-medium">Retry</button>
         </div>
       )}
 
@@ -414,19 +444,27 @@ export default function SessionsPage() {
 
           {/* SESSION TIMER */}
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Session Timer</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase">Session Timer</p>
+              <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer select-none">
+                <input type="checkbox" checked={timerRepeat} onChange={e => setTimerRepeat(e.target.checked)}
+                  className="rounded border-gray-300" />
+                🔁 Auto-repeat
+              </label>
+            </div>
             <div className="flex items-center gap-4 flex-wrap">
               <p className={`text-3xl font-mono font-bold ${timerRunning ? "text-blue-600" : "text-gray-400"}`}>
                 {formatTimer(timerSeconds)}
               </p>
               <div className="flex gap-2">
                 {!timerRunning ? (
-                  <Button onClick={startTimer}>Start Timer</Button>
+                  <Button onClick={startTimer}>▶ Start</Button>
                 ) : (
-                  <Button variant="danger" onClick={stopTimer}>Stop Timer</Button>
+                  <Button variant="danger" onClick={stopTimer}>⏹ Stop</Button>
                 )}
                 <Button variant="outline" onClick={() => {
                   setTimerRunning(false); setTimerSeconds(0);
+                  timerStartRef.current = null;
                   setSessionStartTime(null); setSessionEndTime(null);
                 }}>Reset</Button>
               </div>
@@ -438,6 +476,25 @@ export default function SessionsPage() {
                 {sessionStartTime && sessionEndTime && <span>Duration: <strong className="text-gray-700">{formatTimer(timerSeconds)}</strong></span>}
               </div>
             )}
+            {recentDurations.length > 0 && (
+              <div className="mt-3 border-t border-gray-200 pt-3">
+                <p className="text-xs text-gray-400 mb-2">Recent durations — click to reuse:</p>
+                <div className="flex flex-wrap gap-2">
+                  {recentDurations.map((d, i) => (
+                    <button type="button" key={i}
+                      onClick={() => {
+                        timerStartRef.current = Date.now() - d * 1000;
+                        setTimerSeconds(d);
+                        setTimerRunning(true);
+                        setSessionStartTime(new Date(Date.now() - d * 1000).toISOString());
+                      }}
+                      className="text-xs px-2 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-100">
+                      {formatTimer(d)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* TEMPLATES */}
@@ -445,7 +502,7 @@ export default function SessionsPage() {
             <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Quick Templates</p>
             <div className="flex flex-wrap gap-2">
               {Object.entries(TEMPLATES).map(([key, template]) => (
-                <button key={key} onClick={() => applyTemplate(key)}
+                <button type="button" key={key} onClick={() => applyTemplate(key)}
                   className={`text-xs px-3 py-1.5 rounded-full border transition-all ${selectedTemplate === key ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300 hover:border-blue-300"}`}>
                   {template.label}
                 </button>
@@ -497,7 +554,7 @@ export default function SessionsPage() {
             </div>
           </div>
 
-          {/* CPT CODE — shows after staff member is entered */}
+          {/* CPT CODE */}
           <div className="mt-4">
             <CptCodeSelector staffMember={staffMember} onSelect={setCptCode} selectedCpt={cptCode} />
           </div>
@@ -507,7 +564,7 @@ export default function SessionsPage() {
               <label className="text-sm font-medium text-gray-700 mb-2 block">Behaviors Observed</label>
               <div className="flex flex-wrap gap-2">
                 {BEHAVIORS_LIST.map(b => (
-                  <button key={b} onClick={() => toggleItem(b, selectedBehaviors, setSelectedBehaviors)}
+                  <button type="button" key={b} onClick={() => toggleItem(b, selectedBehaviors, setSelectedBehaviors)}
                     className={`text-xs px-3 py-1.5 rounded-full border transition-all ${selectedBehaviors.includes(b) ? "bg-red-600 text-white border-red-600" : "bg-white text-gray-600 border-gray-300 hover:border-red-300"}`}>
                     {b}
                   </button>
@@ -519,7 +576,7 @@ export default function SessionsPage() {
               <label className="text-sm font-medium text-gray-700 mb-2 block">Interventions Used</label>
               <div className="flex flex-wrap gap-2">
                 {INTERVENTIONS_LIST.map(i => (
-                  <button key={i} onClick={() => toggleItem(i, selectedInterventions, setSelectedInterventions)}
+                  <button type="button" key={i} onClick={() => toggleItem(i, selectedInterventions, setSelectedInterventions)}
                     className={`text-xs px-3 py-1.5 rounded-full border transition-all ${selectedInterventions.includes(i) ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300 hover:border-blue-300"}`}>
                     {i}
                   </button>
@@ -531,7 +588,7 @@ export default function SessionsPage() {
               <label className="text-sm font-medium text-gray-700 mb-2 block">Programs Targeted</label>
               <div className="flex flex-wrap gap-2">
                 {PROGRAMS_LIST.map(p => (
-                  <button key={p} onClick={() => toggleItem(p, selectedPrograms, setSelectedPrograms)}
+                  <button type="button" key={p} onClick={() => toggleItem(p, selectedPrograms, setSelectedPrograms)}
                     className={`text-xs px-3 py-1.5 rounded-full border transition-all ${selectedPrograms.includes(p) ? "bg-purple-600 text-white border-purple-600" : "bg-white text-gray-600 border-gray-300 hover:border-purple-300"}`}>
                     {p}
                   </button>
@@ -547,7 +604,7 @@ export default function SessionsPage() {
             </div>
 
             <div className="md:col-span-2">
-              <button onClick={() => setShowSOAP(!showSOAP)}
+              <button type="button" onClick={() => setShowSOAP(!showSOAP)}
                 className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700">
                 <span>{showSOAP ? "▼" : "▶"}</span>
                 SOAP Notes {showSOAP ? "(hide)" : "(optional)"}
@@ -618,7 +675,7 @@ export default function SessionsPage() {
       {!loading && sessions.length > 0 && filtered.length === 0 && (
         <div className="text-center py-10 border border-dashed border-gray-200 rounded-2xl bg-white">
           <p className="text-gray-500 text-sm">No sessions match your filters.</p>
-          <button onClick={() => { setFilterClient(""); setFilterStatus(""); }}
+          <button type="button" onClick={() => { setFilterClient(""); setFilterStatus(""); }}
             className="text-blue-500 text-sm mt-2 hover:underline block mx-auto">
             Clear filters
           </button>
