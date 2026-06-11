@@ -106,14 +106,15 @@ export default function AdminPage() {
 
     if (!companyUser?.company_id) { setLoading(false); return; }
 
+    // Fix: was .single() — crashes if company not found
     const { data: companyData } = await supabase
       .from("companies")
       .select("*")
       .eq("id", companyUser.company_id)
-      .single();
-    setCompany(companyData);
+      .limit(1)
+      .maybeSingle();
+    setCompany(companyData ?? null);
 
-    // Fetch team using RPC
     const { data: teamData } = await supabase
       .rpc("get_company_team", { company_uuid: companyUser.company_id });
 
@@ -258,7 +259,7 @@ export default function AdminPage() {
           full_name: inviteName.trim(),
           invited_to_company: company.id,
           invited_role: inviteRole,
-        }
+        },
       },
     });
 

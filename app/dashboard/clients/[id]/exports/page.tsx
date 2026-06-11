@@ -30,11 +30,7 @@ function statusDot(status: string) {
   return "bg-yellow-400";
 }
 
-export default function ExportHistoryPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default function ExportHistoryPage({ params }: { params: { id: string } }) {
   const clientId = params.id;
   const [exports, setExports] = useState<ExportRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,14 +42,15 @@ export default function ExportHistoryPage({
       setLoading(false);
     }
     init();
-  }, [clientId]);
+  }, [clientId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadClient() {
     const { data } = await supabase
       .from("clients")
       .select("full_name")
       .eq("id", clientId)
-      .single();
+      .limit(1)
+      .maybeSingle();
     setClient(data);
   }
 
