@@ -35,17 +35,38 @@ type Timer = {
   running: boolean;
   paused: boolean;
   done: boolean;
+  endTime: number | null;
 };
 
 const EMOJIS = ["⭐","🌟","🏆","🎯","🎉","🦁","🐶","🌈","🚀","❤️","🍎","🎮","🎨","🏅","✅"];
 const ACTIVITIES = ["Circle Time","Reading","Math","Art","Recess","Lunch","Therapy","Free Play","Clean Up","Transition","Homework","Dinner","Bedtime"];
-
 const SUPPORT_TYPES = [
   { value: "first_then", label: "First-Then" },
   { value: "token_economy", label: "Token Board" },
   { value: "visual_schedule", label: "Visual Schedule" },
   { value: "choice_board", label: "Choice Board" },
 ];
+
+function playJingle() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const notes = [523, 659, 784, 1047]; // C E G C - happy chord
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = "sine";
+      const start = ctx.currentTime + i * 0.18;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.25, start + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.4);
+      osc.start(start);
+      osc.stop(start + 0.4);
+    });
+  } catch {}
+}
 
 export default function VisualSupportsPage() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -68,11 +89,11 @@ export default function VisualSupportsPage() {
   const [tokenEmoji, setTokenEmoji] = useState("⭐");
   const [reward, setReward] = useState("");
 
-  // TIMERS
+  // TIMERS — background-safe with endTime
   const [timers, setTimers] = useState<Timer[]>([
-    { id: 1, label: "Timer 1", hours: 0, minutes: 5, seconds: 0, remaining: 0, total: 0, running: false, paused: false, done: false }
+    { id: 1, label: "Timer 1", hours: 0, minutes: 5, seconds: 0, remaining: 0, total: 0, running: false, paused: false, done: false, endTime: null }
   ]);
-  const timerRefs = useRef<Record<number, NodeJS.Timeout | null>>({});
+  const tickRef = useRef<NodeJS.Timeout | null>(null);
 
   // CREATE
   const [createClient, setCreateClient] = useState("");
@@ -82,35 +103,37 @@ export default function VisualSupportsPage() {
 
   useEffect(() => { init(); }, []);
 
+  // SINGLE BACKGROUND-SAFE TICK FOR ALL TIMERS
   useEffect(() => {
-    timers.forEach(timer => {
-      if (timer.running && timer.remaining > 0) {
-        timerRefs.current[timer.id] = setTimeout(() => {
-          setTimers(prev => prev.map(t =>
-            t.id === timer.id ? { ...t, remaining: t.remaining - 1 } : t
-          ));
-        }, 1000);
-      } else if (timer.running && timer.remaining === 0) {
-        setTimers(prev => prev.map(t =>
-          t.id === timer.id ? { ...t, running: false, done: true } : t
-        ));
-      }
-    });
-    return () => {
-      Object.values(timerRefs.current).forEach(t => { if (t) clearTimeout(t); });
+    const tick = () => {
+      const now = Date.now();
+      setTimers(prev => prev.map(t => {
+        if (!t.running || !t.endTime) return t;
+        const remaining = Math.max(0, Math.round((t.endTime - now) / 1000));
+        if (remaining === 0 && t.running) {
+          playJingle();
+          return { ...t, remaining: 0, running: false, done: true, endTime: null };
+        }
+        return { ...t, remaining };
+      }));
     };
-  }, [timers]);
+
+    tickRef.current = setInterval(tick, 500);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      if (tickRef.current) clearInterval(tickRef.current);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, []);
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
-
     const [{ data: c }, { data: s }] = await Promise.all([
-      supabase.from("clients").select("id, full_name").eq("created_by", user.id),
+      supabase.from("clients").select("id, full_name"),
       supabase.from("visual_supports").select("*").eq("created_by", user.id).order("created_at", { ascending: false })
     ]);
-
     setClients(c ?? []);
     setSupports(s ?? []);
     setLoading(false);
@@ -123,8 +146,7 @@ export default function VisualSupportsPage() {
     const user = auth?.user;
     if (!user) return;
     const { data } = await supabase.from("visual_supports").insert([{
-      client_id: ftClient,
-      support_type: "first_then",
+      client_id: ftClient, support_type: "first_then",
       title: `First ${first}, Then ${then}`,
       content: { first, then, firstEmoji, thenEmoji },
       created_by: user.id,
@@ -140,8 +162,7 @@ export default function VisualSupportsPage() {
     const user = auth?.user;
     if (!user) return;
     const { data } = await supabase.from("visual_supports").insert([{
-      client_id: teClient,
-      support_type: "token_economy",
+      client_id: teClient, support_type: "token_economy",
       title: "Token Board",
       content: { goal, tokenEmoji, reward },
       created_by: user.id,
@@ -155,7 +176,7 @@ export default function VisualSupportsPage() {
     setTimers(prev => [...prev, {
       id: newId, label: `Timer ${prev.length + 1}`,
       hours: 0, minutes: 5, seconds: 0,
-      remaining: 0, total: 0, running: false, paused: false, done: false
+      remaining: 0, total: 0, running: false, paused: false, done: false, endTime: null
     }]);
   }
 
@@ -163,27 +184,29 @@ export default function VisualSupportsPage() {
     setTimers(prev => prev.map(t => {
       if (t.id !== id) return t;
       const total = t.hours * 3600 + t.minutes * 60 + t.seconds;
-      return { ...t, total, remaining: total, running: true, paused: false, done: false };
+      const endTime = Date.now() + total * 1000;
+      return { ...t, total, remaining: total, running: true, paused: false, done: false, endTime };
     }));
   }
 
   function pauseTimer(id: number) {
-    if (timerRefs.current[id]) clearTimeout(timerRefs.current[id]!);
-    setTimers(prev => prev.map(t =>
-      t.id === id ? { ...t, running: false, paused: true } : t
-    ));
+    setTimers(prev => prev.map(t => {
+      if (t.id !== id) return t;
+      return { ...t, running: false, paused: true, endTime: null };
+    }));
   }
 
   function resumeTimer(id: number) {
-    setTimers(prev => prev.map(t =>
-      t.id === id ? { ...t, running: true, paused: false } : t
-    ));
+    setTimers(prev => prev.map(t => {
+      if (t.id !== id) return t;
+      const endTime = Date.now() + t.remaining * 1000;
+      return { ...t, running: true, paused: false, endTime };
+    }));
   }
 
   function stopTimer(id: number) {
-    if (timerRefs.current[id]) clearTimeout(timerRefs.current[id]!);
     setTimers(prev => prev.map(t =>
-      t.id === id ? { ...t, running: false, paused: false, done: false, remaining: 0 } : t
+      t.id === id ? { ...t, running: false, paused: false, done: false, remaining: 0, endTime: null } : t
     ));
   }
 
@@ -257,7 +280,7 @@ export default function VisualSupportsPage() {
       {/* TABS */}
       <div className="flex gap-2 border-b text-sm">
         {["first-then","token","timer","saved","create"].map(t => (
-          <button key={t} onClick={() => setTab(t as any)}
+          <button type="button" key={t} onClick={() => setTab(t as any)}
             className={`px-3 py-2 capitalize ${tab === t ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"}`}>
             {t}
           </button>
@@ -317,7 +340,7 @@ export default function VisualSupportsPage() {
                     onChange={e => setTimers(prev => prev.map(t => t.id === timer.id ? { ...t, label: e.target.value } : t))}
                     className="font-semibold text-sm border-b border-gray-300 bg-transparent focus:outline-none w-32"
                   />
-                  <button onClick={() => removeTimer(timer.id)} className="text-gray-400 hover:text-red-500 text-xs">Remove</button>
+                  <button type="button" onClick={() => removeTimer(timer.id)} className="text-gray-400 hover:text-red-500 text-xs">Remove</button>
                 </div>
 
                 {!timer.running && !timer.paused && !timer.done && (
@@ -350,29 +373,43 @@ export default function VisualSupportsPage() {
                     <div className={`inline-block px-6 py-3 rounded-xl text-white font-mono text-3xl font-bold ${timerColor(timer)}`}>
                       {formatTime(timer.remaining)}
                     </div>
-                    {timer.done && <p className="text-green-600 font-semibold mt-2">Time is up!</p>}
-                    {timer.paused && <p className="text-orange-500 text-sm mt-1">Paused</p>}
+                    {timer.done && (
+                      <div className="mt-2">
+                        <p className="text-green-600 font-semibold text-lg">🎉 Time is up!</p>
+                        <p className="text-xs text-gray-400 mt-1">Great job!</p>
+                      </div>
+                    )}
+                    {timer.paused && <p className="text-orange-500 text-sm mt-1">⏸ Paused</p>}
+                    {timer.running && (
+                      <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                        <div className={`h-2 rounded-full transition-all ${timerColor(timer)}`}
+                          style={{ width: `${timer.total ? (timer.remaining / timer.total) * 100 : 0}%` }} />
+                      </div>
+                    )}
                   </div>
                 )}
 
                 <div className="flex gap-2 flex-wrap">
                   {!timer.running && !timer.paused && !timer.done && (
-                    <Button onClick={() => startTimer(timer.id)}>Start</Button>
+                    <Button onClick={() => startTimer(timer.id)}>▶ Start</Button>
                   )}
                   {timer.running && (
-                    <Button variant="outline" onClick={() => pauseTimer(timer.id)}>Pause</Button>
+                    <Button variant="outline" onClick={() => pauseTimer(timer.id)}>⏸ Pause</Button>
                   )}
                   {timer.paused && (
-                    <Button onClick={() => resumeTimer(timer.id)}>Resume</Button>
+                    <Button onClick={() => resumeTimer(timer.id)}>▶ Resume</Button>
                   )}
                   {(timer.running || timer.paused || timer.done) && (
-                    <Button variant="danger" onClick={() => stopTimer(timer.id)}>Stop</Button>
+                    <Button variant="danger" onClick={() => stopTimer(timer.id)}>⏹ Stop</Button>
+                  )}
+                  {timer.done && (
+                    <Button variant="outline" onClick={() => startTimer(timer.id)}>🔁 Repeat</Button>
                   )}
                 </div>
               </div>
             ))}
 
-            <button onClick={addTimer}
+            <button type="button" onClick={addTimer}
               className="w-full border-2 border-dashed border-gray-300 rounded-xl py-3 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors">
               + Add Timer
             </button>
@@ -418,7 +455,7 @@ export default function VisualSupportsPage() {
               </select>
             </div>
           ))}
-          <button onClick={() => setItems(prev => [...prev, { label: "", emoji: "⭐" }])}
+          <button type="button" onClick={() => setItems(prev => [...prev, { label: "", emoji: "⭐" }])}
             className="text-sm text-blue-500 underline mb-3">+ Add item</button>
         </Section>
       )}
