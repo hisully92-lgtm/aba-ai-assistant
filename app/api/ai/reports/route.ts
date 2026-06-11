@@ -13,10 +13,10 @@ export async function POST(req: NextRequest) {
 
     // 1. Fetch client
     const { data: client, error: clientError } = await supabaseAdmin
-      .from("clients")
-      .select("id, full_name")
-      .eq("id", client_id)
-      .single();
+  .from("clients")
+  .select("id, full_name")
+  .eq("id", client_id)
+  .single() as any;
 
     if (clientError || !client) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
@@ -24,10 +24,10 @@ export async function POST(req: NextRequest) {
 
     // 2. Fetch risk scores
     const { data: risk } = await supabaseAdmin
-      .from("client_risk")
-      .select("risk_score, forecast_score, risk_level")
-      .eq("client_id", client_id)
-      .single();
+  .from("client_risk")
+  .select("risk_score, forecast_score, risk_level")
+  .eq("client_id", client_id)
+  .single() as any;
 
     // 3. Fetch export stats
     const { data: exports } = await supabaseAdmin
