@@ -1,4 +1,9 @@
-import { supabase } from "@/lib/supabase/client";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function saveClinicalReport({
   clientId,
@@ -11,22 +16,14 @@ export async function saveClinicalReport({
   reportText: string;
   summaryText?: string;
 }) {
-  const { data: auth } = await supabase.auth.getUser();
-  const user = auth?.user;
-
-  if (!user) return;
-
   const { data, error } = await supabase
     .from("clinical_reports")
-    .insert([
-      {
-        client_id: clientId,
-        created_by: user.id,
-        report_date: reportDate,
-        report_text: reportText,
-        summary_text: summaryText || null,
-      },
-    ])
+    .insert([{
+      client_id: clientId,
+      report_date: reportDate,
+      report_text: reportText,
+      summary_text: summaryText || null,
+    }])
     .select()
     .single();
 
