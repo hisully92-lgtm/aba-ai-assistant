@@ -9,18 +9,15 @@ export async function POST(req: Request) {
     const admin = auth?.user;
 
     if (!admin) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     await requireAdmin(admin.id);
 
     const { userId, plan } = await req.json();
 
-    await supabaseAdmin
-      .from("profiles")
+    await (supabaseAdmin
+      .from("profiles") as any)
       .update({ plan })
       .eq("id", userId);
 
@@ -36,9 +33,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
 
   } catch (err) {
-    return NextResponse.json(
-      { error: "Admin override failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Admin override failed" }, { status: 500 });
   }
 }
