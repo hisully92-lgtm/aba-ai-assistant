@@ -1,10 +1,9 @@
-import { supabase } from "@/lib/supabase/client";
+import { createClient } from "@supabase/supabase-js";
 
-/**
- * =========================
- * CORE TYPES
- * =========================
- */
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export type TimelineType = "session" | "behavior" | "program";
 
@@ -20,38 +19,23 @@ export type GroupedTimeline = {
   items: TimelineItem[];
 };
 
-/**
- * =========================
- * FLAT TIMELINE FETCHER
- * (single source of truth)
- * =========================
- */
-
 export async function getClientTimelineFlat(
   clientId: string
 ): Promise<TimelineItem[]> {
-  const { data: auth } = await supabase.auth.getUser();
-  const user = auth?.user;
-
-  if (!user) return [];
-
   const [sessionsRes, behaviorsRes, programsRes] = await Promise.all([
     supabase
       .from("sessions")
       .select("id, client_name, created_at")
-      .eq("created_by", user.id)
       .eq("client_id", clientId),
 
     supabase
       .from("behaviors")
       .select("id, behavior_name, created_at")
-      .eq("created_by", user.id)
       .eq("client_id", clientId),
 
     supabase
       .from("programs")
       .select("id, program_name, created_at")
-      .eq("created_by", user.id)
       .eq("client_id", clientId),
   ]);
 
@@ -85,13 +69,6 @@ export async function getClientTimelineFlat(
   );
 }
 
-/**
- * =========================
- * GROUPING FUNCTION
- * (for UI + reports)
- * =========================
- */
-
 export function groupTimelineByDate(
   items: TimelineItem[]
 ): GroupedTimeline[] {
@@ -99,9 +76,7 @@ export function groupTimelineByDate(
 
   for (const item of items) {
     const dateKey = new Date(item.created_at).toDateString();
-
     if (!grouped[dateKey]) grouped[dateKey] = [];
-
     grouped[dateKey].push(item);
   }
 
@@ -110,12 +85,6 @@ export function groupTimelineByDate(
     items,
   }));
 }
-
-/**
- * =========================
- * MAIN EXPORT (UI READY)
- * =========================
- */
 
 export async function getClientTimeline(
   clientId: string
