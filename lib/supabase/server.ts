@@ -16,8 +16,9 @@ export function getSupabaseAdmin() {
   });
 }
 
-// Keep backward compatibility
-export const supabaseAdmin = {
-  get auth() { return getSupabaseAdmin().auth; },
-  from: (...args: Parameters<ReturnType<typeof getSupabaseAdmin>["from"]>) => getSupabaseAdmin().from(...args),
-};
+export const supabaseAdmin = new Proxy({} as ReturnType<typeof getSupabaseAdmin>, {
+  get(_target, prop) {
+    const client = getSupabaseAdmin();
+    return (client as any)[prop];
+  }
+});
