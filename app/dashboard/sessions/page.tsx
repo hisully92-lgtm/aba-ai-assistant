@@ -286,7 +286,18 @@ export default function SessionsPage() {
   const [showSOAP, setShowSOAP] = useState(false);
   const [soap, setSoap] = useState({ subjective: "", objective: "", assessment: "", plan: "" });
 
-  useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    init();
+    // Restore timer if running before navigation
+    const savedStart = localStorage.getItem("session_timer_start");
+    if (savedStart) {
+      timerStartRef.current = Number(savedStart);
+      setTimerSeconds(Math.floor((Date.now() - Number(savedStart)) / 1000));
+      setTimerRunning(true);
+      setSessionStartTime(new Date(Number(savedStart)).toISOString());
+      setShowForm(true);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // BACKGROUND-SAFE TIMER
   useEffect(() => {
@@ -334,7 +345,9 @@ export default function SessionsPage() {
   }
 
   function startTimer() {
-    timerStartRef.current = Date.now();
+    const now = Date.now();
+    timerStartRef.current = now;
+    localStorage.setItem("session_timer_start", String(now));
     setTimerSeconds(0);
     setTimerRunning(true);
     setSessionStartTime(new Date().toISOString());
@@ -343,6 +356,7 @@ export default function SessionsPage() {
 
   function stopTimer() {
     setTimerRunning(false);
+    localStorage.removeItem("session_timer_start");
     const endTime = new Date().toISOString();
     setSessionEndTime(endTime);
     const duration = timerSeconds;
@@ -369,6 +383,7 @@ export default function SessionsPage() {
   }
 
   function resetForm() {
+    localStorage.removeItem("session_timer_start");
     setClientId(""); setDate(new Date().toISOString().split("T")[0]);
     setStatus("completed"); setClientResponse(""); setNotes("");
     setStaffMember(""); setCptCode("");
@@ -439,7 +454,6 @@ export default function SessionsPage() {
         <Section title="New Session Note">
           {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
 
-          {/* GEOFENCE CHECK */}
           <GeofenceCheck />
 
           {/* SESSION TIMER */}
@@ -463,6 +477,7 @@ export default function SessionsPage() {
                   <Button variant="danger" onClick={stopTimer}>⏹ Stop</Button>
                 )}
                 <Button variant="outline" onClick={() => {
+                  localStorage.removeItem("session_timer_start");
                   setTimerRunning(false); setTimerSeconds(0);
                   timerStartRef.current = null;
                   setSessionStartTime(null); setSessionEndTime(null);
@@ -483,10 +498,12 @@ export default function SessionsPage() {
                   {recentDurations.map((d, i) => (
                     <button type="button" key={i}
                       onClick={() => {
-                        timerStartRef.current = Date.now() - d * 1000;
+                        const now = Date.now();
+                        timerStartRef.current = now - d * 1000;
+                        localStorage.setItem("session_timer_start", String(now - d * 1000));
                         setTimerSeconds(d);
                         setTimerRunning(true);
-                        setSessionStartTime(new Date(Date.now() - d * 1000).toISOString());
+                        setSessionStartTime(new Date(now - d * 1000).toISOString());
                       }}
                       className="text-xs px-2 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-100">
                       {formatTimer(d)}
@@ -554,7 +571,6 @@ export default function SessionsPage() {
             </div>
           </div>
 
-          {/* CPT CODE */}
           <div className="mt-4">
             <CptCodeSelector staffMember={staffMember} onSelect={setCptCode} selectedCpt={cptCode} />
           </div>
@@ -571,7 +587,6 @@ export default function SessionsPage() {
                 ))}
               </div>
             </div>
-
             <div className="md:col-span-2">
               <label className="text-sm font-medium text-gray-700 mb-2 block">Interventions Used</label>
               <div className="flex flex-wrap gap-2">
@@ -583,7 +598,6 @@ export default function SessionsPage() {
                 ))}
               </div>
             </div>
-
             <div className="md:col-span-2">
               <label className="text-sm font-medium text-gray-700 mb-2 block">Programs Targeted</label>
               <div className="flex flex-wrap gap-2">
@@ -595,14 +609,12 @@ export default function SessionsPage() {
                 ))}
               </div>
             </div>
-
             <div className="md:col-span-2">
               <label className="text-sm font-medium text-gray-700 mb-1 block">Session Notes</label>
               <textarea value={notes} onChange={e => setNotes(e.target.value)}
                 placeholder="Additional session notes..." rows={3}
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
-
             <div className="md:col-span-2">
               <button type="button" onClick={() => setShowSOAP(!showSOAP)}
                 className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700">
@@ -610,7 +622,6 @@ export default function SessionsPage() {
                 SOAP Notes {showSOAP ? "(hide)" : "(optional)"}
               </button>
             </div>
-
             {showSOAP && (
               <div className="md:col-span-2 space-y-3 border border-blue-100 rounded-xl p-4 bg-blue-50">
                 <p className="text-xs font-semibold text-blue-700 mb-2">SOAP Note Format</p>
