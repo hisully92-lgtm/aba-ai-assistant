@@ -37,10 +37,10 @@ export async function getWeeklySummary(clientId?: string): Promise<{
 
   const forecastScores = (riskData ?? [])
     .map((r: { forecast_score: number | null }) => r.forecast_score)
-    .filter((s): s is number => s != null);
+    .filter((s: any): s is number => s != null);
 
   const avgForecastScore = forecastScores.length
-    ? forecastScores.reduce((a, b) => a + b, 0) / forecastScores.length
+    ? forecastScores.reduce((a: any, b: any) => a + b, 0) / forecastScores.length
     : 0;
 
   return { total, highRisk, mediumRisk, avgForecastScore, escalationCount };

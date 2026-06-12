@@ -211,7 +211,8 @@ export default function TrainingCertificatePage() {
     doc.save(filename);
 
     // Save to DB
-    supabase.auth.getUser().then(({ data: auth }) => {
+    supabase.auth.getUser().then(({ data: auth }: any) => {
+
       if (auth.user) {
         supabase.from("training_certificates").insert([{
           user_id: auth.user.id,

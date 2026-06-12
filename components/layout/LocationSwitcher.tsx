@@ -66,10 +66,10 @@ export default function LocationSwitcher() {
       setLocations(locs);
 
       const saved = profile.active_location_id;
-      if (saved && locs.find((l) => l.id === saved)) {
+      if (saved && locs.find((l: any) => l.id === saved)) {
         setActiveLocation(saved);
       } else {
-        const primary = locs.find((l) => l.is_primary) ?? locs[0];
+        const primary = locs.find((l: any) => l.is_primary) ?? locs[0];
         setActiveLocation(primary.id);
       }
     }

@@ -58,13 +58,13 @@ export default function AIParentSummaryPage() {
       supabase.from("programs").select("program_name, trial_data, mastery_criteria, prompt_level").eq("client_id", selectedClientId).gte("created_at", startDate),
     ]);
 
-    const masteredPrograms = (programs ?? []).filter((p) => {
+    const masteredPrograms = (programs ?? []).filter((p: any) => {
       const pctMatch = p.trial_data?.match(/(\d+)/);
       const pct = pctMatch ? parseInt(pctMatch[1]) : 0;
       const masteryMatch = p.mastery_criteria?.match(/(\d+)%/);
       const mastery = masteryMatch ? parseInt(masteryMatch[1]) : 80;
       return pct >= mastery && pct > 0;
-    }).map((p) => p.program_name);
+    }).map((p: any) => p.program_name);
 
     const toneInstructions = {
       friendly: "Write in a warm, encouraging, parent-friendly tone. Celebrate wins and be positive. Avoid clinical jargon.",
@@ -83,16 +83,15 @@ Guardian: ${client?.guardian_name ?? "Caregiver"}
 Reporting Period: ${periodLabel}
 
 Session Data (${sessions?.length ?? 0} sessions):
-${sessions?.slice(0, 10).map((s) => `- ${s.date ?? "Recent"}: ${s.client_response ?? ""} | Programs: ${s.programs_targeted ?? "None"} | ${s.behaviors_observed ? `Behaviors: ${s.behaviors_observed}` : "No behaviors noted"}`).join("\n") ?? "No sessions this period"}
+${sessions?.slice(0, 10).map((s: any) => `- ${s.date ?? "Recent"}: ${s.client_response ?? ""} | Programs: ${s.programs_targeted ?? "None"} | ${s.behaviors_observed ? `Behaviors: ${s.behaviors_observed}` : "No behaviors noted"}`).join("\n") ?? "No sessions this period"}
 
 Skills Being Worked On:
-${programs?.map((p) => `- ${p.program_name}: ${p.trial_data ?? "In progress"} (Prompt: ${p.prompt_level ?? "Unknown"})`).join("\n") ?? "No programs"}
+${programs?.map((p: any) => `- ${p.program_name}: ${p.trial_data ?? "In progress"} (Prompt: ${p.prompt_level ?? "Unknown"})`).join("\n") ?? "No programs"}
 
 ${masteredPrograms.length > 0 ? `🎉 Skills Mastered This Period: ${masteredPrograms.join(", ")}` : ""}
 
 Behaviors Noted:
-${behaviors?.map((b) => `- ${b.behavior_name}: ${b.frequency ?? ""} ${b.intensity ? `(${b.intensity} intensity)` : ""}, Intervention: ${b.intervention_used ?? "Unknown"}`).join("\n") ?? "No behaviors noted this period"}
-
+${behaviors?.map((b: any) => `- ${b.behavior_name}: ${b.frequency ?? ""} ${b.intensity ? `(${b.intensity} intensity)` : ""}, Intervention: ${b.intervention_used ?? "Unknown"}`).join("\n") ?? "No behaviors noted this period"}
 Write a warm, informative parent summary that includes:
 1. A friendly greeting to ${client?.guardian_name ?? "the caregiver"}
 2. Overall progress highlights

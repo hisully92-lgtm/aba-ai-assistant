@@ -32,7 +32,7 @@ export default function StaffPerformancePage() {
     setProfiles(profileData ?? []);
 
     const stats: StaffStats[] = await Promise.all(
-      (profileData ?? []).map(async (p) => {
+      (profileData ?? []).map(async (p: any) => {
         const [{ count: sessionCount }, { count: behaviorCount }, { data: supervisionData }, { data: fidelityData }] = await Promise.all([
           supabase.from("sessions").select("*", { count: "exact", head: true }).eq("created_by", p.id),
           supabase.from("behaviors").select("*", { count: "exact", head: true }).eq("created_by", p.id),

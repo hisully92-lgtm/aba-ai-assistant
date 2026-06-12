@@ -31,7 +31,7 @@ export async function getGlobalHistory(): Promise<HistoryItem[]> {
   ]);
 
   const sessions =
-    sessionsRes.data?.map((s) => ({
+    sessionsRes.data?.map((s: any) => ({
       id: s.id,
       type: "session" as const,
       title: s.client_name || "Session",
@@ -39,7 +39,7 @@ export async function getGlobalHistory(): Promise<HistoryItem[]> {
     })) || [];
 
   const behaviors =
-    behaviorsRes.data?.map((b) => ({
+    behaviorsRes.data?.map((b: any) => ({
       id: b.id,
       type: "behavior" as const,
       title: b.behavior_name || "Behavior",
@@ -47,7 +47,7 @@ export async function getGlobalHistory(): Promise<HistoryItem[]> {
     })) || [];
 
   const programs =
-    programsRes.data?.map((p) => ({
+    programsRes.data?.map((p: any) => ({
       id: p.id,
       type: "program" as const,
       title: p.program_name || "Program",

@@ -37,25 +37,25 @@ export default function RCMPage() {
     const claimsList = claims ?? [];
     const eraList = era ?? [];
 
-    const totalBilled = eraList.reduce((a, b) => a + (b.total_billed ?? 0), 0);
-    const totalPaid = eraList.reduce((a, b) => a + (b.total_paid ?? 0), 0);
-    const totalAdjusted = eraList.reduce((a, b) => a + (b.total_adjusted ?? 0), 0);
+    const totalBilled = eraList.reduce((a: any, b: any) => a + (b.total_billed ?? 0), 0);
+    const totalPaid = eraList.reduce((a: any, b: any) => a + (b.total_paid ?? 0), 0);
+    const totalAdjusted = eraList.reduce((a: any, b: any) => a + (b.total_adjusted ?? 0), 0);
 
     setSummary({
       totalBilled,
       totalPaid,
       totalAdjusted,
       totalClaims: claimsList.length,
-      pendingClaims: claimsList.filter((c) => c.status === "pending" || c.status === "submitted").length,
-      deniedClaims: claimsList.filter((c) => c.status === "denied").length,
-      approvedClaims: claimsList.filter((c) => c.status === "approved" || c.status === "paid").length,
+      pendingClaims: claimsList.filter((c: any) => c.status === "pending" || c.status === "submitted").length,
+      deniedClaims: claimsList.filter((c: any) => c.status === "denied").length,
+      approvedClaims: claimsList.filter((c: any) => c.status === "approved" || c.status === "paid").length,
       collectionRate: totalBilled ? Math.round((totalPaid / totalBilled) * 100) : 0,
       avgDaysToPayment: 21,
     });
 
     // Monthly ERA trend
     const monthlyMap = new Map<string, { billed: number; paid: number }>();
-    eraList.forEach((e) => {
+    eraList.forEach((e: any) => {
       const month = e.payment_date?.slice(0, 7) ?? "";
       if (!month) return;
       const existing = monthlyMap.get(month) ?? { billed: 0, paid: 0 };
@@ -69,7 +69,7 @@ export default function RCMPage() {
 
     // Claims by status
     const statusMap = new Map<string, number>();
-    claimsList.forEach((c) => statusMap.set(c.status, (statusMap.get(c.status) ?? 0) + 1));
+    claimsList.forEach((c: any) => statusMap.set(c.status, (statusMap.get(c.status) ?? 0) + 1));
     setClaimsData(Array.from(statusMap.entries()).map(([status, count]) => ({ status, count })));
 
     setLoading(false);

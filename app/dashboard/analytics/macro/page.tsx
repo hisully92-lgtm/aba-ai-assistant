@@ -189,15 +189,15 @@ export default function MacroAnalyticsPage() {
     setOutcomes([
       {
         name: "Mastered",
-        value: goals?.filter((g) => g.status === "mastered").length ?? 0,
+        value: goals?.filter((g: any) => g.status === "mastered").length ?? 0,
       },
       {
         name: "Active",
-        value: goals?.filter((g) => g.status === "active").length ?? 0,
+        value: goals?.filter((g: any) => g.status === "active").length ?? 0,
       },
       {
         name: "On Hold",
-        value: goals?.filter((g) => g.status === "on_hold").length ?? 0,
+        value: goals?.filter((g: any) => g.status === "on_hold").length ?? 0,
       },
     ]);
 

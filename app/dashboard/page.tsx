@@ -72,12 +72,12 @@ export default function DashboardPage() {
     setUserName(profile?.full_name?.split(" ")[0] ?? "");
     setClockedIn((activeTimeEntry ?? []).length > 0);
 
-    const sessionsThisWeek = (sessions ?? []).filter(s => s.created_at >= weekAgo).length;
-    const pendingSessions = (sessions ?? []).filter(s => s.status === "pending").length;
-    const activeGoals = (goals ?? []).filter(g => g.status === "active").length;
+    const sessionsThisWeek = (sessions ?? []).filter((s: any) => s.created_at >= weekAgo).length;
+    const pendingSessions = (sessions ?? []).filter((s: any) => s.status === "pending").length;
+    const activeGoals = (goals ?? []).filter((g: any) => g.status === "active").length;
     const hoursThisWeek = (timeEntries ?? [])
-      .filter(e => e.clock_in >= weekAgo)
-      .reduce((sum, e) => sum + (e.duration_minutes ?? 0), 0) / 60;
+  .filter((e: any) => e.clock_in >= weekAgo)
+  .reduce((sum: any, e: any) => sum + (e.duration_minutes ?? 0), 0) / 60;
 
     setStats({
       totalClients: (clients ?? []).length,

@@ -71,14 +71,14 @@ export default function ChatPage() {
 
     setMessages(data ?? []);
 
-    const pings = (data ?? []).filter((m) => m.type === "ping").length;
+    const pings = (data ?? []).filter((m: any) => m.type === "ping").length;
     setUnreadPings(pings);
     setLoading(false);
   }
 
   async function loadProfiles() {
     const { data } = await supabase.from("profiles").select("id, full_name, role");
-    const map = new Map((data ?? []).map((p: Profile) => [p.id, p]));
+    const map = new Map<string, Profile>((data ?? []).map((p: any) => [p.id, p]));
     setProfiles(map);
   }
 

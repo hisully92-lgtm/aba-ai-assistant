@@ -167,7 +167,7 @@ export default function SupervisorDashboardPage() {
       return;
     }
 
-    const enriched: ExportWithRisk[] = (data || []).map((item, index) => {
+    const enriched: ExportWithRisk[] = (data || []).map((item: any, index: any) => {
       const mockClient = {
         id: item.client_id,
         name: "Unknown",
@@ -230,15 +230,15 @@ export default function SupervisorDashboardPage() {
 
     const riskScores = (riskData ?? [])
       .map((r: { risk_score: number | null }) => r.risk_score)
-      .filter((s): s is number => s != null);
+      .filter((s: any): s is number => s != null);
     const forecastScores = (riskData ?? [])
       .map((r: { forecast_score: number | null }) => r.forecast_score)
-      .filter((s): s is number => s != null);
+      .filter((s: any): s is number => s != null);
 
     const avgRiskScore = riskScores.length
-      ? Math.round(riskScores.reduce((a, b) => a + b, 0) / riskScores.length) : 0;
+      ? Math.round(riskScores.reduce((a: any, b: any) => a + b, 0) / riskScores.length) : 0;
     const avgForecastScore = forecastScores.length
-      ? Math.round(forecastScores.reduce((a, b) => a + b, 0) / forecastScores.length) : 0;
+      ? Math.round(forecastScores.reduce((a: any, b: any) => a + b, 0) / forecastScores.length) : 0;
     const highRiskClients = (riskData ?? []).filter(
       (r: { risk_level: string }) => r.risk_level === "high"
     ).length;
