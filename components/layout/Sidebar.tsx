@@ -354,6 +354,12 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       ]),
     },
     {
+      label: "Timers",
+      href: "/dashboard/timers",
+      icon: "⏱️",
+      children: [],
+    },
+    {
       label: "Search",
       href: "/dashboard/search",
       icon: "🔍",

@@ -96,7 +96,9 @@ export default function FloatingTimerBar() {
   const [showAdd, setShowAdd] = useState(false);
   const [showSound, setShowSound] = useState(false);
   const [customLabel, setCustomLabel] = useState("");
+  const [customHrs, setCustomHrs] = useState("");
   const [customMins, setCustomMins] = useState("");
+  const [customSecs, setCustomSecs] = useState("");
   const [customCountdown, setCustomCountdown] = useState(true);
 
   // Draggable state
@@ -159,11 +161,13 @@ export default function FloatingTimerBar() {
   }
 
   function handleAddCustom() {
-    if (!customLabel.trim()) return;
-    const secs = customCountdown && customMins ? parseInt(customMins) * 60 : undefined;
-    addTimer(customLabel.trim(), "custom", secs);
-    setCustomLabel(""); setCustomMins(""); setShowAdd(false);
-  }
+  if (!customLabel.trim()) return;
+  const secs = customCountdown
+    ? (parseInt(customHrs || "0") * 3600) + (parseInt(customMins || "0") * 60) + parseInt(customSecs || "0")
+    : undefined;
+  addTimer(customLabel.trim(), "custom", secs && secs > 0 ? secs : undefined);
+  setCustomLabel(""); setCustomHrs(""); setCustomMins(""); setCustomSecs(""); setShowAdd(false);
+}
 
   return (
     <div
@@ -251,14 +255,30 @@ export default function FloatingTimerBar() {
               </label>
             </div>
             {customCountdown && (
-              <input
-                type="number"
-                value={customMins}
-                onChange={e => setCustomMins(e.target.value)}
-                placeholder="Minutes (e.g. 5)"
-                className="w-full border rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
-            )}
+  <div className="flex gap-2 mb-3">
+    <div className="flex-1">
+      <label className="text-xs text-gray-500 mb-1 block">Hours</label>
+      <input type="number" min="0" max="23" value={customHrs}
+        onChange={e => setCustomHrs(e.target.value)}
+        placeholder="0"
+        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+    </div>
+    <div className="flex-1">
+      <label className="text-xs text-gray-500 mb-1 block">Minutes</label>
+      <input type="number" min="0" max="59" value={customMins}
+        onChange={e => setCustomMins(e.target.value)}
+        placeholder="0"
+        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+    </div>
+    <div className="flex-1">
+      <label className="text-xs text-gray-500 mb-1 block">Seconds</label>
+      <input type="number" min="0" max="59" value={customSecs}
+        onChange={e => setCustomSecs(e.target.value)}
+        placeholder="0"
+        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+    </div>
+  </div>
+)}
             <button
               onClick={handleAddCustom}
               disabled={!customLabel.trim()}
