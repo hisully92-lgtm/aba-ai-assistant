@@ -1,11 +1,11 @@
-import { createClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
 
 let _client: any = null;
 
 export const supabase: any = new Proxy({} as any, {
   get(_target, prop) {
     if (!_client) {
-      _client = createClient(
+      _client = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       );
