@@ -1,9 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function saveClinicalReport({
   clientId,
@@ -16,6 +18,7 @@ export async function saveClinicalReport({
   reportText: string;
   summaryText?: string;
 }) {
+  const supabase = getClient();
   const { data, error } = await supabase
     .from("clinical_reports")
     .insert([{
@@ -26,11 +29,9 @@ export async function saveClinicalReport({
     }])
     .select()
     .single();
-
   if (error) {
     console.error("Save report error:", error.message);
     return null;
   }
-
   return data;
 }
