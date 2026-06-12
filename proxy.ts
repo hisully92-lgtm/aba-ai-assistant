@@ -2,8 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
+export async function proxy(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type");
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   const cookieStore = await cookies();
 
-  let response = NextResponse.redirect(new URL("/login?error=missing_params", req.url));
+  let response = NextResponse.redirect(new URL("/login?error=missing_params", request.url));
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -36,24 +36,24 @@ export async function GET(req: NextRequest) {
     });
     console.log("OTP VERIFY RESULT:", { error });
     if (error) {
-      return NextResponse.redirect(new URL(`/login?error=${error.message}`, req.url));
+      return NextResponse.redirect(new URL(`/login?error=${error.message}`, request.url));
     }
   } else if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     console.log("CODE EXCHANGE RESULT:", { error });
     if (error) {
-      return NextResponse.redirect(new URL(`/login?error=${error.message}`, req.url));
+      return NextResponse.redirect(new URL(`/login?error=${error.message}`, request.url));
     }
   } else {
     console.log("NO CODE OR TOKEN HASH");
-    return NextResponse.redirect(new URL("/login?error=missing_params", req.url));
+    return NextResponse.redirect(new URL("/login?error=missing_params", request.url));
   }
 
   const { data: { user } } = await supabase.auth.getUser();
   console.log("USER AFTER AUTH:", { userId: user?.id });
 
   if (!user) {
-    return NextResponse.redirect(new URL("/login?error=no_user", req.url));
+    return NextResponse.redirect(new URL("/login?error=no_user", request.url));
   }
 
   const { data: companyUser } = await supabase
@@ -66,9 +66,9 @@ export async function GET(req: NextRequest) {
   console.log("COMPANY USER:", { companyUser });
 
   if (companyUser?.company_id) {
-    response = NextResponse.redirect(new URL("/dashboard", req.url));
+    response = NextResponse.redirect(new URL("/dashboard", request.url));
   } else {
-    response = NextResponse.redirect(new URL("/onboarding", req.url));
+    response = NextResponse.redirect(new URL("/onboarding", request.url));
   }
 
   // Copy cookies to the final redirect response
