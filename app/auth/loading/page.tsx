@@ -6,13 +6,27 @@ import { supabase } from "@/lib/supabase/client";
 export default function AuthLoading() {
   useEffect(() => {
     async function check() {
-      // Wait briefly for session to be available
       await new Promise(r => setTimeout(r, 500));
+      
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+      
+      if (!user) {
+        window.location.href = "/login?error=no_session";
+        return;
+      }
+
+      const { data: companyUser } = await supabase
+        .from("company_users")
+        .select("company_id")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle();
+
+      if (companyUser?.company_id) {
         window.location.href = "/dashboard";
       } else {
-        window.location.href = "/login?error=no_session";
+        window.location.href = "/onboarding";
       }
     }
     check();
