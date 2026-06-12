@@ -10,7 +10,7 @@ const PUBLIC_ROUTES = [
 
 const SESSION_TIMEOUT_MINUTES = 30;
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route))) return NextResponse.next();
