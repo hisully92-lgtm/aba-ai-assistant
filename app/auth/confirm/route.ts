@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
+  console.log("FULL URL:", req.url);
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
   const token_hash = searchParams.get("token_hash");
