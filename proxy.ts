@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const PUBLIC_ROUTES = [
-  "/login", "/signup", "/onboarding", "/auth/callback", "/auth/confirm", "/auth/loading",
+  "/login", "/signup", "/onboarding", "/auth/callback", "/auth/confirm",
   "/api/sms", "/api/square", "/api/checkout",
   "/privacy", "/hipaa", "/notice-of-privacy-practices", "/data-retention", "/security-policy",
 ];
