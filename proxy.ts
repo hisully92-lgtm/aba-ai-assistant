@@ -1,36 +1,27 @@
 import { createServerClient } from "@supabase/ssr";
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { cookies } from "next/headers";
+import { NextRequest, NextResponse } from "next/server";
 
-const PUBLIC_ROUTES = [
-  "/login", "/signup", "/onboarding", "/auth/callback", "/auth/confirm",
-  "/api/sms", "/api/square", "/api/checkout",
-  "/privacy", "/hipaa", "/notice-of-privacy-practices", "/data-retention", "/security-policy",
-];
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const code = searchParams.get("code");
+  const token_hash = searchParams.get("token_hash");
+  const type = searchParams.get("type");
+  console.log("AUTH CONFIRM HIT:", { code, token_hash, type });
 
-const SESSION_TIMEOUT_MINUTES = 30;
+  const cookieStore = await cookies();
 
-export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-
-  if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route))) return NextResponse.next();
-
-  if (
-    pathname.startsWith("/_next") || pathname.startsWith("/favicon") ||
-    pathname.startsWith("/login-banner") || pathname.includes(".")
-  ) return NextResponse.next();
-
-  const response = NextResponse.next({ request: { headers: request.headers } });
+  let response = NextResponse.redirect(new URL("/login?error=missing_params", req.url));
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() { return request.cookies.getAll(); },
+        getAll() { return cookieStore.getAll(); },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
-            request.cookies.set(name, value);
+            cookieStore.set(name, value, options);
             response.cookies.set(name, value, options);
           });
         },
@@ -38,60 +29,52 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user && pathname.startsWith("/dashboard")) {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
-
-  if (user && (pathname === "/login" || pathname === "/signup")) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
-
-  if (user) {
-    // SESSION TIMEOUT — check last activity
-    const lastActivity = request.cookies.get("last_activity")?.value;
-    const now = Date.now();
-
-    if (lastActivity) {
-      const diff = (now - parseInt(lastActivity)) / 1000 / 60;
-      if (diff > SESSION_TIMEOUT_MINUTES && pathname.startsWith("/dashboard")) {
-        const redirectResponse = NextResponse.redirect(new URL("/login?reason=timeout", request.url));
-        redirectResponse.cookies.delete("last_activity");
-        await supabase.auth.signOut();
-        return redirectResponse;
-      }
-    }
-
-    // Update last activity timestamp
-    response.cookies.set("last_activity", now.toString(), {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24, // 24 hours max
+  if (token_hash && type) {
+    const { error } = await supabase.auth.verifyOtp({
+      token_hash,
+      type: type as any,
     });
-
-    const { data: companyUser } = await supabase
-      .from("company_users")
-      .select("company_id, role")
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .limit(1)
-      .maybeSingle();
-
-    if (companyUser) {
-      response.headers.set("x-company-id", companyUser.company_id);
-      response.headers.set("x-user-role", companyUser.role ?? "");
+    console.log("OTP VERIFY RESULT:", { error });
+    if (error) {
+      return NextResponse.redirect(new URL(`/login?error=${error.message}`, req.url));
     }
-
-    if (!companyUser && pathname.startsWith("/dashboard")) {
-      return NextResponse.redirect(new URL("/onboarding", request.url));
+  } else if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    console.log("CODE EXCHANGE RESULT:", { error });
+    if (error) {
+      return NextResponse.redirect(new URL(`/login?error=${error.message}`, req.url));
     }
+  } else {
+    console.log("NO CODE OR TOKEN HASH");
+    return NextResponse.redirect(new URL("/login?error=missing_params", req.url));
   }
+
+  const { data: { user } } = await supabase.auth.getUser();
+  console.log("USER AFTER AUTH:", { userId: user?.id });
+
+  if (!user) {
+    return NextResponse.redirect(new URL("/login?error=no_user", req.url));
+  }
+
+  const { data: companyUser } = await supabase
+    .from("company_users")
+    .select("company_id")
+    .eq("user_id", user.id)
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+  console.log("COMPANY USER:", { companyUser });
+
+  if (companyUser?.company_id) {
+    response = NextResponse.redirect(new URL("/dashboard", req.url));
+  } else {
+    response = NextResponse.redirect(new URL("/onboarding", req.url));
+  }
+
+  // Copy cookies to the final redirect response
+  cookieStore.getAll().forEach(({ name, value }) => {
+    response.cookies.set(name, value);
+  });
 
   return response;
 }
-
-export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
-};
