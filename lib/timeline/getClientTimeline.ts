@@ -1,10 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export type TimelineType = "session" | "behavior" | "program";
 
 export type TimelineItem = {
@@ -19,20 +14,27 @@ export type GroupedTimeline = {
   items: TimelineItem[];
 };
 
+function getClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
 export async function getClientTimelineFlat(
   clientId: string
 ): Promise<TimelineItem[]> {
+  const supabase = getClient();
+
   const [sessionsRes, behaviorsRes, programsRes] = await Promise.all([
     supabase
       .from("sessions")
       .select("id, client_name, created_at")
       .eq("client_id", clientId),
-
     supabase
       .from("behaviors")
       .select("id, behavior_name, created_at")
       .eq("client_id", clientId),
-
     supabase
       .from("programs")
       .select("id, program_name, created_at")
@@ -40,25 +42,25 @@ export async function getClientTimelineFlat(
   ]);
 
   const sessions: TimelineItem[] =
-    sessionsRes.data?.map((s) => ({
+    sessionsRes.data?.map((s: any) => ({
       id: s.id,
-      type: "session",
+      type: "session" as TimelineType,
       title: s.client_name ?? "Session",
       created_at: s.created_at,
     })) ?? [];
 
   const behaviors: TimelineItem[] =
-    behaviorsRes.data?.map((b) => ({
+    behaviorsRes.data?.map((b: any) => ({
       id: b.id,
-      type: "behavior",
+      type: "behavior" as TimelineType,
       title: b.behavior_name ?? "Behavior",
       created_at: b.created_at,
     })) ?? [];
 
   const programs: TimelineItem[] =
-    programsRes.data?.map((p) => ({
+    programsRes.data?.map((p: any) => ({
       id: p.id,
-      type: "program",
+      type: "program" as TimelineType,
       title: p.program_name ?? "Program",
       created_at: p.created_at,
     })) ?? [];
