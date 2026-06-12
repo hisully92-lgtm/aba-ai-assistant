@@ -51,12 +51,12 @@ export default function AITreatmentPlansPage() {
     ]);
 
     const masteredPrograms = programs?.filter((p: any) => {
-      const match = p.trial_data?.match(/(\d+)/);
-      const pct = match ? parseInt(match[1]) : 0;
-      const masteryMatch = p.mastery_criteria?.match(/(\d+)%/);
-      const mastery = masteryMatch ? parseInt(masteryMatch[1]) : 80;
-      return pct >= mastery;
-    }).map((p) => p.program_name) ?? [];
+  const match = p.trial_data?.match(/(\d+)/);
+  const pct = match ? parseInt(match[1]) : 0;
+  const masteryMatch = p.mastery_criteria?.match(/(\d+)%/);
+  const mastery = masteryMatch ? parseInt(masteryMatch[1]) : 80;
+  return pct >= mastery;
+}).map((p: any) => p.program_name) ?? [];
 
     const prompt = `You are an expert BCBA creating a comprehensive ABA treatment plan.
 
