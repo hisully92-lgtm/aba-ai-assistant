@@ -57,7 +57,7 @@ export default function LoginPage() {
     if (method === "magic") {
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
-        options: { emailRedirectTo: `${window.location.origin}/auth/confirm`, shouldCreateUser: mode === "signup" },
+        options: { shouldCreateUser: mode === "signup" },
       });
       if (otpError) { setError(otpError.message); setLoading(false); return; }
       setSent(true);
