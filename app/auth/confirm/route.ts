@@ -11,6 +11,10 @@ export async function GET(req: NextRequest) {
   console.log("AUTH CONFIRM HIT:", { code, token_hash, type });
 
   const cookieStore = await cookies();
+
+  // Create redirect response early so cookies can be written to it
+  let redirectTo = new URL("/login?error=missing_params", req.url);
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -27,19 +31,19 @@ export async function GET(req: NextRequest) {
   );
 
   if (token_hash && type) {
-    const { error } = await supabase.auth.verifyOtp({ 
-      token_hash, 
-      type: type as any 
+    const { error } = await supabase.auth.verifyOtp({
+      token_hash,
+      type: type as any,
     });
     console.log("OTP VERIFY RESULT:", { error });
     if (error) {
-      return NextResponse.redirect(new URL(`/login?error=${error.message}`, req.url));
+      return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message)}`, req.url));
     }
   } else if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     console.log("CODE EXCHANGE RESULT:", { error });
     if (error) {
-      return NextResponse.redirect(new URL(`/login?error=${error.message}`, req.url));
+      return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message)}`, req.url));
     }
   } else {
     console.log("NO CODE OR TOKEN HASH");
@@ -64,8 +68,21 @@ export async function GET(req: NextRequest) {
   console.log("COMPANY USER:", { companyUser });
 
   if (companyUser?.company_id) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+    redirectTo = new URL("/dashboard", req.url);
+  } else {
+    redirectTo = new URL("/onboarding", req.url);
   }
 
-  return NextResponse.redirect(new URL("/onboarding", req.url));
+  // Build response and copy ALL cookies so session persists
+  const response = NextResponse.redirect(redirectTo);
+  cookieStore.getAll().forEach(({ name, value }) => {
+    response.cookies.set(name, value, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      path: "/",
+    });
+  });
+
+  return response;
 }
