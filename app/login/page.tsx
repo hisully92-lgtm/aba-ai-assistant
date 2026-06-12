@@ -57,7 +57,7 @@ export default function LoginPage() {
     if (method === "magic") {
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
-        options: { shouldCreateUser: mode === "signup" },
+        options: { emailRedirectTo: `https://aba-ai-assistant.com/auth/confirm`, shouldCreateUser: mode === "signup" },
       });
       if (otpError) { setError(otpError.message); setLoading(false); return; }
       setSent(true);
