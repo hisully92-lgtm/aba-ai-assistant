@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
-let _client: ReturnType<typeof createClient> | null = null;
+let _client: any = null;
 
-export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
+export const supabase: any = new Proxy({} as any, {
   get(_target, prop) {
     if (!_client) {
       _client = createClient(
