@@ -43,8 +43,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(new URL(`/login?error=${error.message}`, req.url));
     }
   } else {
-    console.log("NO CODE OR TOKEN HASH");
-    return NextResponse.redirect(new URL("/login?error=missing_params", req.url));
+    console.log("NO CODE OR TOKEN HASH - checking existing session");
   }
 
   const { data: { user } } = await supabase.auth.getUser();
