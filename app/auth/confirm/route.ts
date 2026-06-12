@@ -50,8 +50,7 @@ export async function GET(req: NextRequest) {
   console.log("USER AFTER AUTH:", { userId: user?.id });
 
   if (!user) {
-    // Session not readable in same request — redirect to dashboard and let middleware handle it
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+    return NextResponse.redirect(new URL("/login?error=no_user", req.url));
   }
 
   const { data: companyUser } = await supabase
