@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useTimers, Timer, TimerType } from "@/lib/contexts/TimerContext";
+import { useState, useRef, useEffect } from "react";
+import { useTimers, Timer, TimerType, SoundOption } from "@/lib/contexts/TimerContext";
 
 const TYPE_COLORS: Record<TimerType, string> = {
   session:  "bg-blue-600",
@@ -19,11 +19,12 @@ const TYPE_ICONS: Record<TimerType, string> = {
   custom:   "⏰",
 };
 
-const PRESETS = [
-  { label: "Bathroom", type: "bathroom" as TimerType, seconds: 300 },
-  { label: "DRA/SIB",  type: "dra"      as TimerType, seconds: null },
-  { label: "Activity", type: "activity" as TimerType, seconds: 600 },
-  { label: "Session",  type: "session"  as TimerType, seconds: null },
+const SOUND_OPTIONS: { value: SoundOption; label: string; desc: string }[] = [
+  { value: "chime",  label: "🎵 Chime",    desc: "Three ascending notes" },
+  { value: "bell",   label: "🔔 Bell",     desc: "Long resonant tone" },
+  { value: "ding",   label: "✨ Ding",     desc: "Short bright tone" },
+  { value: "soft",   label: "🌊 Soft",     desc: "Low gentle tone" },
+  { value: "none",   label: "🔇 Silent",   desc: "No sound" },
 ];
 
 function fmt(seconds: number): string {
@@ -90,19 +91,68 @@ function TimerChip({ timer }: { timer: Timer }) {
 }
 
 export default function FloatingTimerBar() {
-  const { timers, addTimer } = useTimers();
+  const { timers, addTimer, sound, setSound, visible, setVisible } = useTimers();
+  const [minimized, setMinimized] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [showSound, setShowSound] = useState(false);
   const [customLabel, setCustomLabel] = useState("");
   const [customMins, setCustomMins] = useState("");
   const [customCountdown, setCustomCountdown] = useState(true);
 
-  if (timers.length === 0 && !showAdd) {
+  // Draggable state
+  const [pos, setPos] = useState({ x: window.innerWidth - 200, y: window.innerHeight - 80 });
+  const dragging = useRef(false);
+  const offset = useRef({ x: 0, y: 0 });
+  const barRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!dragging.current) return;
+      setPos({ x: e.clientX - offset.current.x, y: e.clientY - offset.current.y });
+    }
+    function onMouseUp() { dragging.current = false; }
+    function onTouchMove(e: TouchEvent) {
+      if (!dragging.current) return;
+      const t = e.touches[0];
+      setPos({ x: t.clientX - offset.current.x, y: t.clientY - offset.current.y });
+    }
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("touchmove", onTouchMove);
+    window.addEventListener("touchend", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onMouseUp);
+    };
+  }, []);
+
+  function startDrag(e: React.MouseEvent | React.TouchEvent) {
+    dragging.current = true;
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+    offset.current = { x: clientX - pos.x, y: clientY - pos.y };
+  }
+
+  if (!visible) return null;
+
+  // Minimized — small bubble
+  if (minimized) {
     return (
-      <div className="fixed bottom-4 right-4 z-50">
+      <div
+        ref={barRef}
+        style={{ position: "fixed", left: pos.x, top: pos.y, zIndex: 9999, cursor: "grab" }}
+        onMouseDown={startDrag}
+        onTouchStart={startDrag}
+      >
         <button
-          onClick={() => setShowAdd(true)}
-          className="bg-white border border-gray-200 shadow-lg rounded-full px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-2 transition-all">
-          ⏱️ Timers
+          onClick={() => setMinimized(false)}
+          className="bg-gray-900/90 backdrop-blur text-white rounded-full w-12 h-12 flex items-center justify-center shadow-2xl text-lg border border-white/10 hover:bg-gray-800 transition-all"
+        >
+          {timers.length > 0 ? (
+            <span className="text-xs font-bold">⏱{timers.length}</span>
+          ) : "⏱️"}
         </button>
       </div>
     );
@@ -112,50 +162,85 @@ export default function FloatingTimerBar() {
     if (!customLabel.trim()) return;
     const secs = customCountdown && customMins ? parseInt(customMins) * 60 : undefined;
     addTimer(customLabel.trim(), "custom", secs);
-    setCustomLabel("");
-    setCustomMins("");
-    setShowAdd(false);
+    setCustomLabel(""); setCustomMins(""); setShowAdd(false);
   }
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
-      {timers.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap justify-center bg-gray-900/90 backdrop-blur rounded-2xl px-3 py-2 shadow-2xl max-w-[95vw]">
+    <div
+      ref={barRef}
+      style={{ position: "fixed", left: pos.x, top: pos.y, zIndex: 9999, maxWidth: "95vw" }}
+    >
+      {/* DRAG HANDLE + TIMER BAR */}
+      <div className="flex flex-col items-end gap-2">
+        <div
+          className="flex items-center gap-2 flex-wrap bg-gray-900/90 backdrop-blur rounded-2xl px-3 py-2 shadow-2xl cursor-grab active:cursor-grabbing"
+          onMouseDown={startDrag}
+          onTouchStart={startDrag}
+        >
+          {/* Drag grip */}
+          <span className="text-gray-500 text-xs select-none">⠿</span>
+
           {timers.map(t => <TimerChip key={t.id} timer={t} />)}
+
           <button
-            onClick={() => setShowAdd(s => !s)}
+            onClick={(e) => { e.stopPropagation(); setShowAdd(s => !s); }}
             className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded-lg hover:bg-white/10 transition-colors">
             {showAdd ? "✕" : "+ Add"}
           </button>
+
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowSound(s => !s); }}
+            className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded-lg hover:bg-white/10 transition-colors"
+            title="Sound settings">
+            🔔
+          </button>
+
+          <button
+            onClick={(e) => { e.stopPropagation(); setMinimized(true); }}
+            className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded-lg hover:bg-white/10 transition-colors"
+            title="Minimize">
+            —
+          </button>
+
+          <button
+            onClick={(e) => { e.stopPropagation(); setVisible(false); }}
+            className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded-lg hover:bg-white/10 transition-colors"
+            title="Close">
+            ✕
+          </button>
         </div>
-      )}
 
-      {showAdd && (
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-2xl p-4 w-80">
-          <p className="text-sm font-semibold text-gray-700 mb-3">Start a Timer</p>
-
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            {PRESETS.map(p => (
-              <button key={p.label}
-                onClick={() => { addTimer(p.label, p.type, p.seconds ?? undefined); setShowAdd(false); }}
-                className={`text-xs px-3 py-2.5 rounded-xl text-white font-medium flex items-center gap-1.5 ${TYPE_COLORS[p.type]}`}>
-                {TYPE_ICONS[p.type]}
-                <span>{p.label}</span>
-                {p.seconds && <span className="opacity-75">({p.seconds / 60}m)</span>}
-              </button>
-            ))}
+        {/* SOUND PICKER */}
+        {showSound && (
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-2xl p-4 w-64">
+            <p className="text-sm font-semibold text-gray-700 mb-3">Timer Sound</p>
+            <div className="flex flex-col gap-2">
+              {SOUND_OPTIONS.map(opt => (
+                <button key={opt.value}
+                  onClick={() => { setSound(opt.value); setShowSound(false); }}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all ${sound === opt.value ? "bg-blue-50 border border-blue-200 text-blue-700" : "hover:bg-gray-50 text-gray-700"}`}>
+                  <span>{opt.label}</span>
+                  <span className="text-xs text-gray-400 ml-auto">{opt.desc}</span>
+                  {sound === opt.value && <span className="text-blue-500">✓</span>}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setShowSound(false)} className="w-full mt-3 py-1.5 text-xs text-gray-400 hover:text-gray-600">Close</button>
           </div>
+        )}
 
-          <div className="border-t border-gray-100 pt-3">
-            <p className="text-xs text-gray-500 mb-2 font-medium">Custom Timer</p>
+        {/* ADD TIMER */}
+        {showAdd && (
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-2xl p-4 w-72">
+            <p className="text-sm font-semibold text-gray-700 mb-3">New Timer</p>
             <input
               type="text"
               value={customLabel}
               onChange={e => setCustomLabel(e.target.value)}
-              placeholder="Timer name (e.g. Transition)"
-              className="w-full border rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
+              placeholder="Timer name (e.g. Bathroom Break)"
+              className="w-full border rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-300"
             />
-            <div className="flex gap-2 mb-2">
+            <div className="flex gap-3 mb-3">
               <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
                 <input type="radio" checked={customCountdown} onChange={() => setCustomCountdown(true)} />
                 Countdown
@@ -170,8 +255,8 @@ export default function FloatingTimerBar() {
                 type="number"
                 value={customMins}
                 onChange={e => setCustomMins(e.target.value)}
-                placeholder="Minutes"
-                className="w-full border rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                placeholder="Minutes (e.g. 5)"
+                className="w-full border rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-300"
               />
             )}
             <button
@@ -180,14 +265,10 @@ export default function FloatingTimerBar() {
               className="w-full py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 disabled:opacity-40 transition-colors">
               Start Timer
             </button>
+            <button onClick={() => setShowAdd(false)} className="w-full mt-2 py-1.5 text-xs text-gray-400 hover:text-gray-600">Cancel</button>
           </div>
-
-          <button onClick={() => setShowAdd(false)}
-            className="w-full mt-2 py-1.5 text-xs text-gray-400 hover:text-gray-600">
-            Cancel
-          </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

@@ -8,6 +8,8 @@ import { supabase } from "@/lib/supabase/client";
 import { useRole } from "@/lib/hooks/useRole";
 import { clearCompanyCache } from "@/lib/hooks/useCompany";
 import { useFeatureAccess } from "@/lib/hooks/useFeatureAccess";
+import { useTimers } from "@/lib/contexts/TimerContext";
+
 
 type NavChild = { label: string; href: string };
 type NavItem = { label: string; href: string; icon: string; children: NavChild[] };
@@ -27,6 +29,18 @@ const QUICK_INDEX = [
   { label: "Team", href: "/dashboard/admin", icon: "🏢" },
   { label: "Help", href: "/dashboard/help", icon: "❓" },
 ];
+
+function TimerToggleButton() {
+  const { timers, visible, setVisible } = useTimers();
+  return (
+    <button
+      onClick={() => setVisible(v => !v)}
+      className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 justify-center
+        ${visible ? "bg-[#2a3a54] text-white" : "bg-[#243044] text-gray-400 hover:text-white hover:bg-[#2a3a54]"}`}>
+      ⏱️ Timers {timers.length > 0 && <span className="bg-blue-500 text-white text-xs rounded-full px-1.5">{timers.length}</span>}
+    </button>
+  );
+}
 
 export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
   const pathname = usePathname();
@@ -608,9 +622,10 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
         </nav>
       </div>
 
-      {/* LOGOUT */}
-      <div className="p-3 border-t border-[#2a3a54]">
-        <button onClick={handleLogout}
+      {/* TIMERS + LOGOUT */}
+<div className="p-3 border-t border-[#2a3a54] flex flex-col gap-2">
+  <TimerToggleButton />
+  <button onClick={handleLogout}
           className="w-full px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors">
           Log out
         </button>
