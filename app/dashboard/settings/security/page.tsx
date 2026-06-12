@@ -51,7 +51,7 @@ export default function SecurityPage() {
 
     // Check MFA status
     const { data: factors } = await supabase.auth.mfa.listFactors();
-    const totpFactor = factors?.totp?.find((f) => f.status === "verified");
+    const totpFactor = factors?.totp?.find((f: any) => f.status === "verified");
     if (totpFactor) {
       setMfaEnabled(true);
       setMfaFactorId(totpFactor.id);
