@@ -10,8 +10,6 @@ import OnboardingTutorial from "@/components/OnboardingTutorials";
 import { TimerProvider } from "@/lib/contexts/TimerContext";
 import FloatingTimerBar from "@/components/timers/FloatingTimerBar";
 
-export const dynamic = "force-dynamic";
-
 function SkeletonLoader() {
   return (
     <div className="flex h-screen bg-gray-50">
