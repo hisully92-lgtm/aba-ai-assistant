@@ -72,7 +72,7 @@ export async function handleSummary(
 
   const historyText =
     sessions
-      ?.map((s) => {
+      ?.map((s: any) => {
         const decrypted = decryptSessionFields(s);
         return `
 Date: ${s.date}

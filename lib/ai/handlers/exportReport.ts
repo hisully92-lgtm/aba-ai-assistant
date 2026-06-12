@@ -81,7 +81,7 @@ export async function handleReport(
   });
 
   const history = sessions
-    .map((s) => {
+    .map((s: any) => {
       const decrypted = decryptSessionFields(s);
       return `
 Date: ${s.date}

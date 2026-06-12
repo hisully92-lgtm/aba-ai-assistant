@@ -81,7 +81,7 @@ export async function handleTimeline(
   });
 
   const timelineData = sessions
-    .map((s, i) => {
+    .map((s: any, i: any) => {
       const decrypted = decryptSessionFields(s);
       return `
 Session ${i + 1}
