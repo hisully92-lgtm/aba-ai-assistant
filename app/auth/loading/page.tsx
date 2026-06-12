@@ -6,32 +6,10 @@ import { supabase } from "@/lib/supabase/client";
 export default function AuthLoading() {
   useEffect(() => {
     async function check() {
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get("code");
-      const token_hash = params.get("token_hash");
-      const type = params.get("type");
-
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) {
-          window.location.href = `/login?error=${encodeURIComponent(error.message)}`;
-          return;
-        }
-      } else if (token_hash && type) {
-        const { error } = await supabase.auth.verifyOtp({
-          token_hash,
-          type: type as any,
-        });
-        if (error) {
-          window.location.href = `/login?error=${encodeURIComponent(error.message)}`;
-          return;
-        }
-      } else {
-        await new Promise(r => setTimeout(r, 1000));
-      }
-
+      await new Promise(r => setTimeout(r, 500));
+      
       const { data: { user } } = await supabase.auth.getUser();
-
+      
       if (!user) {
         window.location.href = "/login?error=no_session";
         return;

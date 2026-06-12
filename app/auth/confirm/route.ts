@@ -1,3 +1,4 @@
+import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
@@ -9,15 +10,43 @@ export async function GET(req: NextRequest) {
 
   console.log("AUTH CONFIRM HIT:", { code, token_hash, type });
 
-  // Pass code to client-side loading page for PKCE exchange
-  if (code) {
-    return NextResponse.redirect(new URL(`/auth/loading?code=${code}`, req.url));
-  }
+  // Create response first so we can write cookies to it
+  let redirectUrl = new URL("/auth/loading", req.url);
+  const response = NextResponse.redirect(redirectUrl);
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return req.cookies.getAll(); },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+        },
+      },
+    }
+  );
 
   if (token_hash && type) {
-    return NextResponse.redirect(new URL(`/auth/loading?token_hash=${token_hash}&type=${type}`, req.url));
+    const { error } = await supabase.auth.verifyOtp({ 
+      token_hash, 
+      type: type as any 
+    });
+    console.log("OTP VERIFY RESULT:", { error });
+    if (error) {
+      return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message)}`, req.url));
+    }
+  } else if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    console.log("CODE EXCHANGE RESULT:", { error });
+    if (error) {
+      return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message)}`, req.url));
+    }
   }
 
-  // No params — try loading page anyway (session may already be set)
-  return NextResponse.redirect(new URL("/auth/loading", req.url));
+  // Cookies are now set on response — redirect to loading page
+  // which will client-side verify and redirect to dashboard
+  return response;
 }
