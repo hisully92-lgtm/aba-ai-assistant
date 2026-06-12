@@ -50,7 +50,7 @@ export default function AITreatmentPlansPage() {
       supabase.from("programs").select("program_name, prompt_level, mastery_criteria, trial_data").eq("client_id", selectedClientId).order("created_at", { ascending: false }).limit(10),
     ]);
 
-    const masteredPrograms = programs?.filter((p) => {
+    const masteredPrograms = programs?.filter((p: any) => {
       const match = p.trial_data?.match(/(\d+)/);
       const pct = match ? parseInt(match[1]) : 0;
       const masteryMatch = p.mastery_criteria?.match(/(\d+)%/);
@@ -70,13 +70,13 @@ Client Information:
 
 Recent Clinical Data:
 Sessions (last 10):
-${sessions?.map((s) => `- Behaviors: ${s.behaviors_observed ?? "None"} | Programs: ${s.programs_targeted ?? "None"} | Response: ${s.client_response ?? "Unknown"}`).join("\n") ?? "No sessions"}
+${sessions?.map((s: any) => `- Behaviors: ${s.behaviors_observed ?? "None"} | Programs: ${s.programs_targeted ?? "None"} | Response: ${s.client_response ?? "Unknown"}`).join("\n") ?? "No sessions"}
 
 Current Behaviors of Concern:
-${behaviors?.map((b) => `- ${b.behavior_name}: Function = ${b.function_hypothesis ?? "Unknown"}, Intervention = ${b.intervention_used ?? "Unknown"}`).join("\n") ?? "No behaviors"}
+${behaviors?.map((b: any) => `- ${b.behavior_name}: Function = ${b.function_hypothesis ?? "Unknown"}, Intervention = ${b.intervention_used ?? "Unknown"}`).join("\n") ?? "No behaviors"}
 
 Current Programs:
-${programs?.map((p) => `- ${p.program_name}: ${p.prompt_level ?? "Unknown prompt"}, Data: ${p.trial_data ?? "No data"}`).join("\n") ?? "No programs"}
+${programs?.map((p: any) => `- ${p.program_name}: ${p.prompt_level ?? "Unknown prompt"}, Data: ${p.trial_data ?? "No data"}`).join("\n") ?? "No programs"}
 
 Mastered Skills: ${masteredPrograms.join(", ") || "None yet"}
 
@@ -118,18 +118,13 @@ Please create a comprehensive ABA treatment plan with these sections:
 Be specific, evidence-based, and use ABA terminology throughout.`;
 
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 2000,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-
-      const data = await res.json();
-      setPlan(data.content?.[0]?.text ?? "Unable to generate plan.");
+      const res = await fetch("/api/ai", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ type: "summary", client_id: selectedClientId, context: { prompt } }),
+});
+const data = await res.json();
+setPlan(data.result ?? data.text ?? data.content?.[0]?.text ?? "Unable to generate plan.");
     } catch {
       setPlan("AI generation failed. Please try again.");
     } finally {
