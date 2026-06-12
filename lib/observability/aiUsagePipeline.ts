@@ -54,10 +54,10 @@ export async function getAIUsageStats(userId: string): Promise<{
 
   const durations = data
     .map((d: { duration_ms: number | null }) => d.duration_ms)
-    .filter((d): d is number => d != null);
+    .filter((d: any): d is number => d != null);
 
   const avgDurationMs = durations.length
-    ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
+    ? Math.round(durations.reduce((a: number, b: number) => a + b, 0) / durations.length)
     : 0;
 
   const byType: Record<string, number> = {};

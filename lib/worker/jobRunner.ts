@@ -112,7 +112,7 @@ export async function runPendingJobs(limit = 10): Promise<{
     return { processed: 0, succeeded: 0, failed: 0, skipped: 0 };
   }
 
-  const results = await Promise.allSettled(jobs.map((j) => runJob(j.id)));
+  const results = await Promise.allSettled(jobs.map((j: any) => runJob(j.id)));
 
   let succeeded = 0;
   let failed = 0;
