@@ -205,9 +205,9 @@ export default function AdminPage() {
     );
 
     const reports: ClinicianReport[] = clinicians.map(c => {
-      const userSessions = (sessions ?? []).filter(s => s.created_by === c.user_id);
-      const userClients = (clients ?? []).filter(cl => cl.created_by === c.user_id);
-      const pendingNotes = userSessions.filter(s => s.status === "pending").length;
+      const userSessions = (sessions ?? []).filter((s: any) => s.created_by === c.user_id);
+      const userClients = (clients ?? []).filter((cl: any) => cl.created_by === c.user_id);
+      const pendingNotes = userSessions.filter((s: any) => s.status === "pending").length;
       return {
         id: c.user_id,
         full_name: c.full_name ?? "Unknown",
