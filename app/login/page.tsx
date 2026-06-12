@@ -82,7 +82,7 @@ export default function LoginPage() {
         email: email.trim(), password,
       });
       if (signInError) { setError(signInError.message); setLoading(false); return; }
-      window.location.href = "/auth/confirm";
+      window.location.href = "/dashboard";
       return;
     }
   }
