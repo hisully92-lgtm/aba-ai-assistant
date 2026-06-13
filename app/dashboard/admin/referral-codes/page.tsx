@@ -45,10 +45,13 @@ function generateCode(): string {
   return `REF-${rand(4)}-${rand(4)}-${new Date().getFullYear()}`;
 }
 
+const OWNER_EMAIL = "hisully92@gmail.com";
+
 export default function ReferralCodesAdminPage() {
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [codes, setCodes] = useState<RewardCode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
   const [generating, setGenerating] = useState("");
   const [userId, setUserId] = useState("");
   const [copiedCode, setCopiedCode] = useState("");
@@ -59,7 +62,15 @@ export default function ReferralCodesAdminPage() {
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
-    if (!user) return;
+    if (!user) { window.location.href = "/dashboard"; return; }
+
+    // Only the owner can access this page
+    if (user.email !== OWNER_EMAIL) {
+      window.location.href = "/dashboard";
+      return;
+    }
+
+    setAuthorized(true);
     setUserId(user.id);
 
     const [{ data: refData }, { data: codeData }] = await Promise.all([
@@ -67,7 +78,6 @@ export default function ReferralCodesAdminPage() {
       supabase.from("referral_reward_codes").select("*").order("created_at", { ascending: false }),
     ]);
 
-    // Get company names
     const companyIds = [...new Set([
       ...(refData ?? []).map((r: Referral) => r.referrer_company_id),
       ...(codeData ?? []).map((c: RewardCode) => c.referrer_company_id),
@@ -106,7 +116,7 @@ export default function ReferralCodesAdminPage() {
     const expiryDate = new Date();
     expiryDate.setMonth(expiryDate.getMonth() + 3);
 
-    const { data } = await supabase.from("referral_reward_codes").insert({
+    await supabase.from("referral_reward_codes").insert({
       code,
       referral_id: referral.id,
       referrer_company_id: referral.referrer_company_id,
@@ -114,15 +124,13 @@ export default function ReferralCodesAdminPage() {
       status: "active",
       created_by: userId,
       expires_at: expiryDate.toISOString(),
-    }).select().single();
+    });
 
-    // Update referral status to reward_issued
     await supabase.from("referrals").update({
       status: "completed",
       free_months_earned: freeMonths,
     }).eq("id", referral.id);
 
-    // Email the clinic admin
     if (referral.referred_email) {
       await fetch("/api/email/send", {
         method: "POST",
@@ -142,7 +150,8 @@ export default function ReferralCodesAdminPage() {
             <p>To redeem your free months:</p>
             <ol>
               <li>Go to your Dashboard → Settings → Plan & Billing</li>
-              <li>Enter your reward code in the "Referral Reward Code" field</li>
+              <li>Click the "Referral Code" tab</li>
+              <li>Enter your reward code</li>
               <li>Your subscription will be frozen for ${freeMonths} month${freeMonths > 1 ? "s" : ""} after your current contract ends</li>
             </ol>
             <p style="color: #6b7280; font-size: 12px;">Code expires in 90 days. Free months are applied after your current contract ends and before your next billing period begins.</p>
@@ -177,6 +186,16 @@ export default function ReferralCodesAdminPage() {
     pending: "bg-yellow-100 text-yellow-700",
     completed: "bg-purple-100 text-purple-700",
   };
+
+  // Block unauthorized users
+  if (!loading && !authorized) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-4xl mb-3">🔒</p>
+        <p className="text-gray-500">Access denied.</p>
+      </div>
+    );
+  }
 
   if (loading) return <div className="p-8 text-gray-400">Loading...</div>;
 
@@ -259,9 +278,7 @@ export default function ReferralCodesAdminPage() {
                             </button>
                           </div>
                         ) : (
-                          <Button
-                            onClick={() => generateRewardCode(ref)}
-                            loading={generating === ref.id}>
+                          <Button onClick={() => generateRewardCode(ref)} loading={generating === ref.id}>
                             🎟️ Generate Code
                           </Button>
                         )}
