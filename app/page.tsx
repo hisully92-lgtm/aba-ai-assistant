@@ -14,9 +14,8 @@ export default function HomePage() {
             <span className="font-bold text-gray-900 text-lg">ABA AI</span>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/pricing" className="text-sm text-gray-500 hover:text-gray-800 hidden sm:block">Pricing</Link>
             <Link href="#features" className="text-sm text-gray-500 hover:text-gray-800 hidden sm:block">Features</Link>
-            <Link href="#pricing" className="text-sm text-gray-500 hover:text-gray-800 hidden sm:block">Pricing</Link>
+            <Link href="/pricing" className="text-sm text-gray-500 hover:text-gray-800 hidden sm:block">Pricing</Link>
             <Link href="/about" className="text-sm text-gray-500 hover:text-gray-800 hidden sm:block">About</Link>
             <Link href="/contact" className="text-sm text-gray-500 hover:text-gray-800 hidden sm:block">Contact</Link>
             <Link href="/login" className="text-sm text-gray-600 hover:text-gray-800 font-medium">Sign In</Link>
@@ -146,53 +145,61 @@ export default function HomePage() {
 
       {/* PRICING */}
       <section id="pricing" className="px-6 py-24 bg-white">
-        <div className="max-w-4xl mx-auto text-center">
+        <div className="max-w-5xl mx-auto text-center">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">Simple, honest pricing</h2>
-          <p className="text-gray-500 mb-16">Start free. Upgrade when you need more.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
+          <p className="text-gray-500 mb-4">First month free. No charge until your trial ends.</p>
+          <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-4 py-2 rounded-full text-sm font-medium mb-12">
+            🎉 30-day free trial — card required but not charged until trial ends
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             {[
               {
-                name: "Starter",
-                price: "Free",
-                period: "forever",
-                desc: "Perfect for solo clinicians getting started",
-                features: ["Up to 5 clients", "Unlimited session notes", "Goal tracking", "Progress reports", "Time tracking", "HIPAA BAA included"],
-                cta: "Get Started Free",
-                href: "/login?signup=true",
+                name: "Starter", icon: "🌱", price: "$59", desc: "Perfect for solo practitioners",
+                features: ["1 clinician", "Up to 10 clients", "Session notes", "Progress reports", "HIPAA BAA included"],
                 highlight: false,
               },
               {
-                name: "Pro",
-                price: "$49",
-                period: "per month",
-                desc: "For growing clinics and teams",
-                features: ["Unlimited clients", "Full team management", "Role-based access codes", "Geofence clock-in", "Analytics & graphs", "Priority support"],
-                cta: "Start Pro Trial",
-                href: "/login?signup=true",
+                name: "Professional", icon: "⚡", price: "$119", desc: "For growing practices",
+                features: ["Up to 5 clinicians", "Unlimited clients", "AI session notes", "Insurance billing", "Priority support"],
                 highlight: true,
               },
+              {
+                name: "Clinic", icon: "🏥", price: "$239", desc: "For established clinics",
+                features: ["Unlimited clinicians", "Multi-location", "EDI 837 claims", "Custom branding", "Dedicated manager"],
+                highlight: false,
+              },
             ].map(plan => (
-              <div key={plan.name} className={`rounded-2xl p-8 border text-left ${plan.highlight ? "border-blue-500 bg-blue-600 text-white" : "border-gray-200 bg-white"}`}>
-                <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${plan.highlight ? "text-blue-200" : "text-gray-400"}`}>{plan.name}</p>
-                <div className="flex items-end gap-1 mb-1">
-                  <p className={`text-4xl font-extrabold ${plan.highlight ? "text-white" : "text-gray-900"}`}>{plan.price}</p>
-                  <p className={`text-sm mb-1 ${plan.highlight ? "text-blue-200" : "text-gray-400"}`}>/{plan.period}</p>
+              <div key={plan.name} className={`relative rounded-2xl border-2 p-8 text-left flex flex-col ${plan.highlight ? "border-blue-500 shadow-xl shadow-blue-100" : "border-gray-200"}`}>
+                {plan.highlight && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                    <span className="bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-full">Most Popular</span>
+                  </div>
+                )}
+                <div className="text-3xl mb-2">{plan.icon}</div>
+                <p className="font-bold text-gray-900 text-lg">{plan.name}</p>
+                <p className="text-sm text-gray-500 mb-3">{plan.desc}</p>
+                <div className="mb-4">
+                  <span className="text-3xl font-extrabold text-blue-600">{plan.price}</span>
+                  <span className="text-gray-400 text-sm">/mo</span>
                 </div>
-                <p className={`text-sm mb-6 ${plan.highlight ? "text-blue-100" : "text-gray-500"}`}>{plan.desc}</p>
-                <ul className="space-y-2 mb-8">
+                <ul className="space-y-2 mb-6 flex-1">
                   {plan.features.map(f => (
-                    <li key={f} className={`flex items-center gap-2 text-sm ${plan.highlight ? "text-blue-100" : "text-gray-600"}`}>
-                      <span className={plan.highlight ? "text-blue-300" : "text-blue-500"}>✓</span> {f}
+                    <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
+                      <span className="text-blue-500">✓</span> {f}
                     </li>
                   ))}
                 </ul>
-                <Link href={plan.href}
-                  className={`block text-center py-3 rounded-xl font-semibold text-sm transition-colors ${plan.highlight ? "bg-white text-blue-600 hover:bg-blue-50" : "bg-blue-600 text-white hover:bg-blue-700"}`}>
-                  {plan.cta}
+                <Link href="/pricing"
+                  className={`block text-center py-2.5 rounded-xl font-semibold text-sm transition-colors ${plan.highlight ? "bg-blue-600 text-white hover:bg-blue-700" : "border-2 border-blue-600 text-blue-600 hover:bg-blue-50"}`}>
+                  See plans & save →
                 </Link>
               </div>
             ))}
           </div>
+          <p className="text-sm text-gray-400 mt-8">
+            Save up to $480/year with annual plans ·{" "}
+            <Link href="/pricing" className="text-blue-500 hover:underline">View all pricing options →</Link>
+          </p>
         </div>
       </section>
 
@@ -232,7 +239,7 @@ export default function HomePage() {
                 <p className="text-white font-semibold mb-3">Product</p>
                 <div className="space-y-2">
                   <Link href="#features" className="block hover:text-white transition-colors">Features</Link>
-                  <Link href="#pricing" className="block hover:text-white transition-colors">Pricing</Link>
+                  <Link href="/pricing" className="block hover:text-white transition-colors">Pricing</Link>
                   <Link href="/login" className="block hover:text-white transition-colors">Sign In</Link>
                   <Link href="/login?signup=true" className="block hover:text-white transition-colors">Get Started</Link>
                 </div>
