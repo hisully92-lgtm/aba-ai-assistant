@@ -62,11 +62,12 @@ export default function BIPReviewPage({ params }: { params: { id: string } }) {
     setAiGenerating(true);
 
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
+      const response = await fetch("/api/ai", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    type: "bip_review",
+    model: "claude-sonnet-4-6",
           max_tokens: 1000,
           messages: [{
             role: "user",
@@ -92,7 +93,7 @@ Be clinical and objective. Do not include any preamble.`
       });
 
       const data = await response.json();
-      const text = data.content?.[0]?.text ?? "";
+      const text = data.result ?? data.content?.[0]?.text ?? data.text ?? "";
       if (text) {
         setSummary(text);
         setContinuedMedicalNecessity(`Continued ABA services are medically necessary for ${client.full_name} to maintain progress on targeted behaviors and skill acquisition programs as documented in this quarterly review.`);
