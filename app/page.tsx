@@ -145,59 +145,49 @@ export default function HomePage() {
 
       {/* PRICING */}
       <section id="pricing" className="px-6 py-24 bg-white">
-        <div className="max-w-5xl mx-auto text-center">
+        <div className="max-w-6xl mx-auto text-center">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">Simple, honest pricing</h2>
           <p className="text-gray-500 mb-4">First month free. No charge until your trial ends.</p>
           <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-4 py-2 rounded-full text-sm font-medium mb-12">
             🎉 30-day free trial — card required but not charged until trial ends
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             {[
-              {
-                name: "Starter", icon: "🌱", price: "$59", desc: "Perfect for solo practitioners",
-                features: ["1 clinician", "Up to 10 clients", "Session notes", "Progress reports", "HIPAA BAA included"],
-                highlight: false,
-              },
-              {
-                name: "Professional", icon: "⚡", price: "$119", desc: "For growing practices",
-                features: ["Up to 5 clinicians", "Unlimited clients", "AI session notes", "Insurance billing", "Priority support"],
-                highlight: true,
-              },
-              {
-                name: "Clinic", icon: "🏥", price: "$239", desc: "For established clinics",
-                features: ["Unlimited clinicians", "Multi-location", "EDI 837 claims", "Custom branding", "Dedicated manager"],
-                highlight: false,
-              },
+              { name: "Starter", icon: "🌱", price: "$129", desc: "Solo practitioners", features: ["1 clinician", "10 clients", "1 location", "Session notes"], highlight: false },
+              { name: "Professional", icon: "⚡", price: "$249", desc: "Growing practices", features: ["5 clinicians", "Unlimited clients", "2 locations", "AI features"], highlight: true },
+              { name: "Growth", icon: "📈", price: "$349", desc: "Mid-size clinics", features: ["25 clinicians", "Unlimited clients", "5 locations", "Advanced reports"], highlight: false },
+              { name: "Enterprise", icon: "🏢", price: "$499", desc: "Large organizations", features: ["75 clinicians", "Unlimited clients", "15 locations", "EDI claims"], highlight: false },
+              { name: "Clinic", icon: "🏥", price: "$599", desc: "Unlimited everything", features: ["Unlimited staff", "Unlimited clients", "Unlimited locations", "White-label"], highlight: false },
             ].map(plan => (
-              <div key={plan.name} className={`relative rounded-2xl border-2 p-8 text-left flex flex-col ${plan.highlight ? "border-blue-500 shadow-xl shadow-blue-100" : "border-gray-200"}`}>
+              <div key={plan.name} className={`relative rounded-2xl border-2 p-6 text-left flex flex-col ${plan.highlight ? "border-blue-500 shadow-xl shadow-blue-100" : "border-gray-200"}`}>
                 {plan.highlight && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                    <span className="bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-full">Most Popular</span>
+                    <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">Most Popular</span>
                   </div>
                 )}
-                <div className="text-3xl mb-2">{plan.icon}</div>
-                <p className="font-bold text-gray-900 text-lg">{plan.name}</p>
-                <p className="text-sm text-gray-500 mb-3">{plan.desc}</p>
+                <div className="text-2xl mb-2">{plan.icon}</div>
+                <p className="font-bold text-gray-900">{plan.name}</p>
+                <p className="text-xs text-gray-500 mb-3">{plan.desc}</p>
                 <div className="mb-4">
-                  <span className="text-3xl font-extrabold text-blue-600">{plan.price}</span>
-                  <span className="text-gray-400 text-sm">/mo</span>
+                  <span className="text-2xl font-extrabold text-blue-600">{plan.price}</span>
+                  <span className="text-gray-400 text-xs">/mo</span>
                 </div>
-                <ul className="space-y-2 mb-6 flex-1">
+                <ul className="space-y-1.5 mb-6 flex-1">
                   {plan.features.map(f => (
-                    <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
+                    <li key={f} className="flex items-center gap-1.5 text-xs text-gray-600">
                       <span className="text-blue-500">✓</span> {f}
                     </li>
                   ))}
                 </ul>
                 <Link href="/pricing"
-                  className={`block text-center py-2.5 rounded-xl font-semibold text-sm transition-colors ${plan.highlight ? "bg-blue-600 text-white hover:bg-blue-700" : "border-2 border-blue-600 text-blue-600 hover:bg-blue-50"}`}>
+                  className={`block text-center py-2 rounded-xl font-semibold text-xs transition-colors ${plan.highlight ? "bg-blue-600 text-white hover:bg-blue-700" : "border-2 border-blue-600 text-blue-600 hover:bg-blue-50"}`}>
                   See plans & save →
                 </Link>
               </div>
             ))}
           </div>
           <p className="text-sm text-gray-400 mt-8">
-            Save up to $480/year with annual plans ·{" "}
+            Save up to $1,200/year with annual plans · Extra locations +$29/mo ·{" "}
             <Link href="/pricing" className="text-blue-500 hover:underline">View all pricing options →</Link>
           </p>
         </div>

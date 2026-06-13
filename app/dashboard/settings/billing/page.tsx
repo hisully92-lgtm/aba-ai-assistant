@@ -45,6 +45,7 @@ const PLANS = [
     features: [
       "1 clinician",
       "Up to 10 clients",
+      "1 location",
       "Basic data collection",
       "Session notes",
       "Progress reports",
@@ -61,6 +62,7 @@ const PLANS = [
     features: [
       "Up to 5 clinicians",
       "Unlimited clients",
+      "Up to 2 locations",
       "All data collection tools",
       "AI session notes + treatment plans",
       "Insurance billing + authorizations",
@@ -71,23 +73,56 @@ const PLANS = [
     ],
   },
   {
+    name: "Growth",
+    type: "growth",
+    icon: "📈",
+    description: "For mid-size clinics with growing teams",
+    pricing: { 1: 349, 3: 331, 6: 314, 9: 297, 12: 279 },
+    features: [
+      "Up to 25 clinicians",
+      "Unlimited clients",
+      "Up to 5 locations",
+      "Everything in Professional",
+      "Advanced reporting",
+      "Multi-location dashboard",
+      "Team performance analytics",
+      "Dedicated onboarding support",
+    ],
+  },
+  {
+    name: "Enterprise",
+    type: "enterprise",
+    icon: "🏢",
+    description: "For large multi-location organizations",
+    pricing: { 1: 499, 3: 474, 6: 449, 9: 424, 12: 399 },
+    features: [
+      "Up to 75 clinicians",
+      "Unlimited clients",
+      "Up to 15 locations",
+      "Everything in Growth",
+      "EDI 837 claim submission",
+      "QuickBooks integration",
+      "Custom branding",
+      "Advanced analytics",
+      "Dedicated account manager",
+    ],
+  },
+  {
     name: "Clinic",
     type: "clinic",
     icon: "🏥",
-    description: "For established clinics and multi-location practices",
-    pricing: { 1: 399, 3: 379, 6: 359, 9: 339, 12: 299 },
+    description: "For established clinics needing unlimited everything",
+    pricing: { 1: 599, 3: 569, 6: 539, 9: 509, 12: 499 },
     features: [
       "Unlimited clinicians",
       "Unlimited clients",
-      "Everything in Professional",
-      "Developer dashboard access",
-      "Custom branding",
-      "Multi-location support",
-      "QuickBooks integration",
-      "EDI 837 claim submission",
-      "Dedicated account manager",
-      "API access",
+      "Unlimited locations",
+      "Everything in Enterprise",
       "White-label options",
+      "API access",
+      "Developer dashboard access",
+      "Full custom branding",
+      "Priority dedicated support",
     ],
   },
 ];
@@ -105,14 +140,13 @@ export default function BillingPage() {
 
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [selectedMonths, setSelectedMonths] = useState<Record<string, number>>({
-    starter: 1, professional: 1, clinic: 1,
+    starter: 1, professional: 1, growth: 1, enterprise: 1, clinic: 1,
   });
   const [autoRenew, setAutoRenew] = useState(true);
   const [reminderDays, setReminderDays] = useState(30);
   const [paymentMethod, setPaymentMethod] = useState("Credit Card");
   const [showCheckout, setShowCheckout] = useState(false);
 
-  // Referral code
   const [referralCode, setReferralCode] = useState("");
   const [redeemingCode, setRedeemingCode] = useState(false);
   const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null);
@@ -166,7 +200,6 @@ export default function BillingPage() {
     const user = auth?.user;
     if (!user) { setRedeemingCode(false); return; }
 
-    // Find the code
     const { data: codeData } = await supabase
       .from("referral_reward_codes")
       .select("*")
@@ -180,14 +213,12 @@ export default function BillingPage() {
       return;
     }
 
-    // Check expiry
     if (codeData.expires_at && new Date(codeData.expires_at) < new Date()) {
       setRedeemError("This code has expired. Please contact support.");
       setRedeemingCode(false);
       return;
     }
 
-    // Find active contract
     const activeContract = contracts.find(c => c.status === "active" || c.status === "trial");
     if (!activeContract) {
       setRedeemError("No active subscription found. Please subscribe first.");
@@ -195,12 +226,10 @@ export default function BillingPage() {
       return;
     }
 
-    // Calculate freeze dates — starts after current contract ends
     const freezeStart = new Date(activeContract.end_date);
     const freezeEnd = new Date(activeContract.end_date);
     freezeEnd.setMonth(freezeEnd.getMonth() + codeData.free_months);
 
-    // Apply freeze to contract
     await supabase.from("subscription_contracts").update({
       freeze_months: codeData.free_months,
       freeze_start_date: freezeStart.toISOString().split("T")[0],
@@ -209,14 +238,12 @@ export default function BillingPage() {
       referral_code_used: codeData.code,
     }).eq("id", activeContract.id);
 
-    // Mark code as redeemed
     await supabase.from("referral_reward_codes").update({
       status: "redeemed",
       redeemed_at: new Date().toISOString(),
       redeemed_by: user.id,
     }).eq("id", codeData.id);
 
-    // Email Heidi
     await fetch("/api/email/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -235,7 +262,7 @@ export default function BillingPage() {
       }),
     });
 
-    setRedeemSuccess(`🎉 Success! Your subscription will be frozen for ${codeData.free_months} free month${codeData.free_months > 1 ? "s" : ""} from ${freezeStart.toLocaleDateString()} to ${freezeEnd.toLocaleDateString()}. Your next billing period starts after the freeze ends.`);
+    setRedeemSuccess(`🎉 Success! Your subscription will be frozen for ${codeData.free_months} free month${codeData.free_months > 1 ? "s" : ""} from ${freezeStart.toLocaleDateString()} to ${freezeEnd.toLocaleDateString()}.`);
     setReferralCode("");
     await init();
     setRedeemingCode(false);
@@ -297,13 +324,11 @@ export default function BillingPage() {
       });
 
       const data = await res.json();
-
       if (!res.ok || !data.url) {
         setError(data.error ?? "Failed to create checkout. Please try again.");
         setSaving(false);
         return;
       }
-
       window.location.href = data.url;
     } catch {
       setError("Something went wrong. Please try again.");
@@ -374,7 +399,7 @@ export default function BillingPage() {
               </p>
               {activeContract.freeze_months && activeContract.freeze_start_date && (
                 <div className="mt-2 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 text-xs text-purple-700">
-                  🎁 <strong>Subscription Freeze Applied:</strong> {activeContract.freeze_months} free month{activeContract.freeze_months > 1 ? "s" : ""} from {activeContract.freeze_start_date} to {activeContract.freeze_end_date}. Your next billing starts after {activeContract.freeze_end_date}.
+                  🎁 <strong>Subscription Freeze Applied:</strong> {activeContract.freeze_months} free month{activeContract.freeze_months > 1 ? "s" : ""} from {activeContract.freeze_start_date} to {activeContract.freeze_end_date}.
                 </div>
               )}
               {daysUntilRenewal(activeContract.end_date) <= 30 && daysUntilRenewal(activeContract.end_date) > 0 && (
@@ -420,11 +445,11 @@ export default function BillingPage() {
 
           {activeContract?.status === "trial" && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-800">
-              <strong>Your free trial ends {activeContract.end_date}.</strong> Select a plan below to continue uninterrupted access after your trial.
+              <strong>Your free trial ends {activeContract.end_date}.</strong> Select a plan below to continue after your trial.
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {PLANS.map(plan => {
               const months = selectedMonths[plan.type];
               const monthly = getPrice(plan.type, months);
@@ -433,21 +458,21 @@ export default function BillingPage() {
 
               return (
                 <div key={plan.type}
-                  className={`border-2 rounded-2xl p-6 transition-all relative flex flex-col ${isSelected ? "border-blue-500 bg-blue-50 shadow-md" : "border-gray-200 bg-white"}`}>
+                  className={`border-2 rounded-2xl p-5 transition-all relative flex flex-col ${isSelected ? "border-blue-500 bg-blue-50 shadow-md" : "border-gray-200 bg-white"}`}>
                   {plan.popular && (
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-xs px-4 py-1 rounded-full font-bold">
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-xs px-3 py-1 rounded-full font-bold whitespace-nowrap">
                       Most Popular
                     </span>
                   )}
                   <p className="text-2xl mb-2">{plan.icon}</p>
-                  <p className="font-bold text-gray-800 text-xl">{plan.name}</p>
+                  <p className="font-bold text-gray-800 text-lg">{plan.name}</p>
                   <p className="text-xs text-gray-500 mt-1 mb-4">{plan.description}</p>
                   <div className="mb-3">
                     <label className="text-xs font-medium text-gray-500 mb-1 block">Contract Length</label>
                     <select
                       value={months}
                       onChange={e => setSelectedMonths(prev => ({ ...prev, [plan.type]: parseInt(e.target.value) }))}
-                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">
+                      className="w-full border rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">
                       {CONTRACT_OPTIONS.map(opt => {
                         const p = getPrice(plan.type, opt.months);
                         const s = getSavings(plan.type, opt.months);
@@ -461,38 +486,39 @@ export default function BillingPage() {
                   </div>
                   {isFirstSubscription ? (
                     <div className="mb-1">
-                      <p className="text-3xl font-bold text-green-600">Free</p>
+                      <p className="text-2xl font-bold text-green-600">Free</p>
                       <p className="text-xs text-gray-500 mt-0.5">First month, then ${monthly}/mo</p>
                     </div>
                   ) : (
                     <div className="mb-1">
-                      <p className="text-3xl font-bold text-blue-600">
-                        ${monthly}<span className="text-sm font-normal text-gray-500">/mo</span>
+                      <p className="text-2xl font-bold text-blue-600">
+                        ${monthly}<span className="text-xs font-normal text-gray-500">/mo</span>
                       </p>
                       {savings > 0 && (
-                        <p className="text-xs text-green-600 font-medium mt-0.5">Save ${savings} over {months} months</p>
-                      )}
-                      {months === 12 && (
-                        <p className="text-xs text-blue-600 font-medium mt-0.5">Best value</p>
+                        <p className="text-xs text-green-600 font-medium mt-0.5">Save ${savings}</p>
                       )}
                     </div>
                   )}
-                  <ul className="mt-3 space-y-2 flex-1">
+                  <ul className="mt-3 space-y-1.5 flex-1">
                     {plan.features.map(f => (
-                      <li key={f} className="text-xs text-gray-600 flex items-start gap-2">
+                      <li key={f} className="text-xs text-gray-600 flex items-start gap-1.5">
                         <span className="text-green-500 font-bold mt-0.5 shrink-0">✓</span> {f}
                       </li>
                     ))}
                   </ul>
                   <button
                     onClick={() => { setSelectedPlan(plan.type); setShowCheckout(true); }}
-                    className={`w-full mt-5 py-2.5 rounded-xl text-sm font-bold transition-colors ${isSelected && showCheckout ? "bg-blue-600 text-white" : "border-2 border-blue-300 text-blue-600 hover:bg-blue-50"}`}>
+                    className={`w-full mt-4 py-2 rounded-xl text-sm font-bold transition-colors ${isSelected && showCheckout ? "bg-blue-600 text-white" : "border-2 border-blue-300 text-blue-600 hover:bg-blue-50"}`}>
                     {isSelected && showCheckout ? "Selected ✓" : `Select ${plan.name}`}
                   </button>
                 </div>
               );
             })}
           </div>
+
+          <p className="text-xs text-center text-gray-400">
+            Extra locations beyond plan limit: <strong>+$29/mo per location</strong>
+          </p>
 
           {showCheckout && currentPlan && (
             <Section title="Complete Your Subscription">
@@ -737,9 +763,7 @@ export default function BillingPage() {
                   <p className="font-semibold">✓ Referral code already applied!</p>
                   <p className="text-xs mt-1">Code used: <span className="font-mono font-bold">{activeContract.referral_code_used}</span></p>
                   {activeContract.freeze_start_date && (
-                    <p className="text-xs mt-1">
-                      Free months: {activeContract.freeze_start_date} → {activeContract.freeze_end_date}
-                    </p>
+                    <p className="text-xs mt-1">Free months: {activeContract.freeze_start_date} → {activeContract.freeze_end_date}</p>
                   )}
                 </div>
               ) : (
@@ -757,10 +781,7 @@ export default function BillingPage() {
                       Codes are emailed when the clinic you referred completes their full subscription.
                     </p>
                   </div>
-                  <Button
-                    onClick={handleRedeemCode}
-                    loading={redeemingCode}
-                    disabled={!referralCode.trim()}>
+                  <Button onClick={handleRedeemCode} loading={redeemingCode} disabled={!referralCode.trim()}>
                     🎁 Redeem Code
                   </Button>
                 </div>

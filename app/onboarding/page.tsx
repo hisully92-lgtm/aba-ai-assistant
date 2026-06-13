@@ -17,9 +17,41 @@ const ROLES = [
 ];
 
 const PLANS = [
-  { id: "starter", label: "Starter", price: 49, desc: "Up to 5 staff members", features: ["Session notes", "Client management", "Basic billing"] },
-  { id: "professional", label: "Professional", price: 99, desc: "Up to 20 staff members", features: ["Everything in Starter", "AI features", "Advanced analytics", "Training system"] },
-  { id: "enterprise", label: "Enterprise", price: 199, desc: "Unlimited staff members", features: ["Everything in Professional", "Multiple locations", "Priority support", "Custom integrations"] },
+  {
+    id: "starter",
+    label: "Starter",
+    price: 129,
+    desc: "1 clinician · Up to 10 clients · 1 location",
+    features: ["Session notes", "Basic data collection", "Progress reports", "Email support"],
+  },
+  {
+    id: "professional",
+    label: "Professional",
+    price: 249,
+    desc: "Up to 5 clinicians · Unlimited clients · 2 locations",
+    features: ["Everything in Starter", "AI session notes", "Insurance billing", "Priority support"],
+  },
+  {
+    id: "growth",
+    label: "Growth",
+    price: 349,
+    desc: "Up to 25 clinicians · Unlimited clients · 5 locations",
+    features: ["Everything in Professional", "Advanced reporting", "Multi-location dashboard", "Onboarding support"],
+  },
+  {
+    id: "enterprise",
+    label: "Enterprise",
+    price: 499,
+    desc: "Up to 75 clinicians · Unlimited clients · 15 locations",
+    features: ["Everything in Growth", "EDI 837 claims", "QuickBooks integration", "Custom branding"],
+  },
+  {
+    id: "clinic",
+    label: "Clinic",
+    price: 599,
+    desc: "Unlimited clinicians · Unlimited clients · Unlimited locations",
+    features: ["Everything in Enterprise", "White-label options", "API access", "Priority dedicated support"],
+  },
 ];
 
 function generateAdminCode(clinicCode: string): string {
@@ -56,17 +88,14 @@ export default function OnboardingPage() {
   const [hipaaAccepted, setHipaaAccepted] = useState(false);
   const [hipaaSignature, setHipaaSignature] = useState("");
 
-  // Location
   const [locations, setLocations] = useState([{ name: "", address: "", city: "", state: "", zip: "" }]);
 
-  // Payment
   const [selectedPlan, setSelectedPlan] = useState("professional");
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCvc, setCardCvc] = useState("");
   const [cardName, setCardName] = useState("");
 
-  // Code preference
   const [codePreference, setCodePreference] = useState<"profile" | "email" | "both" | "neither">("both");
   const [codeEmail, setCodeEmail] = useState("");
 
@@ -206,7 +235,6 @@ export default function OnboardingPage() {
         await supabase.from("companies").update({ clinic_code: newClinicCode }).eq("id", company.id);
         setGeneratedClinicCode(newClinicCode);
 
-        // Save locations
         for (const loc of locations) {
           if (loc.name.trim() || loc.address.trim()) {
             await supabase.from("locations").insert({
@@ -251,7 +279,6 @@ export default function OnboardingPage() {
           created_by: user.id,
         }]);
 
-        // 30-day free trial
         const trialStart = new Date();
         const trialEnd = new Date();
         trialEnd.setDate(trialEnd.getDate() + 30);
@@ -274,13 +301,11 @@ export default function OnboardingPage() {
           payment_method: "Card on file",
         }]);
 
-        // Save code preference
         await supabase.from("companies").update({
           code_preference: codePreference,
           code_email: codeEmail.trim() || user.email,
         }).eq("id", companyId);
 
-        // Send codes to clinic admin if they want email
         if (codePreference === "email" || codePreference === "both") {
           const emailTo = codeEmail.trim() || user.email || "";
           await sendEmail(
@@ -298,14 +323,13 @@ export default function OnboardingPage() {
               <p>Share the Clinic Code with your staff so they can join your clinic.</p>
               <p>Use the Admin Setup Code to set yourself up as Administrator.</p>
               <p style="color: #6b7280; font-size: 11px;">
-                Disclaimer: ABA AI Assistant stores your company codes as a backup in case you need assistance. 
+                Disclaimer: ABA AI Assistant stores your company codes as a backup in case you need assistance.
                 This information is kept securely and only accessed when you request support.
               </p>
             `
           );
         }
 
-        // ALWAYS send notification to you (Heidi)
         await sendEmail(
           "hisully92@gmail.com",
           `New Clinic Signed Up: ${clinicName}`,
@@ -414,8 +438,6 @@ export default function OnboardingPage() {
                   <input type="text" value={clinicName} onChange={e => setClinicName(e.target.value)}
                     placeholder="e.g. Sunshine ABA Therapy" className={inputClass} />
                 </div>
-
-                {/* LOCATIONS */}
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <label className="text-sm font-medium text-gray-700">Locations</label>
@@ -527,7 +549,7 @@ export default function OnboardingPage() {
               🎉 <strong>30-day free trial</strong> — your card won&apos;t be charged until the trial ends.
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
               {PLANS.map(plan => (
                 <button key={plan.id} type="button" onClick={() => setSelectedPlan(plan.id)}
                   className={`w-full rounded-xl border p-4 text-left transition-all ${selectedPlan === plan.id ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"}`}>
@@ -544,6 +566,7 @@ export default function OnboardingPage() {
                     <div className="text-right shrink-0 ml-3">
                       <p className="text-xl font-bold text-gray-800">${plan.price}</p>
                       <p className="text-xs text-gray-400">/month</p>
+                      <p className="text-xs text-green-600 mt-1">First month free</p>
                     </div>
                   </div>
                 </button>
@@ -566,7 +589,6 @@ export default function OnboardingPage() {
               </div>
             </div>
 
-            {/* CODE PREFERENCE */}
             <div className="border border-gray-200 rounded-xl p-4 space-y-3">
               <p className="text-sm font-semibold text-gray-700">Company Code Delivery</p>
               <p className="text-xs text-gray-400">Choose how you want to receive your clinic and admin codes.</p>
@@ -685,11 +707,9 @@ export default function OnboardingPage() {
                 Save these codes — you will need them to set up your admin account and invite team members.
               </p>
             </div>
-
             <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-xs text-green-700 text-center">
               ✅ Your <strong>30-day free trial</strong> has started. No charge until the trial ends.
             </div>
-
             <div className="space-y-3">
               <div className="border-2 border-blue-200 rounded-xl p-4 bg-blue-50">
                 <p className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-1">Your Clinic Code</p>
@@ -702,7 +722,6 @@ export default function OnboardingPage() {
                   </button>
                 </div>
               </div>
-
               <div className="border-2 border-purple-200 rounded-xl p-4 bg-purple-50">
                 <p className="text-xs font-bold text-purple-700 uppercase tracking-wide mb-1">Your Admin Setup Code</p>
                 <p className="text-xs text-purple-600 mb-2">Use this to set yourself up as Administrator — expires in 7 days</p>
@@ -715,14 +734,12 @@ export default function OnboardingPage() {
                 </div>
               </div>
             </div>
-
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-700">
               Save these codes somewhere safe. The admin code expires in 7 days and can only be used once.
               {(codePreference === "email" || codePreference === "both") && (
                 <p className="mt-1">📧 Codes also sent to {codeEmail || "your email"}.</p>
               )}
             </div>
-
             <button type="button"
               onClick={() => { setStep("done"); setTimeout(() => { window.location.href = "/dashboard"; }, 1500); }}
               className={btnPrimary}>
