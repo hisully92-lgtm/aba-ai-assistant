@@ -16,6 +16,8 @@ export default function HomePage() {
           <div className="flex items-center gap-4">
             <Link href="#features" className="text-sm text-gray-500 hover:text-gray-800 hidden sm:block">Features</Link>
             <Link href="#pricing" className="text-sm text-gray-500 hover:text-gray-800 hidden sm:block">Pricing</Link>
+            <Link href="/about" className="text-sm text-gray-500 hover:text-gray-800 hidden sm:block">About</Link>
+            <Link href="/contact" className="text-sm text-gray-500 hover:text-gray-800 hidden sm:block">Contact</Link>
             <Link href="/login" className="text-sm text-gray-600 hover:text-gray-800 font-medium">Sign In</Link>
             <Link href="/login?signup=true"
               className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">
@@ -44,9 +46,9 @@ export default function HomePage() {
               className="bg-blue-600 text-white px-8 py-3 rounded-xl font-semibold text-base hover:bg-blue-700 transition-colors">
               Start Free →
             </Link>
-            <Link href="/login"
+            <Link href="/contact"
               className="border border-gray-200 text-gray-700 px-8 py-3 rounded-xl font-semibold text-base hover:bg-gray-50 transition-colors">
-              Sign In
+              Request More Info
             </Link>
           </div>
           <p className="text-xs text-gray-400 mt-4">No credit card required · HIPAA compliant · Free to start</p>
@@ -198,10 +200,16 @@ export default function HomePage() {
         <div className="max-w-2xl mx-auto text-center">
           <h2 className="text-3xl font-bold text-white mb-4">Ready to simplify your documentation?</h2>
           <p className="text-blue-100 mb-8">Join ABA clinics already using ABA AI to save hours every week.</p>
-          <Link href="/login?signup=true"
-            className="bg-white text-blue-600 px-8 py-3 rounded-xl font-semibold text-base hover:bg-blue-50 transition-colors inline-block">
-            Get Started Free →
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link href="/login?signup=true"
+              className="bg-white text-blue-600 px-8 py-3 rounded-xl font-semibold text-base hover:bg-blue-50 transition-colors inline-block">
+              Get Started Free →
+            </Link>
+            <Link href="/contact"
+              className="border border-white/30 text-white px-8 py-3 rounded-xl font-semibold text-base hover:bg-white/10 transition-colors inline-block">
+              Contact Us
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -225,6 +233,7 @@ export default function HomePage() {
                   <Link href="#features" className="block hover:text-white transition-colors">Features</Link>
                   <Link href="#pricing" className="block hover:text-white transition-colors">Pricing</Link>
                   <Link href="/login" className="block hover:text-white transition-colors">Sign In</Link>
+                  <Link href="/login?signup=true" className="block hover:text-white transition-colors">Get Started</Link>
                 </div>
               </div>
               <div>
@@ -236,9 +245,13 @@ export default function HomePage() {
                 </div>
               </div>
               <div>
-                <p className="text-white font-semibold mb-3">Support</p>
+                <p className="text-white font-semibold mb-3">Company</p>
                 <div className="space-y-2">
-                  <a href="mailto:support@abaai.app" className="block hover:text-white transition-colors">Contact Us</a>
+                  <Link href="/about" className="block hover:text-white transition-colors">About Us</Link>
+                  <Link href="/contact" className="block hover:text-white transition-colors">Contact Us</Link>
+                  <Link href="/suggestions" className="block hover:text-white transition-colors">Suggestions</Link>
+                  <a href="https://www.yelp.com/biz/aba-ai-assistant" target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors">⭐ Yelp Reviews</a>
+                  <a href="https://g.page/r/aba-ai-assistant/review" target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors">⭐ Google Reviews</a>
                 </div>
               </div>
             </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 import Image from "next/image";
+import Link from "next/link";
 
 function getPasswordStrength(password: string): { score: number; label: string; color: string } {
   let score = 0;
@@ -166,7 +167,6 @@ export default function LoginPage() {
                     placeholder={mode === "signup" ? "Min 8 chars, uppercase, number, symbol" : "Your password"}
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
 
-                  {/* PASSWORD STRENGTH */}
                   {mode === "signup" && password && strength && (
                     <div className="mt-2">
                       <div className="flex gap-1 mb-1">
@@ -234,6 +234,32 @@ export default function LoginPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* FOOTER LINKS */}
+      <div className="py-8 text-center space-y-3">
+        <div className="flex flex-wrap justify-center gap-4 text-xs text-gray-400">
+          <Link href="/" className="hover:text-gray-600 transition-colors">Home</Link>
+          <Link href="/about" className="hover:text-gray-600 transition-colors">About Us</Link>
+          <Link href="/#features" className="hover:text-gray-600 transition-colors">Features</Link>
+          <Link href="/#pricing" className="hover:text-gray-600 transition-colors">Pricing</Link>
+          <Link href="/contact" className="hover:text-gray-600 transition-colors">Contact</Link>
+          <Link href="/suggestions" className="hover:text-gray-600 transition-colors">Suggestions</Link>
+          <Link href="/privacy" className="hover:text-gray-600 transition-colors">Privacy</Link>
+          <Link href="/hipaa" className="hover:text-gray-600 transition-colors">HIPAA</Link>
+        </div>
+        <div className="flex flex-wrap justify-center gap-4 text-xs text-gray-400">
+          <a href="https://www.yelp.com/biz/aba-ai-assistant" target="_blank" rel="noopener noreferrer"
+            className="hover:text-red-500 transition-colors">⭐ Review us on Yelp</a>
+          <a href="https://g.page/r/aba-ai-assistant/review" target="_blank" rel="noopener noreferrer"
+            className="hover:text-blue-500 transition-colors">⭐ Review us on Google</a>
+        </div>
+        <p className="text-xs text-gray-300">
+          Questions?{" "}
+          <a href="mailto:support@aba-ai-assistant.com" className="text-blue-400 hover:underline">Contact us</a>
+          {" "}or{" "}
+          <Link href="/contact" className="text-blue-400 hover:underline">request more information</Link>
+        </p>
       </div>
     </main>
   );
