@@ -211,6 +211,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       href: "/dashboard/chat",
       icon: "💬",
       children: sortChildren([
+        { label: "Client Availability", href: "/dashboard/client-availability" },
         { label: "AI Parent Summary", href: "/dashboard/parent-portal/ai-summary" },
         { label: "Caregiver Training", href: "/dashboard/caregiver-training" },
         { label: "Direct Messages", href: "/dashboard/direct-messages" },
