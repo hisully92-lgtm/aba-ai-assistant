@@ -258,6 +258,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       icon: "🎓",
       children: sortChildren([
         { label: "Hour Tracker", href: "/dashboard/student-hub" },
+        { label: "MVF Tracker", href: "/dashboard/student-hub" },
         { label: "My Credentials", href: "/dashboard/credentials" },
         { label: "SAFMEDS", href: "/dashboard/safmeds" },
         { label: "Supervision Logs", href: "/dashboard/supervision" },
@@ -280,6 +281,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
         { label: "Progress Reports", href: "/dashboard/progress-reports" },
         { label: "Staff Performance", href: "/dashboard/staff-performance" },
         { label: "Supervision Logs", href: "/dashboard/supervision" },
+        { label: "Student Hours", href: "/dashboard/supervisor-hours" },
         { label: "Visual Analytics", href: "/dashboard/analytics/graphs" },
       ]),
     }] : []),
