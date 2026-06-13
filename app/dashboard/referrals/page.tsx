@@ -31,6 +31,16 @@ type InternalReferral = {
   created_at: string;
 };
 
+type RewardCode = {
+  id: string;
+  code: string;
+  free_months: number;
+  status: string;
+  redeemed_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+};
+
 const REFERRAL_TIERS = [
   { months: 3, free: 1, label: "3 months", reward: "1 month free" },
   { months: 6, free: 2, label: "6 months", reward: "2 months free" },
@@ -38,21 +48,15 @@ const REFERRAL_TIERS = [
   { months: 12, free: 4, label: "12 months", reward: "4 months free" },
 ];
 
-function getFreeMonths(monthsSubscribed: number): number {
-  if (monthsSubscribed >= 12) return 4;
-  if (monthsSubscribed >= 9) return 3;
-  if (monthsSubscribed >= 6) return 2;
-  if (monthsSubscribed >= 3) return 1;
-  return 0;
-}
-
 export default function ReferralsPage() {
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [internalReferrals, setInternalReferrals] = useState<InternalReferral[]>([]);
+  const [rewardCodes, setRewardCodes] = useState<RewardCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [activeTab, setActiveTab] = useState<"external" | "internal" | "rewards">("external");
+  const [copiedCode, setCopiedCode] = useState("");
 
   // External referral form
   const [clinicName, setClinicName] = useState("");
@@ -89,19 +93,18 @@ export default function ReferralsPage() {
       .limit(1)
       .maybeSingle();
 
-    setCompanyId(companyUser?.company_id ?? "");
+    const cid = companyUser?.company_id ?? "";
+    setCompanyId(cid);
 
-    const [{ data: refData }, { data: intData }] = await Promise.all([
-      supabase.from("referrals").select("*")
-        .eq("referrer_company_id", companyUser?.company_id ?? "")
-        .order("created_at", { ascending: false }),
-      supabase.from("internal_referrals").select("*")
-        .eq("company_id", companyUser?.company_id ?? "")
-        .order("created_at", { ascending: false }),
+    const [{ data: refData }, { data: intData }, { data: codeData }] = await Promise.all([
+      supabase.from("referrals").select("*").eq("referrer_company_id", cid).order("created_at", { ascending: false }),
+      supabase.from("internal_referrals").select("*").eq("company_id", cid).order("created_at", { ascending: false }),
+      supabase.from("referral_reward_codes").select("*").eq("referrer_company_id", cid).order("created_at", { ascending: false }),
     ]);
 
     setReferrals(refData ?? []);
     setInternalReferrals(intData ?? []);
+    setRewardCodes(codeData ?? []);
     setLoading(false);
   }
 
@@ -120,7 +123,6 @@ export default function ReferralsPage() {
       status: "pending",
     });
 
-    // Email notification to Heidi
     await fetch("/api/email/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -165,9 +167,15 @@ export default function ReferralsPage() {
     setSubmittingInternal(false);
   }
 
-  const totalFreeMonths = referrals.reduce((sum, r) => sum + (r.free_months_earned ?? 0), 0);
-  const appliedMonths = referrals.filter(r => r.free_months_applied).reduce((sum, r) => sum + (r.free_months_earned ?? 0), 0);
-  const pendingMonths = totalFreeMonths - appliedMonths;
+  async function copyCode(code: string) {
+    await navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(""), 2000);
+  }
+
+  const totalFreeMonths = rewardCodes.reduce((sum, c) => sum + c.free_months, 0);
+  const redeemedMonths = rewardCodes.filter(c => c.status === "redeemed").reduce((sum, c) => sum + c.free_months, 0);
+  const pendingMonths = rewardCodes.filter(c => c.status === "active").reduce((sum, c) => sum + c.free_months, 0);
 
   const STATUS_COLORS: Record<string, string> = {
     pending: "bg-yellow-100 text-yellow-700",
@@ -176,18 +184,23 @@ export default function ReferralsPage() {
     cancelled: "bg-gray-100 text-gray-500",
   };
 
+  const CODE_STATUS_COLORS: Record<string, string> = {
+    active: "bg-green-100 text-green-700",
+    redeemed: "bg-blue-100 text-blue-700",
+    expired: "bg-gray-100 text-gray-500",
+  };
+
   if (loading) return <div className="p-8 text-gray-400">Loading referrals...</div>;
 
   return (
     <div className="space-y-6">
       <PageHeader title="Referrals" />
 
-      {/* REWARDS SUMMARY */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: "Total Referrals", value: referrals.length, color: "text-blue-600", icon: "🔗" },
           { label: "Free Months Earned", value: totalFreeMonths, color: "text-green-600", icon: "🎁" },
-          { label: "Free Months Pending", value: pendingMonths, color: "text-orange-500", icon: "⏳" },
+          { label: "Free Months Available", value: pendingMonths, color: "text-orange-500", icon: "⏳" },
         ].map(stat => (
           <div key={stat.label} className="border rounded-xl p-4 text-center bg-white">
             <div className="text-2xl mb-1">{stat.icon}</div>
@@ -197,12 +210,11 @@ export default function ReferralsPage() {
         ))}
       </div>
 
-      {/* TABS */}
       <div className="flex gap-2 border-b border-gray-200">
         {[
           { key: "external", label: `External Referrals (${referrals.length})` },
           { key: "internal", label: `Internal Referrals (${internalReferrals.length})` },
-          { key: "rewards", label: "Rewards Program" },
+          { key: "rewards", label: `Rewards (${rewardCodes.length})` },
         ].map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key as any)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.key ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
@@ -211,7 +223,6 @@ export default function ReferralsPage() {
         ))}
       </div>
 
-      {/* EXTERNAL REFERRALS */}
       {activeTab === "external" && (
         <div className="space-y-4">
           <div className="flex justify-end">
@@ -224,9 +235,9 @@ export default function ReferralsPage() {
             <Section title="Refer a Clinic">
               <div className="space-y-3">
                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
-                  🎁 When a clinic you refer stays subscribed, you earn free months! 3mo=1mo free, 6mo=2mo free, 9mo=3mo free, 12mo=4mo free.
+                  🎁 Earn free months when the clinic you refer completes their full contract! 3mo=1mo free, 6mo=2mo free, 9mo=3mo free, 12mo=4mo free.
+                  <br /><strong>Note:</strong> Reward codes are only issued after the referred clinic completes their full subscription.
                 </div>
-
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1 block">How would you like to submit? *</label>
                   <div className="flex gap-2">
@@ -242,7 +253,6 @@ export default function ReferralsPage() {
                     ))}
                   </div>
                 </div>
-
                 <input type="text" value={clinicName} onChange={e => setClinicName(e.target.value)}
                   placeholder="Clinic name *"
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
@@ -283,16 +293,16 @@ export default function ReferralsPage() {
                       {ref.referred_contact_name && <p className="text-xs text-gray-400 mt-0.5">{ref.referred_contact_name}</p>}
                       {ref.referred_email && <p className="text-xs text-gray-400">{ref.referred_email}</p>}
                       <p className="text-xs text-gray-400 mt-1">{new Date(ref.created_at).toLocaleDateString()}</p>
+                      {ref.months_subscribed > 0 && (
+                        <p className="text-xs text-blue-600 mt-1">{ref.months_subscribed} months completed</p>
+                      )}
                     </div>
                     <div className="text-right space-y-1">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[ref.status] ?? "bg-gray-100 text-gray-600"}`}>
                         {ref.status}
                       </span>
                       {ref.free_months_earned > 0 && (
-                        <p className="text-xs text-green-600 font-medium">🎁 {ref.free_months_earned} month{ref.free_months_earned > 1 ? "s" : ""} free</p>
-                      )}
-                      {ref.months_subscribed > 0 && (
-                        <p className="text-xs text-gray-400">{ref.months_subscribed} months subscribed</p>
+                        <p className="text-xs text-green-600 font-medium">🎁 {ref.free_months_earned} month{ref.free_months_earned > 1 ? "s" : ""} earned</p>
                       )}
                     </div>
                   </div>
@@ -304,7 +314,6 @@ export default function ReferralsPage() {
         </div>
       )}
 
-      {/* INTERNAL REFERRALS */}
       {activeTab === "internal" && (
         <div className="space-y-4">
           <div className="flex justify-end">
@@ -382,13 +391,13 @@ export default function ReferralsPage() {
         </div>
       )}
 
-      {/* REWARDS */}
       {activeTab === "rewards" && (
         <div className="space-y-4">
           <Section title="How the Referral Program Works">
             <p className="text-sm text-gray-600 mb-4">
-              When you refer a clinic to ABA AI Assistant and they stay subscribed, you earn free months on your subscription. 
-              Free months are added as an extension to your current contract — pushing out your next payment date.
+              When you refer a clinic and they complete their full contract, you earn free months.
+              ABA AI will generate a reward code and email it to you. Enter the code in your billing settings
+              to freeze your subscription for 1-4 months after your current contract ends.
             </p>
             <div className="space-y-2">
               {REFERRAL_TIERS.map(tier => (
@@ -396,44 +405,66 @@ export default function ReferralsPage() {
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center text-lg">🎁</div>
                     <div>
-                      <p className="font-medium text-gray-800">Referred clinic stays for {tier.label}</p>
-                      <p className="text-xs text-gray-400">Your reward: {tier.reward}</p>
+                      <p className="font-medium text-gray-800">Referred clinic completes {tier.label}</p>
+                      <p className="text-xs text-gray-400">You earn: {tier.reward}</p>
                     </div>
                   </div>
                   <span className="text-sm font-bold text-green-600">+{tier.free} month{tier.free > 1 ? "s" : ""} free</span>
                 </div>
               ))}
             </div>
+            <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-700">
+              ⚠️ Reward codes are only issued after the referred clinic completes their full contracted months. Early cancellations do not qualify.
+            </div>
           </Section>
 
-          <Section title="Your Rewards Summary">
-            <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="border rounded-xl p-4 text-center bg-white">
-                  <p className="text-2xl font-bold text-blue-600">{referrals.length}</p>
-                  <p className="text-xs text-gray-500 mt-1">Total Referrals</p>
-                </div>
-                <div className="border rounded-xl p-4 text-center bg-white">
-                  <p className="text-2xl font-bold text-green-600">{totalFreeMonths}</p>
-                  <p className="text-xs text-gray-500 mt-1">Months Earned</p>
-                </div>
-                <div className="border rounded-xl p-4 text-center bg-white">
-                  <p className="text-2xl font-bold text-orange-500">{pendingMonths}</p>
-                  <p className="text-xs text-gray-500 mt-1">Months Pending</p>
-                </div>
+          <Section title="Your Reward Codes">
+            {rewardCodes.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                <p className="text-3xl mb-2">🎟️</p>
+                <p className="text-sm">No reward codes yet. Refer a clinic to get started!</p>
               </div>
+            ) : (
+              <div className="space-y-3">
+                {rewardCodes.map(code => (
+                  <div key={code.id} className={`border rounded-xl p-4 bg-white ${code.status === "redeemed" ? "border-blue-100" : code.status === "expired" ? "border-gray-100 opacity-60" : "border-green-200"}`}>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-mono font-bold text-lg text-gray-800">{code.code}</p>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CODE_STATUS_COLORS[code.status] ?? "bg-gray-100 text-gray-600"}`}>
+                            {code.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500">🎁 {code.free_months} free month{code.free_months > 1 ? "s" : ""}</p>
+                        {code.expires_at && (
+                          <p className="text-xs text-gray-400 mt-0.5">Expires {new Date(code.expires_at).toLocaleDateString()}</p>
+                        )}
+                        {code.redeemed_at && (
+                          <p className="text-xs text-blue-600 mt-0.5">✓ Redeemed {new Date(code.redeemed_at).toLocaleDateString()}</p>
+                        )}
+                      </div>
+                      {code.status === "active" && (
+                        <div className="flex flex-col gap-2 items-end">
+                          <button onClick={() => copyCode(code.code)}
+                            className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">
+                            {copiedCode === code.code ? "✓ Copied!" : "📋 Copy Code"}
+                          </button>
+                          <p className="text-xs text-blue-500">Go to Billing → Enter code to redeem</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
-              {pendingMonths > 0 && (
-                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                  <p className="text-sm font-semibold text-green-800">🎉 You have {pendingMonths} free month{pendingMonths > 1 ? "s" : ""} pending!</p>
-                  <p className="text-xs text-green-600 mt-1">Contact support to apply your free months to your subscription.</p>
-                  <a href="mailto:support@aba-ai-assistant.com?subject=Apply Referral Free Months"
-                    className="inline-block mt-2 text-xs bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
-                    Contact Support to Apply
-                  </a>
-                </div>
-              )}
-            </div>
+            {pendingMonths > 0 && (
+              <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4">
+                <p className="text-sm font-semibold text-green-800">🎉 You have {pendingMonths} free month{pendingMonths > 1 ? "s" : ""} to redeem!</p>
+                <p className="text-xs text-green-600 mt-1">Go to Settings → Plan & Billing → Enter your reward code to apply your free months.</p>
+              </div>
+            )}
           </Section>
         </div>
       )}

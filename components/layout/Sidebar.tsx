@@ -269,6 +269,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       href: "/dashboard/supervisor",
       icon: "📊",
       children: sortChildren([
+        { label: "Referral Codes", href: "/dashboard/admin/referral-codes" },
         { label: "Analytics", href: "/dashboard/analytics" },
         { label: "Authorizations", href: "/dashboard/authorizations" },
         { label: "Behavior Heatmap", href: "/dashboard/analytics/heatmap" },
