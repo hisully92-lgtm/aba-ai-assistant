@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
+
+const PWA_URL = "https://aba-ai-assistant.com/dashboard/pwa";
 
 export default function PWAPage() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -15,6 +18,7 @@ export default function PWAPage() {
   const [notifPermission, setNotifPermission] = useState<NotificationPermission | "">("");
   const [isOnline, setIsOnline] = useState(true);
   const [swRegistered, setSwRegistered] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const ua = navigator.userAgent.toLowerCase();
@@ -47,7 +51,6 @@ export default function PWAPage() {
     window.addEventListener("online", () => setIsOnline(true));
     window.addEventListener("offline", () => setIsOnline(false));
 
-    // Check service worker
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.getRegistration().then(reg => {
         setSwRegistered(!!reg);
@@ -84,6 +87,12 @@ export default function PWAPage() {
     }
   }
 
+  function handleCopy() {
+    navigator.clipboard.writeText(PWA_URL);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   const platform = isIOS ? "ios" : isAndroid ? "android" : "desktop";
   const isFullyInstalled = isInstalled || installed;
 
@@ -115,13 +124,59 @@ export default function PWAPage() {
         </div>
       )}
 
-      {/* ONE-CLICK INSTALL — Chrome/Edge/Android */}
+      {/* ONE-CLICK INSTALL */}
       {installPrompt && !installed && (
         <Section title="One-Click Install">
           <p className="text-sm text-gray-600 mb-4">Your browser supports automatic installation. Click below to install ABA AI.</p>
           <Button onClick={handleInstall} className="w-full text-base py-3">
             📲 Install ABA AI Now
           </Button>
+        </Section>
+      )}
+
+      {/* QR CODE — shown on desktop so staff can scan with phone */}
+      {platform === "desktop" && (
+        <Section title="📱 Install on Your Phone">
+          <p className="text-sm text-gray-600 mb-4">
+            Scan this QR code with your phone camera to open the install page on your device.
+            Works for both <strong>iPhone</strong> and <strong>Android</strong>.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-6 items-start">
+            <div className="flex flex-col items-center gap-3">
+              <div className="border-2 border-gray-200 rounded-2xl p-4 bg-white">
+                <QRCodeSVG
+                  value={PWA_URL}
+                  size={180}
+                  bgColor="#ffffff"
+                  fgColor="#1e3a5f"
+                  level="H"
+                  includeMargin={false}
+                />
+              </div>
+              <p className="text-xs text-gray-400 text-center">Scan with your phone camera</p>
+            </div>
+            <div className="flex-1 space-y-3">
+              <div className="border border-blue-100 rounded-xl p-4 bg-blue-50">
+                <p className="text-xs font-bold text-blue-700 mb-2">📱 iPhone / iPad</p>
+                <p className="text-xs text-blue-600">Scan → Opens in Safari → Tap Share → Add to Home Screen</p>
+              </div>
+              <div className="border border-green-100 rounded-xl p-4 bg-green-50">
+                <p className="text-xs font-bold text-green-700 mb-2">🤖 Android</p>
+                <p className="text-xs text-green-600">Scan → Opens in Chrome → Tap menu → Add to Home Screen</p>
+              </div>
+              <div className="border border-gray-100 rounded-xl p-3 bg-white">
+                <p className="text-xs text-gray-500 mb-1">Or share the link directly:</p>
+                <div className="flex items-center gap-2">
+                  <input type="text" readOnly value={PWA_URL}
+                    className="flex-1 text-xs border rounded-lg px-2 py-1.5 bg-gray-50 text-gray-600 focus:outline-none" />
+                  <button onClick={handleCopy}
+                    className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap">
+                    {copied ? "✓ Copied!" : "Copy"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </Section>
       )}
 
@@ -174,7 +229,7 @@ export default function PWAPage() {
         </Section>
       )}
 
-      {/* DESKTOP INSTRUCTIONS */}
+      {/* DESKTOP INSTALL */}
       {platform === "desktop" && !installPrompt && !isFullyInstalled && (
         <Section title="💻 Install on Desktop">
           <div className="space-y-3">
@@ -201,27 +256,6 @@ export default function PWAPage() {
           </div>
         </Section>
       )}
-
-      {/* SHARE LINK */}
-      <Section title="📤 Share App Link">
-        <p className="text-sm text-gray-600 mb-3">Share this link with your team so they can install ABA AI on their devices.</p>
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            readOnly
-            value="https://aba-ai-assistant.com/dashboard/pwa"
-            className="flex-1 border rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-600 focus:outline-none"
-          />
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText("https://aba-ai-assistant.com/dashboard/pwa");
-              alert("Link copied!");
-            }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-            Copy
-          </button>
-        </div>
-      </Section>
 
       {/* NOTIFICATIONS */}
       <Section title="🔔 Push Notifications">
