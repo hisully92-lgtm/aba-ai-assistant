@@ -8,8 +8,46 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "ABA AI Assistant",
-  description: "Clinical ABA therapy management platform — session notes, behavior tracking, billing, and AI assistance.",
+  title: {
+    default: "ABA AI Assistant — ABA Therapy Documentation Platform",
+    template: "%s | ABA AI Assistant",
+  },
+  description: "ABA AI Assistant helps RBTs, BCBAs, and clinic admins write session notes, track goals, manage authorizations, and generate progress reports. HIPAA compliant. Start free.",
+  keywords: [
+    "ABA therapy software", "ABA documentation", "RBT session notes",
+    "BCBA practice management", "ABA billing software", "behavior tracking",
+    "autism therapy software", "ABA clinic management", "HIPAA compliant ABA",
+    "session notes software", "progress reports ABA", "ABA data collection",
+  ],
+  authors: [{ name: "ABA AI Assistant" }],
+  creator: "ABA AI Assistant",
+  publisher: "ABA AI Assistant",
+  metadataBase: new URL("https://aba-ai-assistant.com"),
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://aba-ai-assistant.com",
+    siteName: "ABA AI Assistant",
+    title: "ABA AI Assistant — ABA Therapy Documentation Made Simple",
+    description: "Write session notes, track goals, manage authorizations, and generate progress reports. Built for RBTs, BCBAs, and clinic admins. HIPAA compliant. Start free.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "ABA AI Assistant — ABA Therapy Documentation Platform",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ABA AI Assistant — ABA Therapy Documentation Made Simple",
+    description: "Write session notes, track goals, manage authorizations, and generate progress reports. HIPAA compliant.",
+    images: ["/og-image.png"],
+  },
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -20,7 +58,20 @@ export const metadata: Metadata = {
     telephone: false,
   },
   icons: {
+    icon: "/favicon.ico",
     apple: "/icon-192.png",
+    shortcut: "/icon-192.png",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
   },
 };
 
