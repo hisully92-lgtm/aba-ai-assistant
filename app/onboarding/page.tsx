@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 
-type Step = "profile" | "clinic" | "hipaa" | "role" | "code" | "admin_bootstrap" | "done";
+type Step = "profile" | "clinic" | "hipaa" | "role" | "code" | "payment" | "admin_bootstrap" | "done";
 
 const ROLES = [
   { value: "admin", label: "Administrator", desc: "Manage the clinic, billing, and team", requiresCode: true },
@@ -16,10 +16,26 @@ const ROLES = [
   { value: "parent", label: "Parent / Caregiver", desc: "View your child's progress", requiresCode: false },
 ];
 
+const PLANS = [
+  { id: "starter", label: "Starter", price: 49, desc: "Up to 5 staff members", features: ["Session notes", "Client management", "Basic billing"] },
+  { id: "professional", label: "Professional", price: 99, desc: "Up to 20 staff members", features: ["Everything in Starter", "AI features", "Advanced analytics", "Training system"] },
+  { id: "enterprise", label: "Enterprise", price: 199, desc: "Unlimited staff members", features: ["Everything in Professional", "Multiple locations", "Priority support", "Custom integrations"] },
+];
+
 function generateAdminCode(clinicCode: string): string {
   const random = Math.random().toString(36).substring(2, 6).toUpperCase();
   const year = new Date().getFullYear();
   return `${clinicCode}-ADMI-${year}-${random}`;
+}
+
+async function sendEmail(to: string, subject: string, body: string) {
+  try {
+    await fetch("/api/email/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to, subject, body }),
+    });
+  } catch {}
 }
 
 export default function OnboardingPage() {
@@ -39,6 +55,20 @@ export default function OnboardingPage() {
   const [codeVerified, setCodeVerified] = useState(false);
   const [hipaaAccepted, setHipaaAccepted] = useState(false);
   const [hipaaSignature, setHipaaSignature] = useState("");
+
+  // Location
+  const [locations, setLocations] = useState([{ name: "", address: "", city: "", state: "", zip: "" }]);
+
+  // Payment
+  const [selectedPlan, setSelectedPlan] = useState("professional");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvc, setCardCvc] = useState("");
+  const [cardName, setCardName] = useState("");
+
+  // Code preference
+  const [codePreference, setCodePreference] = useState<"profile" | "email" | "both" | "neither">("both");
+  const [codeEmail, setCodeEmail] = useState("");
 
   const [generatedClinicCode, setGeneratedClinicCode] = useState("");
   const [generatedAdminCode, setGeneratedAdminCode] = useState("");
@@ -72,6 +102,7 @@ export default function OnboardingPage() {
   function handleRoleStep() {
     setError("");
     if (selectedRole?.requiresCode) { setStep("code"); return; }
+    if (!joinExisting) { setStep("payment"); return; }
     handleComplete();
   }
 
@@ -94,13 +125,13 @@ export default function OnboardingPage() {
     }
 
     if (data.role !== role) {
-      setError(`This code is for the ${data.role} role, not ${role}. Select the correct role or request a different code.`);
+      setError(`This code is for the ${data.role} role, not ${role}.`);
       setVerifyingCode(false);
       return;
     }
 
     if (data.expires_at && new Date(data.expires_at) < new Date()) {
-      setError("This verification code has expired. Contact your administrator for a new one.");
+      setError("This verification code has expired.");
       setVerifyingCode(false);
       return;
     }
@@ -108,6 +139,20 @@ export default function OnboardingPage() {
     setCodeVerified(true);
     setVerifyingCode(false);
     setError("");
+  }
+
+  function addLocation() {
+    setLocations([...locations, { name: "", address: "", city: "", state: "", zip: "" }]);
+  }
+
+  function updateLocation(index: number, field: string, value: string) {
+    const updated = [...locations];
+    (updated[index] as any)[field] = value;
+    setLocations(updated);
+  }
+
+  function removeLocation(index: number) {
+    setLocations(locations.filter((_, i) => i !== index));
   }
 
   async function handleComplete() {
@@ -146,7 +191,7 @@ export default function OnboardingPage() {
           .maybeSingle();
 
         if (companyError) throw new Error(`Database error: ${companyError.message}`);
-        if (!existingCompany) throw new Error("Clinic code not found. Double-check the code — codes look like XXXX-XXXX.");
+        if (!existingCompany) throw new Error("Clinic code not found. Double-check the code.");
         companyId = existingCompany.id;
       } else {
         const slug = clinicName.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
@@ -160,6 +205,20 @@ export default function OnboardingPage() {
         newClinicCode = `${rand(4)}-${rand(4)}`;
         await supabase.from("companies").update({ clinic_code: newClinicCode }).eq("id", company.id);
         setGeneratedClinicCode(newClinicCode);
+
+        // Save locations
+        for (const loc of locations) {
+          if (loc.name.trim() || loc.address.trim()) {
+            await supabase.from("locations").insert({
+              company_id: companyId,
+              name: loc.name.trim() || clinicName.trim(),
+              address: loc.address.trim(),
+              city: loc.city.trim(),
+              state: loc.state.trim(),
+              zip: loc.zip.trim(),
+            });
+          }
+        }
       }
 
       const { error: linkError } = await supabase.from("company_users").upsert({
@@ -192,27 +251,80 @@ export default function OnboardingPage() {
           created_by: user.id,
         }]);
 
-        // AUTO-CREATE 30-DAY FREE TRIAL
+        // 30-day free trial
         const trialStart = new Date();
         const trialEnd = new Date();
         trialEnd.setDate(trialEnd.getDate() + 30);
+        const plan = PLANS.find(p => p.id === selectedPlan) ?? PLANS[1];
 
         await supabase.from("subscription_contracts").insert([{
           user_id: user.id,
           company_id: companyId,
-          plan_name: "Professional",
-          plan_type: "professional",
+          plan_name: plan.label,
+          plan_type: selectedPlan,
           contract_length_months: 1,
-          price_per_month: 0,
+          price_per_month: plan.price,
           total_price: 0,
           discount_percent: 100,
           start_date: trialStart.toISOString().split("T")[0],
           end_date: trialEnd.toISOString().split("T")[0],
-          auto_renew: false,
+          auto_renew: true,
           renewal_reminder_days: 7,
           status: "trial",
-          payment_method: "Trial",
+          payment_method: "Card on file",
         }]);
+
+        // Save code preference
+        await supabase.from("companies").update({
+          code_preference: codePreference,
+          code_email: codeEmail.trim() || user.email,
+        }).eq("id", companyId);
+
+        // Send codes to clinic admin if they want email
+        if (codePreference === "email" || codePreference === "both") {
+          const emailTo = codeEmail.trim() || user.email || "";
+          await sendEmail(
+            emailTo,
+            "Your ABA AI Assistant Clinic Codes",
+            `
+              <h2>Welcome to ABA AI Assistant!</h2>
+              <p>Here are your clinic codes. Keep them safe!</p>
+              <div style="background: #f0f9ff; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                <p><strong>Clinic Name:</strong> ${clinicName}</p>
+                <p><strong>Clinic Code:</strong> <code style="font-size: 18px; font-weight: bold;">${newClinicCode}</code></p>
+                <p><strong>Admin Setup Code:</strong> <code style="font-size: 18px; font-weight: bold;">${adminCode}</code></p>
+                <p style="color: #dc2626; font-size: 12px;">Admin code expires in 7 days and can only be used once.</p>
+              </div>
+              <p>Share the Clinic Code with your staff so they can join your clinic.</p>
+              <p>Use the Admin Setup Code to set yourself up as Administrator.</p>
+              <p style="color: #6b7280; font-size: 11px;">
+                Disclaimer: ABA AI Assistant stores your company codes as a backup in case you need assistance. 
+                This information is kept securely and only accessed when you request support.
+              </p>
+            `
+          );
+        }
+
+        // ALWAYS send notification to you (Heidi)
+        await sendEmail(
+          "hisully92@gmail.com",
+          `New Clinic Signed Up: ${clinicName}`,
+          `
+            <h2>New Clinic Registration</h2>
+            <div style="background: #f0fdf4; padding: 16px; border-radius: 8px; margin: 16px 0;">
+              <p><strong>Clinic Name:</strong> ${clinicName}</p>
+              <p><strong>Admin Name:</strong> ${name}</p>
+              <p><strong>Admin Email:</strong> ${user.email}</p>
+              <p><strong>Clinic Code:</strong> ${newClinicCode}</p>
+              <p><strong>Admin Code:</strong> ${adminCode}</p>
+              <p><strong>Plan Selected:</strong> ${plan.label} ($${plan.price}/mo after trial)</p>
+              <p><strong>Company ID:</strong> ${companyId}</p>
+              <p><strong>Signed Up:</strong> ${new Date().toLocaleString()}</p>
+              <p><strong>Locations:</strong> ${locations.filter(l => l.name || l.address).map(l => `${l.name} - ${l.address}, ${l.city}, ${l.state}`).join(" | ") || "Main location only"}</p>
+              <p><strong>Code Preference:</strong> ${codePreference}</p>
+            </div>
+          `
+        );
 
         setGeneratedAdminCode(adminCode);
         setLoading(false);
@@ -235,26 +347,20 @@ export default function OnboardingPage() {
     else { setCopiedAdmin(true); setTimeout(() => setCopiedAdmin(false), 2000); }
   }
 
-  const stepKeys: Step[] = selectedRole?.requiresCode
-    ? (joinExisting ? ["profile", "clinic", "role", "code"] : ["profile", "clinic", "hipaa", "role", "code"])
-    : (joinExisting ? ["profile", "clinic", "role"] : ["profile", "clinic", "hipaa", "role"]);
-  const stepLabels = ["Profile", "Clinic", ...(!joinExisting ? ["HIPAA"] : []), "Role", ...(selectedRole?.requiresCode ? ["Verify"] : [])];
-  const stepIndex = stepKeys.indexOf(step);
-
   const btnPrimary = "w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 cursor-pointer select-none";
   const btnSecondary = "flex-1 rounded-lg border py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 cursor-pointer select-none";
   const inputClass = "w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300";
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-      <div className="w-full max-w-md bg-white border border-gray-100 rounded-2xl shadow-lg p-8">
+      <div className="w-full max-w-lg bg-white border border-gray-100 rounded-2xl shadow-lg p-8">
 
         {step !== "done" && step !== "admin_bootstrap" && (
-          <div className="flex gap-2 mb-8">
-            {stepLabels.map((label, i) => (
-              <div key={label} className="flex-1">
-                <div className={`h-1.5 rounded-full transition-colors ${i <= stepIndex ? "bg-blue-500" : "bg-gray-200"}`} />
-                <p className={`text-xs mt-1 ${i <= stepIndex ? "text-blue-600" : "text-gray-400"}`}>{label}</p>
+          <div className="flex gap-1 mb-8 overflow-x-auto">
+            {["Profile", "Clinic", ...(!joinExisting ? ["HIPAA", "Plan"] : []), "Role", ...(selectedRole?.requiresCode ? ["Verify"] : [])].map((label, i) => (
+              <div key={label} className="flex-1 min-w-[40px]">
+                <div className={`h-1.5 rounded-full transition-colors ${i <= ["profile","clinic","hipaa","role","code","payment"].indexOf(step) ? "bg-blue-500" : "bg-gray-200"}`} />
+                <p className="text-xs mt-1 text-gray-400 truncate">{label}</p>
               </div>
             ))}
           </div>
@@ -302,17 +408,54 @@ export default function OnboardingPage() {
             </div>
 
             {!joinExisting ? (
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Clinic Name</label>
-                <input type="text" value={clinicName} onChange={e => setClinicName(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handleClinicStep()}
-                  placeholder="e.g. Sunshine ABA Therapy" className={inputClass} />
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Clinic Name</label>
+                  <input type="text" value={clinicName} onChange={e => setClinicName(e.target.value)}
+                    placeholder="e.g. Sunshine ABA Therapy" className={inputClass} />
+                </div>
+
+                {/* LOCATIONS */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-sm font-medium text-gray-700">Locations</label>
+                    <button type="button" onClick={addLocation}
+                      className="text-xs text-blue-600 hover:underline">+ Add Location</button>
+                  </div>
+                  {locations.map((loc, i) => (
+                    <div key={i} className="border border-gray-200 rounded-xl p-3 mb-2 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <p className="text-xs font-medium text-gray-600">Location {i + 1}</p>
+                        {i > 0 && (
+                          <button type="button" onClick={() => removeLocation(i)}
+                            className="text-xs text-red-400 hover:text-red-600">Remove</button>
+                        )}
+                      </div>
+                      <input type="text" placeholder="Location name (e.g. Main Office)"
+                        value={loc.name} onChange={e => updateLocation(i, "name", e.target.value)}
+                        className={inputClass} />
+                      <input type="text" placeholder="Street address"
+                        value={loc.address} onChange={e => updateLocation(i, "address", e.target.value)}
+                        className={inputClass} />
+                      <div className="grid grid-cols-3 gap-2">
+                        <input type="text" placeholder="City"
+                          value={loc.city} onChange={e => updateLocation(i, "city", e.target.value)}
+                          className={inputClass} />
+                        <input type="text" placeholder="State"
+                          value={loc.state} onChange={e => updateLocation(i, "state", e.target.value)}
+                          className={inputClass} />
+                        <input type="text" placeholder="ZIP"
+                          value={loc.zip} onChange={e => updateLocation(i, "zip", e.target.value)}
+                          className={inputClass} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Clinic Code</label>
                 <input type="text" value={clinicCode} onChange={e => setClinicCode(e.target.value.toUpperCase())}
-                  onKeyDown={e => e.key === "Enter" && handleClinicStep()}
                   placeholder="e.g. ABCD-1234"
                   className="w-full rounded-lg border px-3 py-2 text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-300" />
                 <p className="text-xs text-gray-400 mt-1">Ask your clinic administrator for this code.</p>
@@ -321,7 +464,8 @@ export default function OnboardingPage() {
 
             <div className="flex gap-2">
               <button type="button" onClick={() => setStep("profile")} className={btnSecondary}>← Back</button>
-              <button type="button" onClick={handleClinicStep} className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 cursor-pointer">
+              <button type="button" onClick={handleClinicStep}
+                className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 cursor-pointer">
                 Continue →
               </button>
             </div>
@@ -371,6 +515,94 @@ export default function OnboardingPage() {
           </div>
         )}
 
+        {/* PAYMENT */}
+        {step === "payment" && (
+          <div className="space-y-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">Choose Your Plan</h1>
+              <p className="mt-1 text-sm text-gray-500">First month free — no charge until your trial ends.</p>
+            </div>
+
+            <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-xs text-green-700 text-center">
+              🎉 <strong>30-day free trial</strong> — your card won&apos;t be charged until the trial ends.
+            </div>
+
+            <div className="space-y-2">
+              {PLANS.map(plan => (
+                <button key={plan.id} type="button" onClick={() => setSelectedPlan(plan.id)}
+                  className={`w-full rounded-xl border p-4 text-left transition-all ${selectedPlan === plan.id ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"}`}>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-semibold text-gray-800">{plan.label}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{plan.desc}</p>
+                      <ul className="mt-2 space-y-0.5">
+                        {plan.features.map(f => (
+                          <li key={f} className="text-xs text-gray-600">✓ {f}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="text-right shrink-0 ml-3">
+                      <p className="text-xl font-bold text-gray-800">${plan.price}</p>
+                      <p className="text-xs text-gray-400">/month</p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+              <p className="text-sm font-semibold text-gray-700">Payment Information</p>
+              <p className="text-xs text-gray-400">Your card will not be charged until after your 30-day free trial.</p>
+              <input type="text" placeholder="Name on card" value={cardName}
+                onChange={e => setCardName(e.target.value)} className={inputClass} />
+              <input type="text" placeholder="Card number" value={cardNumber}
+                onChange={e => setCardNumber(e.target.value.replace(/\D/g, "").slice(0, 16))}
+                className={inputClass} />
+              <div className="grid grid-cols-2 gap-2">
+                <input type="text" placeholder="MM/YY" value={cardExpiry}
+                  onChange={e => setCardExpiry(e.target.value)} className={inputClass} />
+                <input type="text" placeholder="CVC" value={cardCvc}
+                  onChange={e => setCardCvc(e.target.value.slice(0, 4))} className={inputClass} />
+              </div>
+            </div>
+
+            {/* CODE PREFERENCE */}
+            <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+              <p className="text-sm font-semibold text-gray-700">Company Code Delivery</p>
+              <p className="text-xs text-gray-400">Choose how you want to receive your clinic and admin codes.</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { value: "profile", label: "Save to Profile" },
+                  { value: "email", label: "Email Me" },
+                  { value: "both", label: "Both" },
+                  { value: "neither", label: "Neither" },
+                ].map(opt => (
+                  <button key={opt.value} type="button" onClick={() => setCodePreference(opt.value as any)}
+                    className={`rounded-lg border p-2 text-xs font-medium transition-all ${codePreference === opt.value ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-blue-300"}`}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {(codePreference === "email" || codePreference === "both") && (
+                <input type="email" placeholder="Email address for codes"
+                  value={codeEmail} onChange={e => setCodeEmail(e.target.value)}
+                  className={inputClass} />
+              )}
+              <p className="text-xs text-gray-400">
+                Disclaimer: ABA AI Assistant securely stores your company codes as a backup for support purposes only.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setStep("role")} className={btnSecondary}>← Back</button>
+              <button type="button" onClick={handleComplete} disabled={loading || !cardNumber || !cardName}
+                className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
+                {loading ? "Setting up..." : "Start Free Trial →"}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ROLE */}
         {step === "role" && (
           <div className="space-y-4">
@@ -415,7 +647,7 @@ export default function OnboardingPage() {
             </div>
             {codeVerified ? (
               <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-center text-sm text-green-700">
-                Verification successful.
+                ✓ Verification successful.
               </div>
             ) : (
               <div className="space-y-3">
@@ -434,9 +666,10 @@ export default function OnboardingPage() {
             )}
             <div className="flex gap-2">
               <button type="button" onClick={() => { setStep("role"); setCodeVerified(false); setVerificationCode(""); }} className={btnSecondary}>← Back</button>
-              <button type="button" onClick={handleComplete} disabled={!codeVerified || loading}
+              <button type="button" onClick={() => { if (!joinExisting) { setStep("payment"); } else { handleComplete(); } }}
+                disabled={!codeVerified || loading}
                 className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
-                {loading ? "Setting up..." : "Complete Setup →"}
+                {loading ? "Setting up..." : "Next →"}
               </button>
             </div>
           </div>
@@ -454,7 +687,7 @@ export default function OnboardingPage() {
             </div>
 
             <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-xs text-green-700 text-center">
-              ✅ Your <strong>30-day free trial</strong> has started automatically. No payment required until your trial ends.
+              ✅ Your <strong>30-day free trial</strong> has started. No charge until the trial ends.
             </div>
 
             <div className="space-y-3">
@@ -472,7 +705,7 @@ export default function OnboardingPage() {
 
               <div className="border-2 border-purple-200 rounded-xl p-4 bg-purple-50">
                 <p className="text-xs font-bold text-purple-700 uppercase tracking-wide mb-1">Your Admin Setup Code</p>
-                <p className="text-xs text-purple-600 mb-2">Use this code to set yourself up as Administrator — expires in 7 days</p>
+                <p className="text-xs text-purple-600 mb-2">Use this to set yourself up as Administrator — expires in 7 days</p>
                 <div className="flex items-center gap-3">
                   <p className="text-xl font-black font-mono tracking-widest text-purple-800 flex-1">{generatedAdminCode}</p>
                   <button type="button" onClick={() => copyToClipboard(generatedAdminCode, "admin")}
@@ -485,6 +718,9 @@ export default function OnboardingPage() {
 
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-700">
               Save these codes somewhere safe. The admin code expires in 7 days and can only be used once.
+              {(codePreference === "email" || codePreference === "both") && (
+                <p className="mt-1">📧 Codes also sent to {codeEmail || "your email"}.</p>
+              )}
             </div>
 
             <button type="button"
