@@ -184,6 +184,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           <CompanyBanner />
 
+          {/* HIPAA DISCLAIMER BANNER */}
+          <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-xs text-yellow-800 flex items-center gap-2">
+            <span>⚠️</span>
+            <span>
+              <strong>HIPAA Notice:</strong> Full HIPAA certification including signed BAA agreements is currently in progress.
+              Please do not enter real Protected Health Information (PHI) until certification is complete.
+            </span>
+          </div>
+
           <main className="flex-1 p-4 md:p-6 lg:p-8 pb-24">
             <OnboardingTutorial />
             {children}
@@ -201,7 +210,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </footer>
         </div>
 
-        {/* FLOATING TIMER BAR — renders above everything, persists across pages */}
+        {/* FLOATING TIMER BAR */}
         <FloatingTimerBar />
 
       </div>
