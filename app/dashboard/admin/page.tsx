@@ -7,6 +7,8 @@ import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
+import { usePlanGate } from "@/lib/hooks/usePlanGate";
+import UpgradePrompt from "@/components/ui/UpgradePrompt";
 
 type TeamMember = {
   user_id: string;
@@ -60,6 +62,7 @@ function generateCode(role: string, clinicCode: string): string {
 }
 
 export default function AdminPage() {
+  const { canAddClinician, clinicianCount, limits, planName } = usePlanGate();
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [company, setCompany] = useState<Company | null>(null);
   const [roleCodes, setRoleCodes] = useState<RoleCode[]>([]);
@@ -106,7 +109,6 @@ export default function AdminPage() {
 
     if (!companyUser?.company_id) { setLoading(false); return; }
 
-    // Fix: was .single() — crashes if company not found
     const { data: companyData } = await supabase
       .from("companies")
       .select("*")
@@ -247,6 +249,11 @@ export default function AdminPage() {
 
   async function handleInvite() {
     if (!inviteEmail || !company) return;
+
+    // Check plan gate before inviting
+    const check = canAddClinician();
+    if (!check.allowed) return;
+
     setInviting(true);
     setInviteError(null);
 
@@ -296,6 +303,8 @@ export default function AdminPage() {
     return "bg-gray-100 text-gray-600";
   }
 
+  const clinicianGate = canAddClinician();
+
   return (
     <div className="space-y-6">
       <PageHeader title="Admin Panel">
@@ -334,9 +343,14 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* PLAN USAGE BANNER */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Team Members", value: stats.totalUsers, color: "text-blue-600" },
+          {
+            label: `Team Members (${clinicianCount}/${limits.clinicians === 9999 ? "∞" : limits.clinicians})`,
+            value: stats.totalUsers,
+            color: clinicianGate.allowed ? "text-blue-600" : "text-orange-500",
+          },
           { label: "Total Clients", value: stats.totalClients, color: "text-green-600" },
           { label: "Total Sessions", value: stats.totalSessions, color: "text-purple-600" },
           { label: "Incident Reports", value: stats.totalIncidents, color: "text-red-500" },
@@ -346,6 +360,15 @@ export default function AdminPage() {
             <p className="text-xs text-gray-500 mt-1">{stat.label}</p>
           </div>
         ))}
+      </div>
+
+      {/* PLAN INFO */}
+      <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm">
+        <span className="text-gray-600">Current plan: <strong>{planName}</strong></span>
+        <Link href="/dashboard/settings/billing"
+          className="text-blue-600 hover:underline text-xs font-medium">
+          Manage Plan →
+        </Link>
       </div>
 
       <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
@@ -368,7 +391,7 @@ export default function AdminPage() {
           <Section title="Invite New Team Member">
             {inviteSuccess && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700 mb-3">
-                ✓ Magic link sent to {inviteEmail || "staff member"}. They will receive an email to join your clinic.
+                ✓ Magic link sent. They will receive an email to join your clinic.
               </div>
             )}
             {inviteError && (
@@ -376,26 +399,38 @@ export default function AdminPage() {
                 {inviteError}
               </div>
             )}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <input type="text" value={inviteName} onChange={e => setInviteName(e.target.value)}
-                placeholder="Full name (optional)"
-                className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-              <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)}
-                placeholder="Email address *"
-                className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-              <div className="flex gap-2">
-                <select value={inviteRole} onChange={e => setInviteRole(e.target.value)}
-                  className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-                  {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-                <Button onClick={handleInvite} loading={inviting} disabled={!inviteEmail}>
-                  Send Invite
-                </Button>
-              </div>
-            </div>
-            <p className="text-xs text-gray-400 mt-2">
-              Staff will receive a magic link. They still need to enter your clinic code <strong>{company?.clinic_code}</strong> during onboarding.
-            </p>
+
+            {/* PLAN GATE — show upgrade prompt if at clinician limit */}
+            {!clinicianGate.allowed ? (
+              <UpgradePrompt
+                reason={clinicianGate.reason!}
+                upgradeTo={clinicianGate.upgradeTo}
+                feature="Adding more team members"
+              />
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <input type="text" value={inviteName} onChange={e => setInviteName(e.target.value)}
+                    placeholder="Full name (optional)"
+                    className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                  <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)}
+                    placeholder="Email address *"
+                    className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                  <div className="flex gap-2">
+                    <select value={inviteRole} onChange={e => setInviteRole(e.target.value)}
+                      className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                      {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                    <Button onClick={handleInvite} loading={inviting} disabled={!inviteEmail}>
+                      Send Invite
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  Staff will receive a magic link. They still need to enter your clinic code <strong>{company?.clinic_code}</strong> during onboarding.
+                </p>
+              </>
+            )}
           </Section>
 
           <div className="flex flex-wrap gap-3 items-center">

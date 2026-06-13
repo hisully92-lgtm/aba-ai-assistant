@@ -5,7 +5,10 @@ import { supabase } from "@/lib/supabase/client";
 import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
+import Link from "next/link";
 import { useRole } from "@/lib/hooks/useRole";
+import { usePlanGate } from "@/lib/hooks/usePlanGate";
+import UpgradePrompt from "@/components/ui/UpgradePrompt";
 
 type Client = {
   id: string;
@@ -76,10 +79,13 @@ export default function ClientsPage() {
   const [assignSaving, setAssignSaving] = useState(false);
 
   const { isAdmin, isSupervisor, role } = useRole();
+  const { canAddClient, clientCount, limits } = usePlanGate();
   const canManageAssignments = isAdmin || isSupervisor;
   const canAddClients = isAdmin || isSupervisor;
 
-  useEffect(() => { init(); }, []);
+  const clientGate = canAddClient();
+
+  useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function init() {
     setLoading(true);
@@ -88,7 +94,6 @@ export default function ClientsPage() {
     const user = auth?.user;
     if (!user) { setLoading(false); return; }
 
-    // Get company
     const { data: companyUser } = await supabase
       .from("company_users")
       .select("company_id")
@@ -100,7 +105,6 @@ export default function ClientsPage() {
     const cid = companyUser?.company_id ?? null;
     setCompanyId(cid);
 
-    // Load clients — RLS handles role-based filtering automatically
     const { data: clientData, error: clientErr } = await supabase
       .from("clients")
       .select("*")
@@ -114,7 +118,6 @@ export default function ClientsPage() {
 
     setClients(clientData ?? []);
 
-    // Load assignments and staff for admin/supervisor
     if (cid) {
       const [{ data: assignData }, { data: staffData }] = await Promise.all([
         supabase.from("assignments").select("*"),
@@ -141,6 +144,10 @@ export default function ClientsPage() {
   async function handleSave() {
     if (!form.full_name.trim()) { setError("Client name is required."); return; }
     if (!companyId) { setError("No company found. Please complete onboarding."); return; }
+
+    // Check plan gate
+    if (!clientGate.allowed) return;
+
     setSaving(true);
     setError(null);
 
@@ -156,7 +163,6 @@ export default function ClientsPage() {
 
     if (saveError) { setError(saveError.message); setSaving(false); return; }
 
-    // Auto-create assignment for the creator if they are RBT/BT/clinician
     if (data && role && ["clinician", "rbt", "bt"].includes(role)) {
       await supabase.from("assignments").insert([{
         client_id: data.id,
@@ -166,7 +172,6 @@ export default function ClientsPage() {
       }]);
     }
 
-    // If supervisor creates client, auto-assign themselves as supervisor
     if (data && role && ["supervisor", "bcba"].includes(role)) {
       await supabase.from("assignments").insert([{
         client_id: data.id,
@@ -182,7 +187,7 @@ export default function ClientsPage() {
     setSuccess(true);
     setTimeout(() => setSuccess(false), 3000);
     setSaving(false);
-    init(); // refresh assignments
+    init();
   }
 
   async function handleUpdate(id: string, field: string, value: string) {
@@ -196,10 +201,8 @@ export default function ClientsPage() {
     const user = auth?.user;
     if (!user) return;
 
-    // Remove existing assignments for this client
     await supabase.from("assignments").delete().eq("client_id", clientId);
 
-    // Create new assignment
     if (assignRbt || assignSupervisor) {
       await supabase.from("assignments").insert([{
         client_id: clientId,
@@ -247,9 +250,21 @@ export default function ClientsPage() {
     <div className="space-y-6">
       <PageHeader title="Clients / Learners">
         {canAddClients && (
-          <Button onClick={() => setShowForm(!showForm)}>
-            {showForm ? "Cancel" : "+ Add Client"}
-          </Button>
+          clientGate.allowed ? (
+            <Button onClick={() => setShowForm(!showForm)}>
+              {showForm ? "Cancel" : "+ Add Client"}
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-orange-600 font-medium">
+                {clientCount}/{limits.clients} clients
+              </span>
+              <Link href="/dashboard/settings/billing"
+                className="text-xs bg-orange-500 text-white px-3 py-2 rounded-lg hover:bg-orange-600 transition-colors font-medium">
+                🔒 Upgrade to add more
+              </Link>
+            </div>
+          )
         )}
       </PageHeader>
 
@@ -266,7 +281,17 @@ export default function ClientsPage() {
         </div>
       )}
 
-      {showForm && canAddClients && (
+      {/* PLAN GATE — show upgrade prompt if at client limit */}
+      {!clientGate.allowed && canAddClients && (
+        <UpgradePrompt
+          reason={clientGate.reason!}
+          upgradeTo={clientGate.upgradeTo}
+          feature="Adding more clients"
+        />
+      )}
+
+      {/* ADD CLIENT FORM */}
+      {showForm && canAddClients && clientGate.allowed && (
         <Section title="Add New Client">
           {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -343,7 +368,9 @@ export default function ClientsPage() {
               ? "Add your first client to start tracking sessions, goals, and progress."
               : "No clients have been assigned to you yet. Contact your administrator."}
           </p>
-          {canAddClients && <Button onClick={() => setShowForm(true)}>+ Add First Client</Button>}
+          {canAddClients && clientGate.allowed && (
+            <Button onClick={() => setShowForm(true)}>+ Add First Client</Button>
+          )}
         </div>
       )}
 
@@ -383,7 +410,6 @@ export default function ClientsPage() {
                   </button>
                 </div>
 
-                {/* ASSIGNMENT BADGES */}
                 {assignment && (
                   <div className="flex flex-wrap gap-1 mt-2">
                     {assignment.rbt_id && (
@@ -424,7 +450,6 @@ export default function ClientsPage() {
                         className="w-full border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300" />
                     </div>
 
-                    {/* ASSIGNMENT MANAGEMENT — admin/supervisor only */}
                     {canManageAssignments && (
                       <div className="border-t border-gray-100 pt-3">
                         {!isAssigning ? (
