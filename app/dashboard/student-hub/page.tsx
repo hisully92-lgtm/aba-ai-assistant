@@ -22,11 +22,33 @@ type HourEntry = {
   hours: number;
   session_date: string;
   notes: string | null;
+  push_to_session: boolean;
+  student_signed: boolean;
+  student_signed_at: string | null;
+  supervisor_signed: boolean;
+  supervisor_signed_at: string | null;
   approved: boolean;
   created_at: string;
 };
 
-// BACB fieldwork categories per official checklist
+type MVF = {
+  id: string;
+  month: number;
+  year: number;
+  total_hours: number;
+  supervised_hours: number;
+  independent_hours: number;
+  experience_type: string | null;
+  tasks_completed: string[] | null;
+  student_signature: string | null;
+  student_signed_at: string | null;
+  supervisor_signature: string | null;
+  supervisor_signed_at: string | null;
+  supervisor_user_id: string | null;
+  status: string;
+  notes: string | null;
+};
+
 const RESTRICTED_ACTIVITIES = [
   "Directly delivering behavior-analytic programs",
   "Implementing Behavior Intervention Plans (BIPs)",
@@ -71,7 +93,14 @@ const DOES_NOT_COUNT = [
   "Teaching at RBT Professional Development events",
 ];
 
-// BACB requirements
+const BACB_TASKS = [
+  "Measurement", "Skill Acquisition", "Behavior Reduction",
+  "Documentation", "Supervision", "Ethics", "Experimental Design",
+  "Behavioral Assessment", "Personnel Supervision", "Systems Support",
+];
+
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
 const BCBA_REQUIREMENTS = { total: 2000, unrestricted_min_pct: 60, restricted_max_pct: 40 };
 const BCABA_REQUIREMENTS = { total: 1000, unrestricted_min_pct: 40, restricted_max_pct: 60 };
 
@@ -86,10 +115,13 @@ const emptyForm = {
   counts_toward_fieldwork: true,
   session_date: new Date().toISOString().split("T")[0],
   notes: "",
+  push_to_session: false,
+  student_signature: "",
 };
 
 export default function StudentHubPage() {
   const [entries, setEntries] = useState<HourEntry[]>([]);
+  const [mvfs, setMvfs] = useState<MVF[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [form, setForm] = useState(emptyForm);
@@ -100,39 +132,59 @@ export default function StudentHubPage() {
   const [certGoal, setCertGoal] = useState<"bcba" | "bcaba">("bcba");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [activeTab, setActiveTab] = useState<"tracker" | "activities" | "requirements">("tracker");
+  const [activeTab, setActiveTab] = useState<"tracker" | "mvf" | "activities" | "requirements">("tracker");
+  const [userId, setUserId] = useState("");
+  const [companyId, setCompanyId] = useState("");
 
-  useEffect(() => { init(); }, []);
+  // MVF form
+  const [showMVFForm, setShowMVFForm] = useState(false);
+  const [mvfMonth, setMvfMonth] = useState(new Date().getMonth() + 1);
+  const [mvfYear, setMvfYear] = useState(new Date().getFullYear());
+  const [mvfSupervisorId, setMvfSupervisorId] = useState("");
+  const [expType, setExpType] = useState("diversified");
+  const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
+  const [mvfNotes, setMvfNotes] = useState("");
+  const [mvfStudentSig, setMvfStudentSig] = useState("");
+  const [savingMVF, setSavingMVF] = useState(false);
+
+  useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
+    setUserId(user.id);
 
-    const [{ data: profileData }, { data: clientData }, { data: entryData }] = await Promise.all([
+    const { data: companyUser } = await supabase
+      .from("company_users")
+      .select("company_id")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle();
+    setCompanyId(companyUser?.company_id ?? "");
+
+    const [{ data: profileData }, { data: clientData }, { data: entryData }, { data: mvfData }] = await Promise.all([
       supabase.from("profiles").select("id, full_name, role").in("role", ["supervisor", "clinical_director", "admin", "developer"]),
       supabase.from("clients").select("id, full_name"),
       supabase.from("student_analyst_hours").select("*").eq("student_id", user.id).order("session_date", { ascending: false }),
+      supabase.from("student_mvf").select("*").eq("student_user_id", user.id).order("year", { ascending: false }).order("month", { ascending: false }),
     ]);
 
     setProfiles(profileData ?? []);
     setClients(clientData ?? []);
     setEntries(entryData ?? []);
+    setMvfs(mvfData ?? []);
     setLoading(false);
   }
 
   function handleHourTypeChange(type: string) {
-    setForm((prev) => ({
-      ...prev,
-      hour_type: type,
-      bacb_category: type,
-      activity_type: "",
-    }));
+    setForm((prev) => ({ ...prev, hour_type: type, bacb_category: type, activity_type: "" }));
   }
 
   async function handleSave() {
     if (!form.activity_type || !form.hours) { setError("Activity type and hours are required."); return; }
-    if (!form.client_id && form.counts_toward_fieldwork) { setError("All fieldwork hours must be tied to a specific client. Select a client or uncheck 'Counts toward fieldwork'."); return; }
+    if (!form.client_id && form.counts_toward_fieldwork) { setError("All fieldwork hours must be tied to a specific client."); return; }
     setSaving(true);
     setError(null);
 
@@ -145,10 +197,23 @@ export default function StudentHubPage() {
       student_id: user.id,
       supervisor_id: form.supervisor_id || null,
       client_id: form.client_id || null,
+      student_signed: !!form.student_signature.trim(),
+      student_signed_at: form.student_signature.trim() ? new Date().toISOString() : null,
       created_by: user.id,
     }]).select().single();
 
     if (saveError) { setError(saveError.message); setSaving(false); return; }
+
+    // Push notes to session if requested
+    if (form.push_to_session && form.notes.trim() && form.client_id) {
+      await supabase.from("sessions").insert({
+        client_id: form.client_id,
+        created_by: user.id,
+        date: form.session_date,
+        status: "pending",
+        behaviors_observed: form.notes.trim(),
+      });
+    }
 
     setEntries((prev) => [data, ...prev]);
     setForm(emptyForm);
@@ -163,23 +228,81 @@ export default function StudentHubPage() {
     setEntries((prev) => prev.filter((e) => e.id !== id));
   }
 
+  async function studentSignEntry(id: string) {
+    const sig = prompt("Enter your full name as electronic signature:");
+    if (!sig) return;
+    await supabase.from("student_analyst_hours").update({
+      student_signed: true,
+      student_signed_at: new Date().toISOString(),
+    }).eq("id", id);
+    await init();
+  }
+
+  async function handleCreateMVF() {
+    if (!mvfMonth || !mvfYear) return;
+    setSavingMVF(true);
+
+    const monthHours = entries.filter(h => {
+      const d = new Date(h.session_date);
+      return d.getMonth() + 1 === mvfMonth && d.getFullYear() === mvfYear;
+    });
+
+    const totalHours = monthHours.reduce((sum, h) => sum + h.hours, 0);
+    const supervisedHours = monthHours.filter(h => h.hour_type === "restricted").reduce((sum, h) => sum + h.hours, 0);
+
+    await supabase.from("student_mvf").insert({
+      student_user_id: userId,
+      company_id: companyId,
+      supervisor_user_id: mvfSupervisorId || null,
+      month: mvfMonth,
+      year: mvfYear,
+      total_hours: totalHours,
+      supervised_hours: supervisedHours,
+      independent_hours: totalHours - supervisedHours,
+      experience_type: expType,
+      tasks_completed: selectedTasks.length > 0 ? selectedTasks : null,
+      student_signature: mvfStudentSig.trim() || null,
+      student_signed_at: mvfStudentSig.trim() ? new Date().toISOString() : null,
+      status: mvfStudentSig.trim() ? "student_signed" : "draft",
+      notes: mvfNotes.trim() || null,
+    });
+
+    setMvfStudentSig(""); setMvfNotes(""); setSelectedTasks([]);
+    setShowMVFForm(false);
+    await init();
+    setSavingMVF(false);
+  }
+
+  async function studentSignMVF(id: string) {
+    const sig = prompt("Enter your full name as electronic signature:");
+    if (!sig) return;
+    await supabase.from("student_mvf").update({
+      student_signature: sig,
+      student_signed_at: new Date().toISOString(),
+      status: "student_signed",
+    }).eq("id", id);
+    await init();
+  }
+
+  function toggleTask(task: string) {
+    setSelectedTasks(prev => prev.includes(task) ? prev.filter(t => t !== task) : [...prev, task]);
+  }
+
   const filtered = filterType ? entries.filter((e) => e.hour_type === filterType) : entries;
   const clientMap = new Map(clients.map((c) => [c.id, c.full_name]));
   const profileMap = new Map(profiles.map((p) => [p.id, p.full_name ?? "Unknown"]));
-
   const req = certGoal === "bcba" ? BCBA_REQUIREMENTS : BCABA_REQUIREMENTS;
 
-  // Only count fieldwork-eligible hours
   const fieldworkEntries = entries.filter((e) => e.counts_toward_fieldwork !== false);
   const totalHours = fieldworkEntries.reduce((a, b) => a + b.hours, 0);
   const unrestrictedHours = fieldworkEntries.filter((e) => e.hour_type === "unrestricted").reduce((a, b) => a + b.hours, 0);
   const restrictedHours = fieldworkEntries.filter((e) => e.hour_type === "restricted").reduce((a, b) => a + b.hours, 0);
   const approvedHours = fieldworkEntries.filter((e) => e.approved).reduce((a, b) => a + b.hours, 0);
+  const pendingSignature = entries.filter(h => !h.student_signed).length;
 
   const totalPct = Math.min(100, Math.round((totalHours / req.total) * 100));
   const unrestrictedPct = totalHours > 0 ? Math.round((unrestrictedHours / totalHours) * 100) : 0;
   const restrictedPct = totalHours > 0 ? Math.round((restrictedHours / totalHours) * 100) : 0;
-
   const unrestrictedMet = unrestrictedPct >= req.unrestricted_min_pct;
   const restrictedMet = restrictedPct <= req.restricted_max_pct;
 
@@ -205,6 +328,13 @@ export default function StudentHubPage() {
     { name: "Remaining", value: Math.max(0, req.total - totalHours), color: "#e5e7eb" },
   ];
 
+  const STATUS_COLORS: Record<string, string> = {
+    draft: "bg-gray-100 text-gray-600",
+    student_signed: "bg-blue-100 text-blue-700",
+    approved: "bg-green-100 text-green-700",
+    rejected: "bg-red-100 text-red-700",
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader title="Student Analyst Hub">
@@ -225,15 +355,22 @@ export default function StudentHubPage() {
 
       {success && <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">✓ Hours logged successfully.</div>}
 
+      {pendingSignature > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-sm text-orange-800">
+          ✍️ You have <strong>{pendingSignature}</strong> hour entr{pendingSignature > 1 ? "ies" : "y"} waiting for your signature.
+        </div>
+      )}
+
       {/* TABS */}
-      <div className="flex gap-2 border-b border-gray-200">
+      <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
         {[
           { key: "tracker", label: "Hour Tracker" },
+          { key: "mvf", label: `MVF (${mvfs.length})` },
           { key: "activities", label: "Activity Reference" },
           { key: "requirements", label: "BACB Requirements" },
         ].map((tab) => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key as any)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.key ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
+            className={`px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === tab.key ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
             {tab.label}
           </button>
         ))}
@@ -242,7 +379,6 @@ export default function StudentHubPage() {
       {/* TRACKER TAB */}
       {activeTab === "tracker" && (
         <>
-          {/* COMPLIANCE ALERTS */}
           {totalHours > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className={`border rounded-xl p-3 ${unrestrictedMet ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}`}>
@@ -250,7 +386,7 @@ export default function StudentHubPage() {
                   {unrestrictedMet ? "✓" : "⚠️"} Unrestricted: {unrestrictedPct}% (min {req.unrestricted_min_pct}% required)
                 </p>
                 <p className={`text-xs mt-0.5 ${unrestrictedMet ? "text-green-600" : "text-red-600"}`}>
-                  {unrestrictedHours.toFixed(1)}h unrestricted · {unrestrictedMet ? "Compliant" : `Need ${((req.unrestricted_min_pct / 100 * totalHours) - unrestrictedHours).toFixed(1)}h more`}
+                  {unrestrictedHours.toFixed(1)}h · {unrestrictedMet ? "Compliant" : `Need ${((req.unrestricted_min_pct / 100 * totalHours) - unrestrictedHours).toFixed(1)}h more`}
                 </p>
               </div>
               <div className={`border rounded-xl p-3 ${restrictedMet ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}`}>
@@ -258,13 +394,12 @@ export default function StudentHubPage() {
                   {restrictedMet ? "✓" : "⚠️"} Restricted: {restrictedPct}% (max {req.restricted_max_pct}% allowed)
                 </p>
                 <p className={`text-xs mt-0.5 ${restrictedMet ? "text-green-600" : "text-red-600"}`}>
-                  {restrictedHours.toFixed(1)}h restricted · {restrictedMet ? "Compliant" : "Over the limit — shift hours to unrestricted"}
+                  {restrictedHours.toFixed(1)}h · {restrictedMet ? "Compliant" : "Over limit — shift hours to unrestricted"}
                 </p>
               </div>
             </div>
           )}
 
-          {/* PROGRESS OVERVIEW */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="border rounded-xl p-4 bg-white">
               <p className="text-sm font-medium text-gray-700 mb-2">Total Fieldwork Hours</p>
@@ -278,7 +413,7 @@ export default function StudentHubPage() {
             <div className="border rounded-xl p-4 bg-white">
               <p className="text-sm font-medium text-gray-700 mb-2">Unrestricted (min {req.unrestricted_min_pct}%)</p>
               <p className="text-3xl font-bold text-green-600">{unrestrictedHours.toFixed(1)}h</p>
-              <p className="text-xs text-gray-400 mt-1">{unrestrictedPct}% of total hours</p>
+              <p className="text-xs text-gray-400 mt-1">{unrestrictedPct}% of total</p>
               <div className="mt-2 w-full bg-gray-100 rounded-full h-2">
                 <div className={`h-2 rounded-full ${unrestrictedMet ? "bg-green-500" : "bg-red-500"}`}
                   style={{ width: `${Math.min(100, unrestrictedPct)}%` }} />
@@ -290,7 +425,7 @@ export default function StudentHubPage() {
             <div className="border rounded-xl p-4 bg-white">
               <p className="text-sm font-medium text-gray-700 mb-2">Restricted (max {req.restricted_max_pct}%)</p>
               <p className="text-3xl font-bold text-blue-600">{restrictedHours.toFixed(1)}h</p>
-              <p className="text-xs text-gray-400 mt-1">{restrictedPct}% of total hours</p>
+              <p className="text-xs text-gray-400 mt-1">{restrictedPct}% of total</p>
               <div className="mt-2 w-full bg-gray-100 rounded-full h-2">
                 <div className={`h-2 rounded-full ${restrictedMet ? "bg-blue-500" : "bg-red-500"}`}
                   style={{ width: `${Math.min(100, restrictedPct)}%` }} />
@@ -301,7 +436,6 @@ export default function StudentHubPage() {
             </div>
           </div>
 
-          {/* CHARTS */}
           {entries.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Section title="Monthly Hours">
@@ -337,22 +471,19 @@ export default function StudentHubPage() {
             </div>
           )}
 
-          {/* LOG FORM */}
           {showForm && (
             <Section title="Log Fieldwork Hours">
               {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
-
-              {/* HOUR TYPE */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                 <button onClick={() => handleHourTypeChange("unrestricted")}
                   className={`text-left border-2 rounded-xl p-4 transition-all ${form.hour_type === "unrestricted" ? "border-green-500 bg-green-50" : "border-gray-200 hover:border-green-300"}`}>
                   <p className="text-sm font-bold text-green-700">Unrestricted (min {req.unrestricted_min_pct}%)</p>
-                  <p className="text-xs text-green-600 mt-0.5">BCBA-level indirect tasks — assessments, plan writing, supervision, training</p>
+                  <p className="text-xs text-green-600 mt-0.5">BCBA-level indirect tasks</p>
                 </button>
                 <button onClick={() => handleHourTypeChange("restricted")}
                   className={`text-left border-2 rounded-xl p-4 transition-all ${form.hour_type === "restricted" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"}`}>
                   <p className="text-sm font-bold text-blue-700">Restricted (max {req.restricted_max_pct}%)</p>
-                  <p className="text-xs text-blue-600 mt-0.5">Direct therapy — implementing programs, running DTT/NET, taking real-time data</p>
+                  <p className="text-xs text-blue-600 mt-0.5">Direct therapy with clients</p>
                 </button>
               </div>
 
@@ -405,21 +536,40 @@ export default function StudentHubPage() {
                 </div>
               </div>
 
-              {/* DOES NOT COUNT WARNING */}
+              <div className="mt-3 space-y-2">
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                  <input type="checkbox" checked={form.push_to_session}
+                    onChange={(e) => setForm({ ...form, push_to_session: e.target.checked })} />
+                  Push notes to session log
+                </label>
+              </div>
+
+              <div className="mt-3">
+                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                  Your Signature (electronic)
+                </label>
+                <input type="text" value={form.student_signature}
+                  onChange={(e) => setForm({ ...form, student_signature: e.target.value })}
+                  placeholder="Type your full legal name to sign"
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                <p className="text-xs text-gray-400 mt-1">
+                  By typing your name, you certify these hours are accurate and comply with BACB requirements.
+                </p>
+              </div>
+
               {DOES_NOT_COUNT.some((d) => form.activity_type?.toLowerCase().includes(d.toLowerCase().slice(0, 10))) && (
                 <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700">
-                  ⚠️ This activity type may not count toward BACB fieldwork hours. Verify with your supervisor.
+                  ⚠️ This activity type may not count toward BACB fieldwork hours.
                 </div>
               )}
 
-              <div className="mt-4 flex gap-2 flex-wrap">
+              <div className="mt-4 flex gap-2">
                 <Button onClick={handleSave} loading={saving}>Log Hours</Button>
                 <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
               </div>
             </Section>
           )}
 
-          {/* FILTER + LIST */}
           {!loading && entries.length > 0 && (
             <div className="flex gap-3 items-center">
               <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
@@ -437,7 +587,7 @@ export default function StudentHubPage() {
           {loading && <p className="text-gray-400 text-sm">Loading...</p>}
           {!loading && filtered.length === 0 && (
             <Section title="Hour Log">
-              <p className="text-gray-400 text-sm">No hours logged yet. Click "+ Log Hours" to get started.</p>
+              <p className="text-gray-400 text-sm">No hours logged yet. Click &quot;+ Log Hours&quot; to get started.</p>
             </Section>
           )}
 
@@ -451,14 +601,19 @@ export default function StudentHubPage() {
                     </span>
                     <p className="text-sm font-medium text-gray-800">{entry.activity_type}</p>
                     {entry.approved && <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">✓ Approved</span>}
-                    {entry.counts_toward_fieldwork === false && <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">Not counted</span>}
+                    {entry.student_signed && <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">✓ Signed</span>}
                   </div>
                   <p className="text-xs text-gray-400 mt-1">
                     {entry.session_date}
-                    {entry.supervisor_id && ` · Supervisor: ${profileMap.get(entry.supervisor_id)}`}
+                    {entry.supervisor_id && ` · ${profileMap.get(entry.supervisor_id)}`}
                     {entry.client_id && ` · ${clientMap.get(entry.client_id)}`}
                   </p>
                   {entry.notes && <p className="text-xs text-gray-500 mt-1">{entry.notes}</p>}
+                  {!entry.student_signed && (
+                    <button onClick={() => studentSignEntry(entry.id)} className="text-xs text-orange-600 hover:underline mt-1">
+                      ✍️ Sign this entry
+                    </button>
+                  )}
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-lg font-bold text-blue-600">{entry.hours}h</span>
@@ -470,11 +625,178 @@ export default function StudentHubPage() {
         </>
       )}
 
+      {/* MVF TAB */}
+      {activeTab === "mvf" && (
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
+            📋 Monthly Verification Forms (MVF) are required by the BACB to document your supervised fieldwork experience. Both you and your supervisor must sign each MVF.
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={() => setShowMVFForm(s => !s)}>
+              {showMVFForm ? "✕ Cancel" : "+ Create MVF"}
+            </Button>
+          </div>
+
+          {showMVFForm && (
+            <Section title="Create Monthly Verification Form">
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Month *</label>
+                    <select value={mvfMonth} onChange={e => setMvfMonth(parseInt(e.target.value))}
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                      {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Year *</label>
+                    <input type="number" value={mvfYear} onChange={e => setMvfYear(parseInt(e.target.value))}
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Supervisor *</label>
+                    <select value={mvfSupervisorId} onChange={e => setMvfSupervisorId(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                      <option value="">Select supervisor...</option>
+                      {profiles.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Experience Type</label>
+                  <div className="flex gap-2">
+                    {[
+                      { value: "concentrated", label: "Concentrated", desc: "One supervisor, one area" },
+                      { value: "diversified", label: "Diversified", desc: "Multiple supervisors/areas" },
+                    ].map(opt => (
+                      <button key={opt.value} type="button" onClick={() => setExpType(opt.value)}
+                        className={`flex-1 border rounded-xl p-3 text-left transition-all ${expType === opt.value ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"}`}>
+                        <p className="text-sm font-medium text-gray-800">{opt.label}</p>
+                        <p className="text-xs text-gray-400">{opt.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">BACB Task List Areas Covered</label>
+                  <div className="flex flex-wrap gap-2">
+                    {BACB_TASKS.map(task => (
+                      <button key={task} type="button" onClick={() => toggleTask(task)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${selectedTasks.includes(task) ? "bg-blue-600 text-white border-blue-600" : "border-gray-200 text-gray-600 hover:border-blue-300"}`}>
+                        {task}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-600 space-y-1">
+                  <p className="font-semibold text-gray-700">Hours for {MONTHS[mvfMonth - 1]} {mvfYear}:</p>
+                  {(() => {
+                    const monthHours = entries.filter(h => {
+                      const d = new Date(h.session_date);
+                      return d.getMonth() + 1 === mvfMonth && d.getFullYear() === mvfYear;
+                    });
+                    const total = monthHours.reduce((sum, h) => sum + h.hours, 0);
+                    const sup = monthHours.filter(h => h.hour_type === "restricted").reduce((sum, h) => sum + h.hours, 0);
+                    return (
+                      <>
+                        <p>Total: <strong>{total}h</strong></p>
+                        <p>Supervised (Restricted): <strong>{sup}h</strong></p>
+                        <p>Independent (Unrestricted): <strong>{(total - sup).toFixed(1)}h</strong></p>
+                      </>
+                    );
+                  })()}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Notes</label>
+                  <textarea value={mvfNotes} onChange={e => setMvfNotes(e.target.value)}
+                    placeholder="Additional notes for this month..."
+                    rows={2}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Your Signature *</label>
+                  <input type="text" value={mvfStudentSig} onChange={e => setMvfStudentSig(e.target.value)}
+                    placeholder="Type your full legal name to sign"
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                  <p className="text-xs text-gray-400 mt-1">
+                    By signing, you certify that the information on this MVF is accurate per BACB requirements.
+                  </p>
+                </div>
+
+                <Button onClick={handleCreateMVF} loading={savingMVF} disabled={!mvfMonth || !mvfYear}>
+                  Create MVF
+                </Button>
+              </div>
+            </Section>
+          )}
+
+          {mvfs.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <p className="text-4xl mb-3">📋</p>
+              <p className="text-sm">No MVFs created yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {mvfs.map(mvf => (
+                <div key={mvf.id} className="border border-gray-100 rounded-2xl p-5 bg-white">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <p className="font-bold text-gray-900">{MONTHS[mvf.month - 1]} {mvf.year}</p>
+                      <p className="text-xs text-gray-400">{mvf.experience_type} experience</p>
+                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[mvf.status] ?? "bg-gray-100 text-gray-600"}`}>
+                      {mvf.status.replace("_", " ")}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    {[
+                      { label: "Total", value: `${mvf.total_hours}h` },
+                      { label: "Supervised", value: `${mvf.supervised_hours}h` },
+                      { label: "Independent", value: `${mvf.independent_hours}h` },
+                    ].map(stat => (
+                      <div key={stat.label} className="bg-gray-50 rounded-lg p-2 text-center">
+                        <p className="text-sm font-bold text-gray-800">{stat.value}</p>
+                        <p className="text-xs text-gray-400">{stat.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {mvf.tasks_completed && mvf.tasks_completed.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {mvf.tasks_completed.map(task => (
+                        <span key={task} className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full">{task}</span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-4 text-xs border-t pt-3">
+                    {mvf.student_signature ? (
+                      <span className="text-green-600">✓ Student signed {mvf.student_signed_at ? new Date(mvf.student_signed_at).toLocaleDateString() : ""}</span>
+                    ) : (
+                      <button onClick={() => studentSignMVF(mvf.id)} className="text-orange-600 hover:underline">✍️ Sign MVF</button>
+                    )}
+                    {mvf.supervisor_signature ? (
+                      <span className="text-blue-600">✓ Supervisor signed {mvf.supervisor_signed_at ? new Date(mvf.supervisor_signed_at).toLocaleDateString() : ""}</span>
+                    ) : (
+                      <span className="text-gray-400">⏳ Awaiting supervisor signature</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ACTIVITY REFERENCE TAB */}
       {activeTab === "activities" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Section title={`✅ Unrestricted Activities (min ${req.unrestricted_min_pct}%)`}>
-            <p className="text-xs text-gray-500 mb-3">BCBA-level indirect tasks — no maximum limit</p>
+            <p className="text-xs text-gray-500 mb-3">BCBA-level indirect tasks</p>
             <div className="space-y-1">
               {UNRESTRICTED_ACTIVITIES.map((a) => (
                 <div key={a} className="flex items-center gap-2 text-xs text-gray-700 py-1 border-b border-gray-50">
@@ -495,7 +817,7 @@ export default function StudentHubPage() {
               </div>
             </Section>
             <Section title="❌ Does NOT Count">
-              <p className="text-xs text-gray-500 mb-3">Per BACB guidelines — do not log these</p>
+              <p className="text-xs text-gray-500 mb-3">Per BACB guidelines</p>
               <div className="space-y-1">
                 {DOES_NOT_COUNT.map((a) => (
                   <div key={a} className="flex items-center gap-2 text-xs text-gray-500 py-1 border-b border-gray-50">
@@ -514,68 +836,49 @@ export default function StudentHubPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Section title="BCBA Fieldwork Requirements">
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between border-b border-gray-100 pb-2">
-                  <span className="text-gray-600">Total Hours Required</span>
-                  <span className="font-bold text-gray-800">2,000 hours</span>
-                </div>
-                <div className="flex justify-between border-b border-gray-100 pb-2">
-                  <span className="text-gray-600">Unrestricted (minimum)</span>
-                  <span className="font-bold text-green-700">60% = 1,200+ hours</span>
-                </div>
-                <div className="flex justify-between border-b border-gray-100 pb-2">
-                  <span className="text-gray-600">Restricted (maximum)</span>
-                  <span className="font-bold text-blue-700">40% = up to 800 hours</span>
-                </div>
-                <div className="flex justify-between border-b border-gray-100 pb-2">
-                  <span className="text-gray-600">Supervisor Requirement</span>
-                  <span className="font-bold text-gray-800">BCBA with active cert</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Client Requirement</span>
-                  <span className="font-bold text-gray-800">All hours must be client-specific</span>
-                </div>
+                {[
+                  { label: "Total Hours Required", value: "2,000 hours" },
+                  { label: "Unrestricted (minimum)", value: "60% = 1,200+ hours" },
+                  { label: "Restricted (maximum)", value: "40% = up to 800 hours" },
+                  { label: "Supervisor Requirement", value: "BCBA with active cert" },
+                  { label: "Client Requirement", value: "All hours must be client-specific" },
+                ].map(item => (
+                  <div key={item.label} className="flex justify-between border-b border-gray-100 pb-2">
+                    <span className="text-gray-600">{item.label}</span>
+                    <span className="font-bold text-gray-800">{item.value}</span>
+                  </div>
+                ))}
               </div>
             </Section>
             <Section title="BCaBA Fieldwork Requirements">
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between border-b border-gray-100 pb-2">
-                  <span className="text-gray-600">Total Hours Required</span>
-                  <span className="font-bold text-gray-800">1,000 hours</span>
-                </div>
-                <div className="flex justify-between border-b border-gray-100 pb-2">
-                  <span className="text-gray-600">Unrestricted (minimum)</span>
-                  <span className="font-bold text-green-700">40% = 400+ hours</span>
-                </div>
-                <div className="flex justify-between border-b border-gray-100 pb-2">
-                  <span className="text-gray-600">Restricted (maximum)</span>
-                  <span className="font-bold text-blue-700">60% = up to 600 hours</span>
-                </div>
-                <div className="flex justify-between border-b border-gray-100 pb-2">
-                  <span className="text-gray-600">Supervisor Requirement</span>
-                  <span className="font-bold text-gray-800">BCBA or BCaBA</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Client Requirement</span>
-                  <span className="font-bold text-gray-800">All hours must be client-specific</span>
-                </div>
+                {[
+                  { label: "Total Hours Required", value: "1,000 hours" },
+                  { label: "Unrestricted (minimum)", value: "40% = 400+ hours" },
+                  { label: "Restricted (maximum)", value: "60% = up to 600 hours" },
+                  { label: "Supervisor Requirement", value: "BCBA or BCaBA" },
+                  { label: "Client Requirement", value: "All hours must be client-specific" },
+                ].map(item => (
+                  <div key={item.label} className="flex justify-between border-b border-gray-100 pb-2">
+                    <span className="text-gray-600">{item.label}</span>
+                    <span className="font-bold text-gray-800">{item.value}</span>
+                  </div>
+                ))}
               </div>
             </Section>
           </div>
-
           <Section title="Important BACB Rules">
             <div className="space-y-3">
               {[
                 { rule: "All fieldwork must be behavior-analytic in nature", type: "required" },
-                { rule: "All tasks must be tied to a specific, real-world client you are serving", type: "required" },
-                { rule: "You and your supervisor must have a formal relationship with the client", type: "required" },
+                { rule: "All tasks must be tied to a specific, real-world client", type: "required" },
                 { rule: "Supervisor must be present or available during restricted hours", type: "required" },
                 { rule: "Coursework, studying for exam, CPR training do NOT count", type: "warning" },
                 { rule: "Hypothetical or generic tasks not tied to a client do NOT count", type: "warning" },
-                { rule: "Readings or research unrelated to current clients do NOT count", type: "warning" },
                 { rule: "Attending conferences or ACE events do NOT count", type: "warning" },
               ].map((item) => (
                 <div key={item.rule} className={`flex items-start gap-3 border rounded-lg p-3 text-sm ${item.type === "required" ? "border-blue-100 bg-blue-50" : "border-orange-100 bg-orange-50"}`}>
-                  <span className={`font-bold text-lg shrink-0 ${item.type === "required" ? "text-blue-500" : "text-orange-500"}`}>
+                  <span className={`font-bold shrink-0 ${item.type === "required" ? "text-blue-500" : "text-orange-500"}`}>
                     {item.type === "required" ? "✓" : "⚠️"}
                   </span>
                   <p className={item.type === "required" ? "text-blue-700" : "text-orange-700"}>{item.rule}</p>
@@ -583,7 +886,7 @@ export default function StudentHubPage() {
               ))}
             </div>
             <p className="text-xs text-gray-400 mt-4">
-              Source: BACB Fieldwork Checklist and Tip Sheet ·
+              Source: BACB Fieldwork Checklist ·
               <a href="https://www.bacb.com/wp-content/uploads/2020/05/Fieldwork-Checklist-and-Tip-Sheet-260129-a.pdf"
                 target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline ml-1">
                 Download Official PDF →
