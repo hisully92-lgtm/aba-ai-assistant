@@ -279,6 +279,8 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
         { label: "Macro Trends", href: "/dashboard/analytics/macro" },
         { label: "Program Fidelity", href: "/dashboard/fidelity" },
         { label: "Progress Reports", href: "/dashboard/progress-reports" },
+        { label: "Session Review", href: "/dashboard/session-review" },
+        { label: "Session Audit Log", href: "/dashboard/admin/audit" },
         { label: "Staff Performance", href: "/dashboard/staff-performance" },
         { label: "Supervision Logs", href: "/dashboard/supervision" },
         { label: "Student Hours", href: "/dashboard/supervisor-hours" },
@@ -305,6 +307,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
         { label: "Training Admin", href: "/dashboard/training/admin" },
         { label: "Visual Analytics", href: "/dashboard/analytics/graphs" },
         { label: "Waitlist", href: "/dashboard/waitlist" },
+        { label: "Session Audit Log", href: "/dashboard/admin/audit" },
       ]),
     }] : []),
     ...(isDeveloper ? [{

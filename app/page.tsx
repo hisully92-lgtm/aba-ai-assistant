@@ -14,6 +14,7 @@ export default function HomePage() {
             <span className="font-bold text-gray-900 text-lg">ABA AI</span>
           </div>
           <div className="flex items-center gap-4">
+            <Link href="/pricing" className="text-sm text-gray-500 hover:text-gray-800 hidden sm:block">Pricing</Link>
             <Link href="#features" className="text-sm text-gray-500 hover:text-gray-800 hidden sm:block">Features</Link>
             <Link href="#pricing" className="text-sm text-gray-500 hover:text-gray-800 hidden sm:block">Pricing</Link>
             <Link href="/about" className="text-sm text-gray-500 hover:text-gray-800 hidden sm:block">About</Link>
