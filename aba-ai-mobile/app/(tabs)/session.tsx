@@ -4,6 +4,7 @@ import {
   TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal
 } from "react-native";
 import { supabase } from "../../lib/supabase";
+import AppHeader from "../../components/AppHeader";
 
 type Client = { id: string; full_name: string };
 type CustomBehavior = {
@@ -178,9 +179,7 @@ export default function SessionScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Data Collection</Text>
-      </View>
+      <AppHeader title="Data Collection" />
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
         {success && <View style={styles.successBanner}><Text style={styles.successText}>✓ Session saved successfully</Text></View>}

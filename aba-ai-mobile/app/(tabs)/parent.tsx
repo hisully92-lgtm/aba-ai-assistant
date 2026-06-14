@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { supabase } from "../../lib/supabase";
+import AppHeader from "../../components/AppHeader";
 
 type Session = { id: string; date: string | null; status: string; behaviors_observed: string | null; programs_targeted: string | null; notes: string | null; created_at: string };
 type HomeProgram = { id: string; title: string; description: string; frequency: string | null; created_at: string };
@@ -34,10 +35,7 @@ export default function ParentScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Parent Portal</Text>
-        <Text style={styles.headerSub}>Your child&apos;s therapy progress</Text>
-      </View>
+      <AppHeader title="Parent Portal" />
       <View style={styles.statsRow}>
         <View style={styles.stat}><Text style={styles.statNum}>{attendanceTotal}</Text><Text style={styles.statLabel}>Sessions</Text></View>
         <View style={styles.stat}><Text style={[styles.statNum, { color: "#16a34a" }]}>{attendanceRate}%</Text><Text style={styles.statLabel}>Attendance</Text></View>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { supabase } from "../../lib/supabase";
+import AppHeader from "../../components/AppHeader";
 
 type ScheduleEntry = {
   id: string;
@@ -99,18 +100,7 @@ export default function CalendarScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Schedule</Text>
-        <View style={styles.viewToggle}>
-          {(["day", "week", "month"] as const).map(v => (
-            <TouchableOpacity key={v} style={[styles.viewBtn, view === v && styles.viewBtnActive]} onPress={() => setView(v)}>
-              <Text style={[styles.viewBtnText, view === v && styles.viewBtnTextActive]}>
-                {v.charAt(0).toUpperCase() + v.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+      <AppHeader title="Schedule" />
 
       <View style={styles.nav}>
         <TouchableOpacity onPress={() => navigate(-1)} style={styles.navBtn}>

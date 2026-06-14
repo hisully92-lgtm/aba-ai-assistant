@@ -4,6 +4,7 @@ import {
   TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator
 } from "react-native";
 import { supabase } from "../../lib/supabase";
+import AppHeader from "../../components/AppHeader";
 
 type Client = { id: string; full_name: string };
 type Message = {
@@ -90,7 +91,7 @@ export default function ChatScreen() {
   if (!selectedClient) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}><Text style={styles.headerTitle}>Team Chat</Text></View>
+        <AppHeader title="Team Chat" />
         <View style={{ padding: 16 }}>
           <Text style={styles.selectLabel}>Select a client to view team chat</Text>
           {clients.map(c => (

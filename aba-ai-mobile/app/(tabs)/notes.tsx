@@ -4,6 +4,7 @@ import {
   TouchableOpacity, TextInput, ActivityIndicator, Alert
 } from "react-native";
 import { supabase } from "../../lib/supabase";
+import AppHeader from "../../components/AppHeader";
 
 type Client = { id: string; full_name: string };
 type Session = { id: string; client_id: string; date: string; notes: string | null; status: string; created_at: string };
@@ -61,12 +62,7 @@ export default function NotesScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Session Notes</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setShowForm(s => !s)}>
-          <Text style={styles.addBtnText}>{showForm ? "✕" : "+"}</Text>
-        </TouchableOpacity>
-      </View>
+      <AppHeader title="Session Notes" />
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
         {showForm && (
           <View style={styles.form}>

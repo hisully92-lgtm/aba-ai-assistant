@@ -5,6 +5,7 @@ import {
 } from "react-native";
 import * as Location from "expo-location";
 import { supabase } from "../../lib/supabase";
+import AppHeader from "../../components/AppHeader";
 
 type Client = { id: string; full_name: string };
 type TimeEntry = { id: string; clock_in: string; clock_out: string | null; session_type: string; client_id: string | null };
@@ -113,13 +114,7 @@ export default function HomeScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
-      <View style={styles.header}>
-        <Text style={styles.greeting}>{greeting},</Text>
-        <Text style={styles.name}>{userName || "Clinician"}</Text>
-        <View style={styles.roleBadge}>
-          <Text style={styles.roleText}>{role.toUpperCase()}</Text>
-        </View>
-      </View>
+      <AppHeader title="Home" />
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Session Timer</Text>
