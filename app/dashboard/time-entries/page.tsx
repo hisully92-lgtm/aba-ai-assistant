@@ -178,7 +178,7 @@ export default function TimeEntriesPage() {
     const isAdmin = ["bcba", "supervisor", "admin", "clinical_director"].includes(r ?? role);
     let query = supabase
       .from("evv_records")
-      .select("*, clients(full_name), profiles:rbt_id(full_name)")
+      .select("*, clients(full_name)")
       .eq("company_id", cId ?? companyId)
       .eq("evv_status", "complete")
       .order("actual_start", { ascending: false })
