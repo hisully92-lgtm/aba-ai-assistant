@@ -165,6 +165,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       href: "/dashboard/schedule",
       icon: "📅",
       children: sortChildren([
+        { label: "Time Entries", href: "/dashboard/time-entries" },
         { label: "Calendar View", href: "/dashboard/schedule" },
         { label: "Geofence", href: "/dashboard/geofence" },
         { label: "Reminders", href: "/dashboard/reminders" },
@@ -182,6 +183,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       href: "/dashboard/insurance",
       icon: "🏦",
       children: sortChildren([
+        { label: "Time Entries", href: "/dashboard/time-entries" },
         { label: "AI Compliance Check", href: "/dashboard/insurance/ai-check" },
         { label: "Authorizations", href: "/dashboard/authorizations" },
         { label: "Claims & Auth", href: "/dashboard/insurance" },
