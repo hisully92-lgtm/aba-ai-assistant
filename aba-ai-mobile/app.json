@@ -14,7 +14,8 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.abaai.mobile"
     },
     "android": {
       "adaptiveIcon": {
@@ -22,14 +23,21 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.abaai.mobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-secure-store",
-      "expo-router"
-    ]
+      "expo-router",
+      "expo-notifications"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "9f789234-7f7f-4d05-a3c9-11751e353dbd"
+      }
+    }
   }
 }

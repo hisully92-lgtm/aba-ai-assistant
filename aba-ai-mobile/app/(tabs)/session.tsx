@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal
+  TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, Switch
 } from "react-native";
 import { supabase } from "../../lib/supabase";
 import AppHeader from "../../components/AppHeader";
@@ -41,6 +41,22 @@ const INTERVENTIONS = [
   "Response blocking", "NCR", "Token economy", "Visual supports", "Prompting hierarchy"
 ];
 
+const CPT_CODES = [
+  { code: "97153", label: "97153 — Adaptive Behavior Treatment" },
+  { code: "97155", label: "97155 — Protocol Modification" },
+  { code: "97156", label: "97156 — Family Guidance" },
+  { code: "97151", label: "97151 — Behavior Identification" },
+];
+
+const SESSION_TYPES = [
+  "Direct Therapy", "Supervision", "Parent Training", "Assessment", "Telehealth",
+];
+
+const ADJUSTMENT_REASONS = [
+  "App failed to open", "Forgot to start timer", "Forgot to end timer",
+  "Client arrived late", "Session ran over", "Technical issues", "Other",
+];
+
 export default function SessionScreen() {
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState("");
@@ -50,6 +66,8 @@ export default function SessionScreen() {
   const [activeTab, setActiveTab] = useState<"behaviors" | "skills" | "dtt">("behaviors");
   const [companyId, setCompanyId] = useState("");
   const [userId, setUserId] = useState("");
+  const [driveTimeEnabled, setDriveTimeEnabled] = useState(false);
+  const [driveTimeMax, setDriveTimeMax] = useState(120);
 
   const [customBehaviors, setCustomBehaviors] = useState<CustomBehavior[]>([]);
   const [skillTargets, setSkillTargets] = useState<SkillTarget[]>([]);
@@ -60,9 +78,27 @@ export default function SessionScreen() {
   const [activeTarget, setActiveTarget] = useState<SkillTarget | null>(null);
   const [promptModal, setPromptModal] = useState<{ target: SkillTarget; result: "correct" | "prompted" | "incorrect" | "no_response" } | null>(null);
 
-  // DTT (old style)
+  // DTT
   const [trialProgram, setTrialProgram] = useState("");
   const [trials, setTrials] = useState<Array<{ result: "correct" | "incorrect" | "prompted" }>>([]);
+
+  // TIME ENTRY
+  const [showTimeEntry, setShowTimeEntry] = useState(false);
+  const [timeEntryForm, setTimeEntryForm] = useState({
+    date: new Date().toISOString().split("T")[0],
+    start_time: "",
+    end_time: "",
+    session_type: "Direct Therapy",
+    cpt_code: "97153",
+    drive_time_minutes: 0,
+    drive_time_billable: false,
+    notes: "",
+    start_adjusted: false,
+    start_reason: "",
+    end_adjusted: false,
+    end_reason: "",
+  });
+  const [activeTimeEntry, setActiveTimeEntry] = useState<any>(null);
 
   useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (selectedClient) loadClientData(); }, [selectedClient]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -76,47 +112,55 @@ export default function SessionScreen() {
       .from("company_users").select("company_id")
       .eq("user_id", user.id).eq("status", "active").limit(1).maybeSingle();
     setCompanyId(companyUser?.company_id ?? "");
-    const { data } = await supabase.from("clients").select("id, full_name")
-      .eq("company_id", companyUser?.company_id).order("full_name");
-    setClients(data ?? []);
+
+    const [{ data: clients }, { data: company }, { data: activeEntry }] = await Promise.all([
+      supabase.from("clients").select("id, full_name").eq("company_id", companyUser?.company_id).order("full_name"),
+      supabase.from("companies").select("drive_time_enabled, drive_time_max_minutes").eq("id", companyUser?.company_id).single(),
+      supabase.from("time_entries").select("*").eq("created_by", user.id).is("clock_out", null).limit(1).maybeSingle(),
+    ]);
+
+    setClients(clients ?? []);
+    setDriveTimeEnabled(company?.drive_time_enabled ?? false);
+    setDriveTimeMax(company?.drive_time_max_minutes ?? 120);
+    setActiveTimeEntry(activeEntry ?? null);
+
+    if (activeEntry) {
+      const clockIn = new Date(activeEntry.clock_in);
+      setTimeEntryForm(prev => ({
+        ...prev,
+        start_time: `${String(clockIn.getHours()).padStart(2, "0")}:${String(clockIn.getMinutes()).padStart(2, "0")}`,
+      }));
+    }
     setLoading(false);
   }
 
   async function loadClientData() {
-  const online = await isOnline();
-  if (online) {
-    const [{ data: behaviors }, { data: targets }] = await Promise.all([
-      supabase.from("custom_behaviors")
-        .select("*, severity_levels:behavior_severity_levels(*)")
-        .eq("company_id", companyId).eq("client_id", selectedClient)
-        .eq("is_active", true).order("display_order"),
-      supabase.from("skill_targets")
-        .select("*, prompt_levels(*)")
-        .eq("company_id", companyId).eq("client_id", selectedClient)
-        .eq("is_active", true).order("display_order"),
-    ]);
-    setCustomBehaviors(behaviors ?? []);
-    setSkillTargets(targets ?? []);
-  } else {
-    // Load from cache
-    const [behaviors, targets] = await Promise.all([
-      getCachedBehaviors(selectedClient),
-      getCachedTargets(selectedClient),
-    ]);
-    setCustomBehaviors(behaviors);
-    setSkillTargets(targets);
+    const online = await isOnline();
+    if (online) {
+      const [{ data: behaviors }, { data: targets }] = await Promise.all([
+        supabase.from("custom_behaviors").select("*, severity_levels:behavior_severity_levels(*)")
+          .eq("company_id", companyId).eq("client_id", selectedClient).eq("is_active", true).order("display_order"),
+        supabase.from("skill_targets").select("*, prompt_levels(*)")
+          .eq("company_id", companyId).eq("client_id", selectedClient).eq("is_active", true).order("display_order"),
+      ]);
+      setCustomBehaviors(behaviors ?? []);
+      setSkillTargets(targets ?? []);
+    } else {
+      const [behaviors, targets] = await Promise.all([
+        getCachedBehaviors(selectedClient),
+        getCachedTargets(selectedClient),
+      ]);
+      setCustomBehaviors(behaviors);
+      setSkillTargets(targets);
+    }
+    setBehaviorEntries([]);
+    setTrialEntries([]);
   }
-  setBehaviorEntries([]);
-  setTrialEntries([]);
-}
 
   function recordBehavior(behavior: CustomBehavior, severityId: string | null, severityLabel: string | null, severityColor: string | null) {
     setBehaviorEntries(prev => {
       const existing = prev.find(e => e.behaviorId === behavior.id && e.severityId === severityId);
-      if (existing) {
-        return prev.map(e => e.behaviorId === behavior.id && e.severityId === severityId
-          ? { ...e, frequency: e.frequency + 1 } : e);
-      }
+      if (existing) return prev.map(e => e.behaviorId === behavior.id && e.severityId === severityId ? { ...e, frequency: e.frequency + 1 } : e);
       return [...prev, { behaviorId: behavior.id, behaviorName: behavior.name, severityId, severityLabel, severityColor, frequency: 1 }];
     });
     setSeverityModal(null);
@@ -138,68 +182,129 @@ export default function SessionScreen() {
   const trialEntryPct = totalTrials > 0 ? Math.round((correctTrials / totalTrials) * 100) : 0;
 
   async function handleSave() {
-  if (!selectedClient) { Alert.alert("Please select a client."); return; }
-  setSaving(true);
-  const { data: auth } = await supabase.auth.getUser();
-  const user = auth?.user;
-  if (!user) return;
+    if (!selectedClient) { Alert.alert("Please select a client."); return; }
+    if (!timeEntryForm.start_time || !timeEntryForm.end_time) {
+      Alert.alert("Missing Time", "Please fill in the start and end time in the Time Entry section before saving.");
+      return;
+    }
+    setSaving(true);
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth?.user;
+    if (!user) return;
 
-  const online = await isOnline();
-  const behaviorsStr = behaviorEntries.map(e =>
-    `${e.behaviorName}${e.severityLabel ? ` (${e.severityLabel})` : ""} x${e.frequency}`
-  ).join(", ");
-  const trialNote = trials.length > 0 ? `${trialProgram}: ${trialCorrect}/${trials.length} correct (${trialPct}%)` : "";
+    const online = await isOnline();
+    const behaviorsStr = behaviorEntries.map(e => `${e.behaviorName}${e.severityLabel ? ` (${e.severityLabel})` : ""} x${e.frequency}`).join(", ");
+    const trialNote = trials.length > 0 ? `${trialProgram}: ${trialCorrect}/${trials.length} correct (${trialPct}%)` : "";
 
-  const sessionPayload = {
-    client_id: selectedClient,
-    date: new Date().toISOString().split("T")[0],
-    status: "completed",
-    behaviors_observed: behaviorsStr || "No behaviors observed",
-    interventions_used: selectedInterventions.join(", "),
-    programs_targeted: [...new Set(trialEntries.map(t => `${t.programName}: ${t.targetName}`)), trialNote].filter(Boolean).join(", "),
-    created_by: user.id,
-    company_id: companyId,
-  };
+    const sessionPayload = {
+      client_id: selectedClient,
+      date: timeEntryForm.date,
+      status: "completed",
+      behaviors_observed: behaviorsStr || "No behaviors observed",
+      interventions_used: selectedInterventions.join(", "),
+      programs_targeted: [...new Set(trialEntries.map(t => `${t.programName}: ${t.targetName}`)), trialNote].filter(Boolean).join(", "),
+      created_by: user.id,
+      company_id: companyId,
+      start_time: new Date(`${timeEntryForm.date}T${timeEntryForm.start_time}`).toISOString(),
+      end_time: new Date(`${timeEntryForm.date}T${timeEntryForm.end_time}`).toISOString(),
+      notes: timeEntryForm.notes || null,
+    };
 
-  if (!online) {
-    // Queue everything for later
-    await addToQueue({ type: "sessions", payload: sessionPayload });
-    Alert.alert("Saved Offline", "Session queued and will sync when you're back online.");
-    setBehaviorEntries([]); setTrialEntries([]);
-    setSelectedInterventions([]); setTrials([]); setTrialProgram("");
-    setSaving(false); setSuccess(true);
+    if (!online) {
+      await addToQueue({ type: "sessions", payload: sessionPayload });
+      Alert.alert("Saved Offline", "Session queued and will sync when you're back online.");
+      resetForm();
+      setSaving(false);
+      return;
+    }
+
+    const { data: session } = await supabase.from("sessions").insert(sessionPayload).select().single();
+
+    if (session) {
+      if (behaviorEntries.length > 0) {
+        await supabase.from("behavior_data").insert(
+          behaviorEntries.map(e => ({
+            session_id: session.id, client_id: selectedClient, company_id: companyId,
+            behavior_id: e.behaviorId, severity_level_id: e.severityId,
+            severity_label: e.severityLabel, frequency: e.frequency, created_by: user.id,
+          }))
+        );
+      }
+      if (trialEntries.length > 0) {
+        await supabase.from("skill_trial_data").insert(
+          trialEntries.map(e => ({
+            session_id: session.id, client_id: selectedClient, company_id: companyId,
+            target_id: e.targetId, prompt_level_id: e.promptId,
+            prompt_label: e.promptLabel, result: e.result, created_by: user.id,
+          }))
+        );
+      }
+
+      // Save time entry log
+      const startDt = new Date(`${timeEntryForm.date}T${timeEntryForm.start_time}`);
+      const endDt = new Date(`${timeEntryForm.date}T${timeEntryForm.end_time}`);
+      const duration = Math.floor((endDt.getTime() - startDt.getTime()) / 60000);
+
+      await supabase.from("time_entry_logs").insert({
+        company_id: companyId,
+        user_id: user.id,
+        client_id: selectedClient,
+        time_entry_id: activeTimeEntry?.id ?? null,
+        date: timeEntryForm.date,
+        start_time: startDt.toISOString(),
+        end_time: endDt.toISOString(),
+        duration_minutes: duration,
+        session_type: timeEntryForm.session_type,
+        cpt_code: timeEntryForm.cpt_code,
+        drive_time_minutes: timeEntryForm.drive_time_minutes,
+        drive_time_billable: timeEntryForm.drive_time_billable,
+        notes: timeEntryForm.notes || null,
+        status: "draft",
+        location_name: activeTimeEntry?.location_name ?? null,
+        geofence_verified: activeTimeEntry?.geofence_verified ?? false,
+        start_time_adjusted: timeEntryForm.start_adjusted,
+        start_adjustment_reason: timeEntryForm.start_adjusted ? timeEntryForm.start_reason : null,
+        end_time_adjusted: timeEntryForm.end_adjusted,
+        end_adjustment_reason: timeEntryForm.end_adjusted ? timeEntryForm.end_reason : null,
+      });
+
+      // Clock out if still clocked in
+      if (activeTimeEntry) {
+        await supabase.from("time_entries").update({
+          clock_out: endDt.toISOString(),
+          duration_minutes: duration,
+        }).eq("id", activeTimeEntry.id);
+        setActiveTimeEntry(null);
+      }
+    }
+
+    resetForm();
+    setSaving(false);
+    setSuccess(true);
     setTimeout(() => setSuccess(false), 3000);
-    return;
   }
 
-  const { data: session } = await supabase.from("sessions").insert(sessionPayload).select().single();
-
-  if (session) {
-    if (behaviorEntries.length > 0) {
-      await supabase.from("behavior_data").insert(
-        behaviorEntries.map(e => ({
-          session_id: session.id, client_id: selectedClient, company_id: companyId,
-          behavior_id: e.behaviorId, severity_level_id: e.severityId,
-          severity_label: e.severityLabel, frequency: e.frequency, created_by: user.id,
-        }))
-      );
-    }
-    if (trialEntries.length > 0) {
-      await supabase.from("skill_trial_data").insert(
-        trialEntries.map(e => ({
-          session_id: session.id, client_id: selectedClient, company_id: companyId,
-          target_id: e.targetId, prompt_level_id: e.promptId,
-          prompt_label: e.promptLabel, result: e.result, created_by: user.id,
-        }))
-      );
-    }
+  function resetForm() {
+    setBehaviorEntries([]);
+    setTrialEntries([]);
+    setSelectedInterventions([]);
+    setTrials([]);
+    setTrialProgram("");
+    setTimeEntryForm({
+      date: new Date().toISOString().split("T")[0],
+      start_time: "",
+      end_time: "",
+      session_type: "Direct Therapy",
+      cpt_code: "97153",
+      drive_time_minutes: 0,
+      drive_time_billable: false,
+      notes: "",
+      start_adjusted: false,
+      start_reason: "",
+      end_adjusted: false,
+      end_reason: "",
+    });
   }
-
-  setBehaviorEntries([]); setTrialEntries([]);
-  setSelectedInterventions([]); setTrials([]); setTrialProgram("");
-  setSaving(false); setSuccess(true);
-  setTimeout(() => setSuccess(false), 3000);
-}
 
   if (loading) return <View style={styles.center}><ActivityIndicator color="#2563eb" /></View>;
 
@@ -210,6 +315,7 @@ export default function SessionScreen() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
         {success && <View style={styles.successBanner}><Text style={styles.successText}>✓ Session saved successfully</Text></View>}
 
+        {/* CLIENT SELECT */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Client</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -221,6 +327,15 @@ export default function SessionScreen() {
           </ScrollView>
         </View>
 
+        {/* ACTIVE CLOCK IN BANNER */}
+        {activeTimeEntry && (
+          <View style={styles.activeSessionBanner}>
+            <Text style={styles.activeSessionText}>⏱️ Session in progress since {new Date(activeTimeEntry.clock_in).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
+            {activeTimeEntry.location_name && <Text style={styles.activeSessionSub}>📍 {activeTimeEntry.location_name}</Text>}
+          </View>
+        )}
+
+        {/* TABS */}
         <View style={styles.tabs}>
           {(["behaviors", "skills", "dtt"] as const).map(tab => (
             <TouchableOpacity key={tab} style={[styles.tab, activeTab === tab && styles.tabActive]} onPress={() => setActiveTab(tab)}>
@@ -394,10 +509,134 @@ export default function SessionScreen() {
           </View>
         )}
 
-        <View style={styles.saveSection}>
-          <TouchableOpacity style={[styles.saveBtn, !selectedClient && styles.saveBtnDisabled]} onPress={handleSave} disabled={!selectedClient || saving}>
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Session Data</Text>}
+        {/* TIME ENTRY SECTION */}
+        <View style={styles.timeEntrySection}>
+          <TouchableOpacity style={styles.timeEntryHeader} onPress={() => setShowTimeEntry(s => !s)}>
+            <Text style={styles.timeEntryTitle}>⏱️ Time Entry {showTimeEntry ? "▼" : "▶"}</Text>
+            <Text style={styles.timeEntrySubtitle}>Required before saving session</Text>
           </TouchableOpacity>
+
+          {showTimeEntry && (
+            <View style={styles.timeEntryForm}>
+
+              {/* DATE */}
+              <Text style={styles.sectionLabel}>Date</Text>
+              <TextInput style={styles.input} value={timeEntryForm.date} onChangeText={t => setTimeEntryForm(p => ({ ...p, date: t }))} placeholder="YYYY-MM-DD" />
+
+              {/* START TIME */}
+              <Text style={styles.sectionLabel}>Start Time</Text>
+              <TextInput style={styles.input} value={timeEntryForm.start_time}
+                onChangeText={t => setTimeEntryForm(p => ({ ...p, start_time: t, start_adjusted: true }))}
+                placeholder="HH:MM" keyboardType="numbers-and-punctuation" />
+              {timeEntryForm.start_adjusted && (
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={styles.sectionLabel}>Reason for start adjustment</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {ADJUSTMENT_REASONS.map(r => (
+                      <TouchableOpacity key={r} style={[styles.reasonChip, timeEntryForm.start_reason === r && styles.reasonChipActive]}
+                        onPress={() => setTimeEntryForm(p => ({ ...p, start_reason: r }))}>
+                        <Text style={[styles.reasonChipText, timeEntryForm.start_reason === r && styles.reasonChipTextActive]}>{r}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* END TIME */}
+              <Text style={styles.sectionLabel}>End Time</Text>
+              <TextInput style={styles.input} value={timeEntryForm.end_time}
+                onChangeText={t => setTimeEntryForm(p => ({ ...p, end_time: t, end_adjusted: true }))}
+                placeholder="HH:MM" keyboardType="numbers-and-punctuation" />
+              {timeEntryForm.end_adjusted && (
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={styles.sectionLabel}>Reason for end adjustment</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {ADJUSTMENT_REASONS.map(r => (
+                      <TouchableOpacity key={r} style={[styles.reasonChip, timeEntryForm.end_reason === r && styles.reasonChipActive]}
+                        onPress={() => setTimeEntryForm(p => ({ ...p, end_reason: r }))}>
+                        <Text style={[styles.reasonChipText, timeEntryForm.end_reason === r && styles.reasonChipTextActive]}>{r}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* SESSION TYPE */}
+              <Text style={styles.sectionLabel}>Session Type</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                {SESSION_TYPES.map(t => (
+                  <TouchableOpacity key={t} style={[styles.chip, timeEntryForm.session_type === t && styles.chipActive]}
+                    onPress={() => setTimeEntryForm(p => ({ ...p, session_type: t }))}>
+                    <Text style={[styles.chipText, timeEntryForm.session_type === t && styles.chipTextActive]}>{t}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {/* CPT CODE */}
+              <Text style={styles.sectionLabel}>CPT Code</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                {CPT_CODES.map(c => (
+                  <TouchableOpacity key={c.code} style={[styles.chip, timeEntryForm.cpt_code === c.code && styles.chipActive]}
+                    onPress={() => setTimeEntryForm(p => ({ ...p, cpt_code: c.code }))}>
+                    <Text style={[styles.chipText, timeEntryForm.cpt_code === c.code && styles.chipTextActive]}>{c.code}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {/* DRIVE TIME */}
+              {driveTimeEnabled && (
+                <View style={styles.driveTimeSection}>
+                  <Text style={styles.sectionLabel}>Drive Time (max {driveTimeMax} min)</Text>
+                  <TextInput style={styles.input} value={String(timeEntryForm.drive_time_minutes)}
+                    onChangeText={t => setTimeEntryForm(p => ({ ...p, drive_time_minutes: Math.min(parseInt(t) || 0, driveTimeMax) }))}
+                    keyboardType="numeric" placeholder="0" />
+                  <View style={styles.driveTimeBillable}>
+                    <Text style={styles.driveTimeBillableText}>Drive time is billable</Text>
+                    <Switch value={timeEntryForm.drive_time_billable}
+                      onValueChange={v => setTimeEntryForm(p => ({ ...p, drive_time_billable: v }))}
+                      trackColor={{ true: "#2563eb" }} />
+                  </View>
+                </View>
+              )}
+
+              {/* NOTES */}
+              <Text style={styles.sectionLabel}>Session Notes</Text>
+              <TextInput style={[styles.input, { minHeight: 80 }]} value={timeEntryForm.notes}
+                onChangeText={t => setTimeEntryForm(p => ({ ...p, notes: t }))}
+                placeholder="Session summary, behaviors, programs targeted..."
+                multiline textAlignVertical="top" />
+
+              {/* SUMMARY */}
+              {timeEntryForm.start_time && timeEntryForm.end_time && (
+                <View style={styles.timeSummary}>
+                  <Text style={styles.timeSummaryText}>
+                    {timeEntryForm.start_time} → {timeEntryForm.end_time}
+                    {" · "}
+                    {(() => {
+                      const start = new Date(`${timeEntryForm.date}T${timeEntryForm.start_time}`);
+                      const end = new Date(`${timeEntryForm.date}T${timeEntryForm.end_time}`);
+                      const mins = Math.floor((end.getTime() - start.getTime()) / 60000);
+                      return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+                    })()}
+                  </Text>
+                  {timeEntryForm.drive_time_minutes > 0 && (
+                    <Text style={styles.timeSummaryDrive}>🚗 +{timeEntryForm.drive_time_minutes}min drive</Text>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* SAVE */}
+        <View style={styles.saveSection}>
+          <TouchableOpacity
+            style={[styles.saveBtn, (!selectedClient || !timeEntryForm.start_time || !timeEntryForm.end_time) && styles.saveBtnDisabled]}
+            onPress={handleSave}
+            disabled={!selectedClient || !timeEntryForm.start_time || !timeEntryForm.end_time || saving}>
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save & Submit Session</Text>}
+          </TouchableOpacity>
+          <Text style={styles.saveHint}>Saves session data + creates a time entry draft for review</Text>
         </View>
       </ScrollView>
 
@@ -451,11 +690,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f9fafb" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   emptyBox: { alignItems: "center", paddingVertical: 40 },
-emptyEmoji: { fontSize: 40, marginBottom: 10 },
-emptyText: { fontSize: 14, color: "#9ca3af", textAlign: "center" },
-emptySubText: { fontSize: 12, color: "#d1d5db", textAlign: "center", marginTop: 4 },
-  header: { backgroundColor: "#1a2234", paddingTop: 56, paddingBottom: 16, paddingHorizontal: 20 },
-  headerTitle: { fontSize: 22, fontWeight: "800", color: "#fff" },
+  emptyEmoji: { fontSize: 40, marginBottom: 10 },
+  emptyText: { fontSize: 14, color: "#9ca3af", textAlign: "center" },
+  emptySubText: { fontSize: 12, color: "#d1d5db", textAlign: "center", marginTop: 4 },
   successBanner: { backgroundColor: "#dcfce7", padding: 12, margin: 16, borderRadius: 10 },
   successText: { color: "#16a34a", fontWeight: "600", textAlign: "center" },
   section: { padding: 16 },
@@ -504,10 +741,29 @@ emptySubText: { fontSize: 12, color: "#d1d5db", textAlign: "center", marginTop: 
   resetBtn: { paddingVertical: 10, alignItems: "center" },
   resetBtnText: { color: "#6b7280", fontSize: 13, textDecorationLine: "underline", textAlign: "center" },
   input: { borderWidth: 1, borderColor: "#d1d5db", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: "#111827", marginBottom: 14, backgroundColor: "#fff" },
+  activeSessionBanner: { backgroundColor: "#eff6ff", borderLeftWidth: 4, borderLeftColor: "#2563eb", margin: 16, marginBottom: 0, padding: 12, borderRadius: 10 },
+  activeSessionText: { fontSize: 13, fontWeight: "600", color: "#1d4ed8" },
+  activeSessionSub: { fontSize: 11, color: "#6b7280", marginTop: 2 },
+  timeEntrySection: { margin: 16, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: "#e5e7eb" },
+  timeEntryHeader: { padding: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  timeEntryTitle: { fontSize: 15, fontWeight: "700", color: "#111827" },
+  timeEntrySubtitle: { fontSize: 12, color: "#9ca3af" },
+  timeEntryForm: { padding: 16, borderTopWidth: 1, borderTopColor: "#f3f4f6" },
+  driveTimeSection: { marginBottom: 14 },
+  driveTimeBillable: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 },
+  driveTimeBillableText: { fontSize: 14, color: "#374151" },
+  timeSummary: { backgroundColor: "#f0fdf4", borderRadius: 10, padding: 12, marginBottom: 12, alignItems: "center" },
+  timeSummaryText: { fontSize: 15, fontWeight: "700", color: "#16a34a" },
+  timeSummaryDrive: { fontSize: 12, color: "#6b7280", marginTop: 4 },
+  reasonChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: "#d1d5db", backgroundColor: "#fff", marginRight: 8, marginBottom: 8 },
+  reasonChipActive: { backgroundColor: "#2563eb", borderColor: "#2563eb" },
+  reasonChipText: { fontSize: 12, color: "#374151" },
+  reasonChipTextActive: { color: "#fff", fontWeight: "600" },
   saveSection: { padding: 16 },
   saveBtn: { backgroundColor: "#2563eb", paddingVertical: 16, borderRadius: 14, alignItems: "center" },
   saveBtnDisabled: { backgroundColor: "#93c5fd" },
   saveBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  saveHint: { fontSize: 11, color: "#9ca3af", textAlign: "center", marginTop: 8 },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalCard: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
   modalTitle: { fontSize: 18, fontWeight: "800", color: "#111827", marginBottom: 4 },

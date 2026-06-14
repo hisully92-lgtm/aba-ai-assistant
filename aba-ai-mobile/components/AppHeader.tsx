@@ -6,7 +6,9 @@ import {
 import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
 import { useTimers } from "../lib/TimerContext";
+import { useEVV } from "../lib/EVVContext";
 import OfflineBanner from "./OfflineBanner";
+import EVVClockOut from "./EVVClockOut";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -22,7 +24,9 @@ export default function AppHeader({ title }: { title: string }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [timerOpen, setTimerOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [showEVVClockOut, setShowEVVClockOut] = useState(false);
   const { timers, pauseTimer, resumeTimer, resetTimer, removeTimer } = useTimers();
+  const { activeSession, elapsed } = useEVV();
 
   const runningTimers = timers.filter(t => t.running);
   const hasRunning = runningTimers.length > 0;
@@ -44,13 +48,12 @@ export default function AppHeader({ title }: { title: string }) {
 
   return (
     <>
+      {/* MAIN HEADER */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerBtn} onPress={() => setDrawerOpen(true)}>
           <Text style={styles.hamburger}>☰</Text>
         </TouchableOpacity>
-
         <Text style={styles.headerTitle}>{title}</Text>
-
         <TouchableOpacity style={[styles.headerBtn, styles.timerBtn]} onPress={() => setTimerOpen(true)}>
           <Text style={styles.timerIcon}>⏱️</Text>
           {hasRunning && (
@@ -60,6 +63,21 @@ export default function AppHeader({ title }: { title: string }) {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* ACTIVE SESSION BANNER */}
+      {activeSession && (
+        <TouchableOpacity style={styles.sessionBanner} onPress={() => setShowEVVClockOut(true)}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sessionBannerClient}>⏱️ {activeSession.client_name}</Text>
+            <Text style={styles.sessionBannerTime}>
+              {activeSession.location_name ?? "Session in progress"} · {fmt(elapsed)}
+            </Text>
+          </View>
+          <View style={styles.endVisitBtn}>
+            <Text style={styles.endVisitBtnText}>END VISIT</Text>
+          </View>
+        </TouchableOpacity>
+      )}
 
       <OfflineBanner />
 
@@ -73,6 +91,7 @@ export default function AppHeader({ title }: { title: string }) {
             </View>
             <ScrollView style={{ flex: 1 }}>
               {[
+                { emoji: "⏱️", label: "Time Entry", action: () => { setDrawerOpen(false); router.push("/(tabs)/timeentry"); } },
                 { emoji: "👤", label: "Profile & Settings", action: () => { setDrawerOpen(false); router.push("/(tabs)/profile"); } },
                 { emoji: "🏠", label: "Home", action: () => { setDrawerOpen(false); router.push("/(tabs)/home"); } },
                 { emoji: "📅", label: "Schedule", action: () => { setDrawerOpen(false); router.push("/(tabs)/calendar"); } },
@@ -104,7 +123,6 @@ export default function AppHeader({ title }: { title: string }) {
                 <Text style={styles.timerPanelClose}>✕</Text>
               </TouchableOpacity>
             </View>
-
             {timers.length === 0 ? (
               <View style={styles.timerEmpty}>
                 <Text style={styles.timerEmptyText}>No timers running.</Text>
@@ -120,7 +138,6 @@ export default function AppHeader({ title }: { title: string }) {
                   const urgent = isCountdown && remaining !== null && remaining <= 30 && remaining > 0;
                   const progress = isCountdown && timer.durationSeconds
                     ? ((timer.durationSeconds - (remaining ?? 0)) / timer.durationSeconds) * 100 : 0;
-
                   return (
                     <View key={timer.id} style={[styles.timerCard, done && styles.timerCardDone, urgent && styles.timerCardUrgent]}>
                       <View style={styles.timerCardTop}>
@@ -156,13 +173,21 @@ export default function AppHeader({ title }: { title: string }) {
                 })}
               </ScrollView>
             )}
-
             <TouchableOpacity style={styles.goToTimers} onPress={() => { setTimerOpen(false); router.push("/(tabs)/timers"); }}>
               <Text style={styles.goToTimersText}>+ Add New Timer</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* EVV CLOCK OUT */}
+      <EVVClockOut
+        visible={showEVVClockOut}
+        onClose={() => setShowEVVClockOut(false)}
+        onComplete={() => setShowEVVClockOut(false)}
+        behaviorsCount={0}
+        trialsCount={0}
+      />
     </>
   );
 }
@@ -176,6 +201,11 @@ const styles = StyleSheet.create({
   timerIcon: { fontSize: 22 },
   timerBadge: { position: "absolute", top: -4, right: -4, backgroundColor: "#dc2626", borderRadius: 8, width: 16, height: 16, alignItems: "center", justifyContent: "center" },
   timerBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
+  sessionBanner: { backgroundColor: "#16a34a", paddingHorizontal: 16, paddingVertical: 10, flexDirection: "row", alignItems: "center" },
+  sessionBannerClient: { fontSize: 13, fontWeight: "700", color: "#fff" },
+  sessionBannerTime: { fontSize: 11, color: "#bbf7d0", marginTop: 1 },
+  endVisitBtn: { backgroundColor: "#fff", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  endVisitBtnText: { fontSize: 11, fontWeight: "800", color: "#16a34a" },
   drawerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", flexDirection: "row" },
   drawer: { width: SCREEN_WIDTH * 0.75, backgroundColor: "#1a2234", height: "100%", paddingTop: 60 },
   drawerHeader: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingBottom: 24, borderBottomWidth: 1, borderBottomColor: "#2a3a54" },

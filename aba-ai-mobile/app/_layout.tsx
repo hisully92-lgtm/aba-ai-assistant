@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Stack, router } from "expo-router";
 import { supabase } from "../lib/supabase";
 import { TimerProvider } from "../lib/TimerContext";
+import { EVVProvider } from "../lib/EVVContext";
 import * as Notifications from "expo-notifications";
 import { prefetchForOffline, syncQueue } from "../lib/offline";
 
@@ -51,14 +52,10 @@ async function registerPushToken() {
       });
     }
 
-    // Prefetch data for offline use
     if (companyUser?.company_id) {
       await prefetchForOffline(companyUser.company_id, user.id);
     }
-
-    // Sync any queued entries
     await syncQueue();
-
   } catch (e) {
     console.log("Push token error:", e);
   }
@@ -86,8 +83,10 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <TimerProvider>
-      <Stack screenOptions={{ headerShown: false }} />
-    </TimerProvider>
+    <EVVProvider>
+      <TimerProvider>
+        <Stack screenOptions={{ headerShown: false }} />
+      </TimerProvider>
+    </EVVProvider>
   );
 }

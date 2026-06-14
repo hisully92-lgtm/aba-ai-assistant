@@ -44,6 +44,7 @@ export default function TabsLayout() {
       }} />
       <Tabs.Screen name="timers" options={{ href: null }} />
       <Tabs.Screen name="profile" options={{ href: null }} />
+      <Tabs.Screen name="timeentry" options={{ href: null }} />
     </Tabs>
   );
 }
