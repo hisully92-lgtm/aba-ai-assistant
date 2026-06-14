@@ -1,15 +1,50 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, TextInput, Alert, ActivityIndicator
+  TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal
 } from "react-native";
 import { supabase } from "../../lib/supabase";
 
 type Client = { id: string; full_name: string };
+type CustomBehavior = {
+  id: string;
+  name: string;
+  severity_levels: { id: string; level_number: number; label: string; description: string | null; color: string }[];
+};
+type SkillTarget = {
+  id: string;
+  program_name: string;
+  target_name: string;
+  prompt_levels: { id: string; level_number: number; label: string; abbreviation: string | null }[];
+};
+type Timer = {
+  id: string;
+  label: string;
+  running: boolean;
+  seconds: number;
+  startTime: number | null;
+};
+type BehaviorEntry = {
+  behaviorId: string;
+  behaviorName: string;
+  severityId: string | null;
+  severityLabel: string | null;
+  severityColor: string | null;
+  frequency: number;
+};
+type TrialEntry = {
+  targetId: string;
+  targetName: string;
+  programName: string;
+  promptId: string | null;
+  promptLabel: string | null;
+  result: "correct" | "prompted" | "incorrect" | "no_response";
+};
 
-const BEHAVIORS = ["Aggression", "SIB", "Elopement", "Property Destruction", "Tantrum", "Non-Compliance", "Vocal Disruption", "Stereotypy", "None observed"];
-const INTERVENTIONS = ["Redirection", "Planned ignoring", "Differential reinforcement", "Response blocking", "NCR", "Token economy", "Visual supports", "Prompting hierarchy"];
-const PROGRAMS = ["Mand Training", "Tact Training", "Imitation", "Matching", "Receptive ID", "Expressive ID", "Social Skills", "Daily Living Skills"];
+const INTERVENTIONS = [
+  "Redirection", "Planned ignoring", "Differential reinforcement",
+  "Response blocking", "NCR", "Token economy", "Visual supports", "Prompting hierarchy"
+];
 
 export default function SessionScreen() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -17,69 +52,222 @@ export default function SessionScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [activeTab, setActiveTab] = useState<"behaviors" | "skills" | "trials">("behaviors");
+  const [activeTab, setActiveTab] = useState<"behaviors" | "skills" | "timers">("behaviors");
   const [companyId, setCompanyId] = useState("");
+  const [userId, setUserId] = useState("");
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
-  const [selectedBehaviors, setSelectedBehaviors] = useState<string[]>([]);
-  const [behaviorCounts, setBehaviorCounts] = useState<Record<string, number>>({});
+  // Custom data
+  const [customBehaviors, setCustomBehaviors] = useState<CustomBehavior[]>([]);
+  const [skillTargets, setSkillTargets] = useState<SkillTarget[]>([]);
+
+  // Behavior tracking
+  const [behaviorEntries, setBehaviorEntries] = useState<BehaviorEntry[]>([]);
   const [selectedInterventions, setSelectedInterventions] = useState<string[]>([]);
-  const [selectedPrograms, setSelectedPrograms] = useState<string[]>([]);
-  const [clientResponse, setClientResponse] = useState("");
-  const [trialProgram, setTrialProgram] = useState("");
-  const [trials, setTrials] = useState<Array<{ result: "correct" | "incorrect" | "prompted" }>>([]);
+  const [severityModal, setSeverityModal] = useState<{ behavior: CustomBehavior } | null>(null);
+
+  // Skill trials
+  const [trialEntries, setTrialEntries] = useState<TrialEntry[]>([]);
+  const [activeTarget, setActiveTarget] = useState<SkillTarget | null>(null);
+  const [promptModal, setPromptModal] = useState<{ target: SkillTarget; result: "correct" | "prompted" | "incorrect" | "no_response" } | null>(null);
+
+  // Timers
+  const [timers, setTimers] = useState<Timer[]>([
+    { id: "1", label: "Session Timer", running: false, seconds: 0, startTime: null }
+  ]);
+  const timerInterval = useRef<any>(null);
 
   useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    timerInterval.current = setInterval(() => {
+      setTimers(prev => prev.map(t => {
+        if (!t.running || !t.startTime) return t;
+        return { ...t, seconds: Math.floor((Date.now() - t.startTime) / 1000) };
+      }));
+    }, 500);
+    return () => clearInterval(timerInterval.current);
+  }, []);
+
+  useEffect(() => {
+    if (selectedClient) loadClientData();
+  }, [selectedClient]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
-    const { data: companyUser } = await supabase.from("company_users").select("company_id").eq("user_id", user.id).eq("status", "active").limit(1).maybeSingle();
+    setUserId(user.id);
+    const { data: companyUser } = await supabase
+      .from("company_users").select("company_id")
+      .eq("user_id", user.id).eq("status", "active").limit(1).maybeSingle();
     setCompanyId(companyUser?.company_id ?? "");
-    const { data } = await supabase.from("clients").select("id, full_name").eq("company_id", companyUser?.company_id);
+    const { data } = await supabase.from("clients").select("id, full_name")
+      .eq("company_id", companyUser?.company_id).order("full_name");
     setClients(data ?? []);
     setLoading(false);
   }
 
-  function toggleBehavior(b: string) {
-    setSelectedBehaviors(prev => prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b]);
-    if (!behaviorCounts[b]) setBehaviorCounts(prev => ({ ...prev, [b]: 0 }));
+  async function loadClientData() {
+    const [{ data: behaviors }, { data: targets }] = await Promise.all([
+      supabase.from("custom_behaviors")
+        .select("*, severity_levels:behavior_severity_levels(*)")
+        .eq("company_id", companyId).eq("client_id", selectedClient)
+        .eq("is_active", true).order("display_order"),
+      supabase.from("skill_targets")
+        .select("*, prompt_levels(*)")
+        .eq("company_id", companyId).eq("client_id", selectedClient)
+        .eq("is_active", true).order("display_order"),
+    ]);
+    setCustomBehaviors(behaviors ?? []);
+    setSkillTargets(targets ?? []);
+    setBehaviorEntries([]);
+    setTrialEntries([]);
   }
 
-  function addTrial(result: "correct" | "incorrect" | "prompted") {
-    setTrials(prev => [...prev, { result }]);
+  function formatTimer(seconds: number) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   }
 
-  const trialCorrect = trials.filter(t => t.result === "correct").length;
-  const trialPct = trials.length > 0 ? Math.round((trialCorrect / trials.length) * 100) : 0;
+  function toggleTimer(id: string) {
+    setTimers(prev => prev.map(t => {
+      if (t.id !== id) return t;
+      if (t.running) {
+        return { ...t, running: false, startTime: null };
+      } else {
+        return { ...t, running: true, startTime: Date.now() - t.seconds * 1000 };
+      }
+    }));
+  }
+
+  function resetTimer(id: string) {
+    setTimers(prev => prev.map(t => t.id !== id ? t : { ...t, running: false, seconds: 0, startTime: null }));
+  }
+
+  function addTimer() {
+    const id = Date.now().toString();
+    setTimers(prev => [...prev, { id, label: `Timer ${prev.length + 1}`, running: false, seconds: 0, startTime: null }]);
+  }
+
+  function removeTimer(id: string) {
+    setTimers(prev => prev.filter(t => t.id !== id));
+  }
+
+  function recordBehavior(behavior: CustomBehavior, severityId: string | null, severityLabel: string | null, severityColor: string | null) {
+    setBehaviorEntries(prev => {
+      const existing = prev.find(e => e.behaviorId === behavior.id && e.severityId === severityId);
+      if (existing) {
+        return prev.map(e => e.behaviorId === behavior.id && e.severityId === severityId
+          ? { ...e, frequency: e.frequency + 1 } : e);
+      }
+      return [...prev, {
+        behaviorId: behavior.id,
+        behaviorName: behavior.name,
+        severityId,
+        severityLabel,
+        severityColor,
+        frequency: 1,
+      }];
+    });
+    setSeverityModal(null);
+  }
+
+  function recordTrial(target: SkillTarget, promptId: string | null, promptLabel: string | null, result: "correct" | "prompted" | "incorrect" | "no_response") {
+    setTrialEntries(prev => [...prev, {
+      targetId: target.id,
+      targetName: target.target_name,
+      programName: target.program_name,
+      promptId,
+      promptLabel,
+      result,
+    }]);
+    setPromptModal(null);
+  }
 
   async function handleSave() {
     if (!selectedClient) { Alert.alert("Please select a client."); return; }
     setSaving(true);
+
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
 
-    const behaviorsStr = selectedBehaviors.map(b => `${b}${behaviorCounts[b] ? ` (${behaviorCounts[b]}x)` : ""}`).join(", ");
-    const trialNote = trials.length > 0 ? `${trialProgram}: ${trialCorrect}/${trials.length} correct (${trialPct}%)` : "";
-
-    await supabase.from("sessions").insert({
+    // Create session
+    const { data: session } = await supabase.from("sessions").insert({
       client_id: selectedClient,
       date: new Date().toISOString().split("T")[0],
       status: "completed",
-      behaviors_observed: behaviorsStr || "No behaviors observed",
+      behaviors_observed: behaviorEntries.map(e =>
+        `${e.behaviorName}${e.severityLabel ? ` (${e.severityLabel})` : ""} x${e.frequency}`
+      ).join(", ") || "No behaviors observed",
       interventions_used: selectedInterventions.join(", "),
-      programs_targeted: [...selectedPrograms, trialNote].filter(Boolean).join(", "),
-      client_response: clientResponse,
+      programs_targeted: [...new Set(trialEntries.map(t => `${t.programName}: ${t.targetName}`))].join(", "),
       created_by: user.id,
       company_id: companyId,
-    });
+    }).select().single();
 
-    setSelectedBehaviors([]); setBehaviorCounts({}); setSelectedInterventions([]);
-    setSelectedPrograms([]); setClientResponse(""); setTrials([]); setTrialProgram("");
+    if (session) {
+      // Save behavior data
+      if (behaviorEntries.length > 0) {
+        await supabase.from("behavior_data").insert(
+          behaviorEntries.map(e => ({
+            session_id: session.id,
+            client_id: selectedClient,
+            company_id: companyId,
+            behavior_id: e.behaviorId,
+            severity_level_id: e.severityId,
+            severity_label: e.severityLabel,
+            frequency: e.frequency,
+            created_by: user.id,
+          }))
+        );
+      }
+
+      // Save trial data
+      if (trialEntries.length > 0) {
+        await supabase.from("skill_trial_data").insert(
+          trialEntries.map(e => ({
+            session_id: session.id,
+            client_id: selectedClient,
+            company_id: companyId,
+            target_id: e.targetId,
+            prompt_level_id: e.promptId,
+            prompt_label: e.promptLabel,
+            result: e.result,
+            created_by: user.id,
+          }))
+        );
+      }
+
+      // Save timers
+      const completedTimers = timers.filter(t => t.seconds > 0);
+      if (completedTimers.length > 0) {
+        await supabase.from("session_timers").insert(
+          completedTimers.map(t => ({
+            session_id: session.id,
+            client_id: selectedClient,
+            company_id: companyId,
+            label: t.label,
+            duration_seconds: t.seconds,
+            created_by: user.id,
+          }))
+        );
+      }
+    }
+
+    setBehaviorEntries([]); setTrialEntries([]);
+    setSelectedInterventions([]);
+    setTimers([{ id: "1", label: "Session Timer", running: false, seconds: 0, startTime: null }]);
     setSaving(false); setSuccess(true);
     setTimeout(() => setSuccess(false), 3000);
   }
+
+  const totalTrials = trialEntries.length;
+  const correctTrials = trialEntries.filter(t => t.result === "correct").length;
+  const trialPct = totalTrials > 0 ? Math.round((correctTrials / totalTrials) * 100) : 0;
 
   if (loading) return <View style={styles.center}><ActivityIndicator color="#2563eb" /></View>;
 
@@ -88,126 +276,305 @@ export default function SessionScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Data Collection</Text>
       </View>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
+
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
         {success && <View style={styles.successBanner}><Text style={styles.successText}>✓ Session saved successfully</Text></View>}
 
+        {/* CLIENT SELECT */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Client</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {clients.map(c => (
-              <TouchableOpacity key={c.id} style={[styles.chip, selectedClient === c.id && styles.chipActive]} onPress={() => setSelectedClient(c.id)}>
+              <TouchableOpacity key={c.id}
+                style={[styles.chip, selectedClient === c.id && styles.chipActive]}
+                onPress={() => setSelectedClient(c.id)}>
                 <Text style={[styles.chipText, selectedClient === c.id && styles.chipTextActive]}>{c.full_name}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
         </View>
 
+        {/* TABS */}
         <View style={styles.tabs}>
-          {(["behaviors", "skills", "trials"] as const).map(tab => (
+          {(["behaviors", "skills", "timers"] as const).map(tab => (
             <TouchableOpacity key={tab} style={[styles.tab, activeTab === tab && styles.tabActive]} onPress={() => setActiveTab(tab)}>
               <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-                {tab === "behaviors" ? "🧠 Behaviors" : tab === "skills" ? "🎯 Skills" : "📊 DTT"}
+                {tab === "behaviors" ? "🧠 Behaviors" : tab === "skills" ? "🎯 Skills" : "⏱️ Timers"}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
+        {/* BEHAVIORS TAB */}
         {activeTab === "behaviors" && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Behaviors Observed</Text>
-            <View style={styles.chipGrid}>
-              {BEHAVIORS.map(b => (
-                <TouchableOpacity key={b} style={[styles.chip, selectedBehaviors.includes(b) && styles.chipRed]} onPress={() => toggleBehavior(b)}>
-                  <Text style={[styles.chipText, selectedBehaviors.includes(b) && styles.chipTextActive]}>{b}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {selectedBehaviors.filter(b => b !== "None observed").length > 0 && (
-              <View style={styles.counterSection}>
-                <Text style={styles.sectionLabel}>Frequency Count</Text>
-                {selectedBehaviors.filter(b => b !== "None observed").map(b => (
-                  <View key={b} style={styles.counterRow}>
-                    <Text style={styles.counterLabel}>{b}</Text>
-                    <View style={styles.counterControls}>
-                      <TouchableOpacity style={styles.counterBtn} onPress={() => setBehaviorCounts(prev => ({ ...prev, [b]: Math.max(0, (prev[b] ?? 0) - 1) }))}>
-                        <Text style={styles.counterBtnText}>−</Text>
-                      </TouchableOpacity>
-                      <Text style={styles.counterNum}>{behaviorCounts[b] ?? 0}</Text>
-                      <TouchableOpacity style={[styles.counterBtn, styles.counterBtnPlus]} onPress={() => setBehaviorCounts(prev => ({ ...prev, [b]: (prev[b] ?? 0) + 1 }))}>
-                        <Text style={styles.counterBtnText}>+</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
+            {!selectedClient ? (
+              <Text style={styles.emptyText}>Select a client to see their behaviors.</Text>
+            ) : customBehaviors.length === 0 ? (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyEmoji}>🧠</Text>
+                <Text style={styles.emptyText}>No custom behaviors set up yet.</Text>
+                <Text style={styles.emptySubText}>Ask your BCBA to add behaviors in the web portal.</Text>
               </View>
+            ) : (
+              <>
+                <Text style={styles.sectionLabel}>Tap to Record</Text>
+                <View style={styles.chipGrid}>
+                  {customBehaviors.map(b => (
+                    <TouchableOpacity key={b.id}
+                      style={[styles.chip, styles.chipRed]}
+                      onPress={() => {
+                        if (b.severity_levels && b.severity_levels.length > 0) {
+                          setSeverityModal({ behavior: b });
+                        } else {
+                          recordBehavior(b, null, null, null);
+                        }
+                      }}>
+                      <Text style={styles.chipTextActive}>{b.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Recorded behaviors */}
+                {behaviorEntries.length > 0 && (
+                  <View style={styles.recordedSection}>
+                    <Text style={styles.sectionLabel}>Recorded</Text>
+                    {behaviorEntries.map((e, i) => (
+                      <View key={i} style={styles.recordedRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.recordedName}>{e.behaviorName}</Text>
+                          {e.severityLabel && (
+                            <Text style={[styles.recordedSeverity, { color: e.severityColor ?? "#dc2626" }]}>
+                              {e.severityLabel}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={styles.counterControls}>
+                          <TouchableOpacity style={styles.counterBtn}
+                            onPress={() => setBehaviorEntries(prev => prev.map((en, j) =>
+                              j === i ? { ...en, frequency: Math.max(0, en.frequency - 1) } : en
+                            ).filter(en => en.frequency > 0))}>
+                            <Text style={styles.counterBtnText}>−</Text>
+                          </TouchableOpacity>
+                          <Text style={styles.counterNum}>{e.frequency}</Text>
+                          <TouchableOpacity style={[styles.counterBtn, styles.counterBtnPlus]}
+                            onPress={() => setBehaviorEntries(prev => prev.map((en, j) =>
+                              j === i ? { ...en, frequency: en.frequency + 1 } : en
+                            ))}>
+                            <Text style={styles.counterBtnText}>+</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                <Text style={[styles.sectionLabel, { marginTop: 16 }]}>Interventions Used</Text>
+                <View style={styles.chipGrid}>
+                  {INTERVENTIONS.map(i => (
+                    <TouchableOpacity key={i}
+                      style={[styles.chip, selectedInterventions.includes(i) && styles.chipActive]}
+                      onPress={() => setSelectedInterventions(prev =>
+                        prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]
+                      )}>
+                      <Text style={[styles.chipText, selectedInterventions.includes(i) && styles.chipTextActive]}>{i}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
             )}
-            <Text style={[styles.sectionLabel, { marginTop: 16 }]}>Interventions Used</Text>
-            <View style={styles.chipGrid}>
-              {INTERVENTIONS.map(i => (
-                <TouchableOpacity key={i} style={[styles.chip, selectedInterventions.includes(i) && styles.chipActive]} onPress={() => setSelectedInterventions(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])}>
-                  <Text style={[styles.chipText, selectedInterventions.includes(i) && styles.chipTextActive]}>{i}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
           </View>
         )}
 
+        {/* SKILLS TAB */}
         {activeTab === "skills" && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Programs Targeted</Text>
-            <View style={styles.chipGrid}>
-              {PROGRAMS.map(p => (
-                <TouchableOpacity key={p} style={[styles.chip, selectedPrograms.includes(p) && styles.chipPurple]} onPress={() => setSelectedPrograms(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p])}>
-                  <Text style={[styles.chipText, selectedPrograms.includes(p) && styles.chipTextActive]}>{p}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <Text style={[styles.sectionLabel, { marginTop: 16 }]}>Client Response</Text>
-            <View style={styles.chipGrid}>
-              {["Responded well", "Required multiple prompts", "Refused task", "Partial compliance", "Independent"].map(r => (
-                <TouchableOpacity key={r} style={[styles.chip, clientResponse === r && styles.chipActive]} onPress={() => setClientResponse(r)}>
-                  <Text style={[styles.chipText, clientResponse === r && styles.chipTextActive]}>{r}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {!selectedClient ? (
+              <Text style={styles.emptyText}>Select a client to see their targets.</Text>
+            ) : skillTargets.length === 0 ? (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyEmoji}>🎯</Text>
+                <Text style={styles.emptyText}>No skill targets set up yet.</Text>
+                <Text style={styles.emptySubText}>Ask your BCBA to add targets in the web portal.</Text>
+              </View>
+            ) : (
+              <>
+                {/* Target selector */}
+                <Text style={styles.sectionLabel}>Select Target</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                  {skillTargets.map(t => (
+                    <TouchableOpacity key={t.id}
+                      style={[styles.targetChip, activeTarget?.id === t.id && styles.targetChipActive]}
+                      onPress={() => setActiveTarget(t)}>
+                      <Text style={[styles.targetChipProgram, activeTarget?.id === t.id && { color: "#fff" }]}>
+                        {t.program_name}
+                      </Text>
+                      <Text style={[styles.targetChipName, activeTarget?.id === t.id && { color: "#fff" }]}>
+                        {t.target_name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {activeTarget && (
+                  <>
+                    <Text style={styles.sectionLabel}>Record Trial — {activeTarget.target_name}</Text>
+                    <View style={styles.trialButtons}>
+                      <TouchableOpacity style={styles.trialBtnCorrect}
+                        onPress={() => {
+                          if (activeTarget.prompt_levels?.length > 0) {
+                            setPromptModal({ target: activeTarget, result: "correct" });
+                          } else {
+                            recordTrial(activeTarget, null, null, "correct");
+                          }
+                        }}>
+                        <Text style={styles.trialBtnText}>✓ Correct</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.trialBtnPrompted}
+                        onPress={() => {
+                          if (activeTarget.prompt_levels?.length > 0) {
+                            setPromptModal({ target: activeTarget, result: "prompted" });
+                          } else {
+                            recordTrial(activeTarget, null, null, "prompted");
+                          }
+                        }}>
+                        <Text style={styles.trialBtnText}>P Prompted</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.trialBtnIncorrect}
+                        onPress={() => recordTrial(activeTarget, null, null, "incorrect")}>
+                        <Text style={styles.trialBtnText}>✗ Error</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.trialBtnNoResponse}
+                        onPress={() => recordTrial(activeTarget, null, null, "no_response")}>
+                        <Text style={styles.trialBtnText}>— NR</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
+
+                {/* Trial summary */}
+                {trialEntries.length > 0 && (
+                  <View style={styles.trialStats}>
+                    <Text style={styles.trialCount}>{totalTrials} trials · {trialPct}% correct</Text>
+                    <View style={styles.trialBar}>
+                      <View style={[styles.trialBarFill, { width: `${trialPct}%` as any }]} />
+                    </View>
+                    <View style={styles.trialHistory}>
+                      {trialEntries.map((t, i) => (
+                        <View key={i} style={[styles.trialDot,
+                          t.result === "correct" ? styles.trialDotCorrect
+                          : t.result === "prompted" ? styles.trialDotPrompted
+                          : t.result === "no_response" ? styles.trialDotNR
+                          : styles.trialDotIncorrect]} />
+                      ))}
+                    </View>
+                    <TouchableOpacity onPress={() => setTrialEntries([])}>
+                      <Text style={styles.resetBtnText}>Reset all trials</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
+            )}
           </View>
         )}
 
-        {activeTab === "trials" && (
+        {/* TIMERS TAB */}
+        {activeTab === "timers" && (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Program / Target</Text>
-            <TextInput style={styles.input} value={trialProgram} onChangeText={setTrialProgram} placeholder="e.g. Mand Training — cup" />
-            {trials.length > 0 && (
-              <View style={styles.trialStats}>
-                <Text style={styles.trialCount}>{trials.length} trials</Text>
-                <Text style={styles.trialPct}>{trialPct}% correct</Text>
-                <View style={styles.trialBar}>
-                  <View style={[styles.trialBarFill, { width: `${trialPct}%` as any }]} />
+            <Text style={styles.sectionLabel}>Session Timers</Text>
+            {timers.map(timer => (
+              <View key={timer.id} style={styles.timerCard}>
+                <TextInput
+                  style={styles.timerLabel}
+                  value={timer.label}
+                  onChangeText={text => setTimers(prev => prev.map(t => t.id === timer.id ? { ...t, label: text } : t))}
+                />
+                <Text style={[styles.timerDisplay, timer.running && styles.timerDisplayActive]}>
+                  {formatTimer(timer.seconds)}
+                </Text>
+                <View style={styles.timerControls}>
+                  <TouchableOpacity
+                    style={[styles.timerBtn, timer.running ? styles.timerBtnStop : styles.timerBtnStart]}
+                    onPress={() => toggleTimer(timer.id)}>
+                    <Text style={styles.timerBtnText}>{timer.running ? "⏹ Stop" : "▶ Start"}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.timerBtnReset} onPress={() => resetTimer(timer.id)}>
+                    <Text style={styles.timerBtnResetText}>Reset</Text>
+                  </TouchableOpacity>
+                  {timers.length > 1 && (
+                    <TouchableOpacity onPress={() => removeTimer(timer.id)}>
+                      <Text style={styles.timerBtnRemoveText}>✕</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
-            )}
-            <View style={styles.trialButtons}>
-              <TouchableOpacity style={styles.trialBtnCorrect} onPress={() => addTrial("correct")}><Text style={styles.trialBtnText}>✓ Correct</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.trialBtnPrompted} onPress={() => addTrial("prompted")}><Text style={styles.trialBtnText}>P Prompted</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.trialBtnIncorrect} onPress={() => addTrial("incorrect")}><Text style={styles.trialBtnText}>✗ Incorrect</Text></TouchableOpacity>
-            </View>
-            <View style={styles.trialHistory}>
-              {trials.map((t, i) => (
-                <View key={i} style={[styles.trialDot, t.result === "correct" ? styles.trialDotCorrect : t.result === "prompted" ? styles.trialDotPrompted : styles.trialDotIncorrect]} />
-              ))}
-            </View>
-            {trials.length > 0 && (
-              <TouchableOpacity style={styles.resetBtn} onPress={() => setTrials([])}><Text style={styles.resetBtnText}>Reset Trials</Text></TouchableOpacity>
-            )}
+            ))}
+            <TouchableOpacity style={styles.addTimerBtn} onPress={addTimer}>
+              <Text style={styles.addTimerBtnText}>+ Add Timer</Text>
+            </TouchableOpacity>
           </View>
         )}
 
+        {/* SAVE */}
         <View style={styles.saveSection}>
-          <TouchableOpacity style={[styles.saveBtn, !selectedClient && styles.saveBtnDisabled]} onPress={handleSave} disabled={!selectedClient || saving}>
+          <TouchableOpacity
+            style={[styles.saveBtn, !selectedClient && styles.saveBtnDisabled]}
+            onPress={handleSave}
+            disabled={!selectedClient || saving}>
             {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Session Data</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* SEVERITY MODAL */}
+      <Modal visible={!!severityModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{severityModal?.behavior.name}</Text>
+            <Text style={styles.modalSubtitle}>Select severity level</Text>
+            {severityModal?.behavior.severity_levels.sort((a, b) => a.level_number - b.level_number).map(level => (
+              <TouchableOpacity key={level.id}
+                style={[styles.modalOption, { borderLeftColor: level.color }]}
+                onPress={() => recordBehavior(severityModal.behavior, level.id, level.label, level.color)}>
+                <Text style={[styles.modalOptionLabel, { color: level.color }]}>{level.label}</Text>
+                {level.description && <Text style={styles.modalOptionDesc}>{level.description}</Text>}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={styles.modalOptionNR}
+              onPress={() => recordBehavior(severityModal!.behavior, null, "No Severity", "#6b7280")}>
+              <Text style={styles.modalOptionNRText}>Record without severity</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalCancel} onPress={() => setSeverityModal(null)}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* PROMPT MODAL */}
+      <Modal visible={!!promptModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{promptModal?.target.target_name}</Text>
+            <Text style={styles.modalSubtitle}>Select prompt level</Text>
+            {promptModal?.target.prompt_levels.sort((a, b) => a.level_number - b.level_number).map(level => (
+              <TouchableOpacity key={level.id}
+                style={styles.promptOption}
+                onPress={() => recordTrial(promptModal.target, level.id, level.label, promptModal.result)}>
+                {level.abbreviation && (
+                  <View style={styles.promptAbbr}>
+                    <Text style={styles.promptAbbrText}>{level.abbreviation}</Text>
+                  </View>
+                )}
+                <Text style={styles.promptLabel}>{level.label}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={styles.modalCancel} onPress={() => setPromptModal(null)}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -225,7 +592,6 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: "#d1d5db", backgroundColor: "#fff" },
   chipActive: { backgroundColor: "#2563eb", borderColor: "#2563eb" },
   chipRed: { backgroundColor: "#dc2626", borderColor: "#dc2626" },
-  chipPurple: { backgroundColor: "#7c3aed", borderColor: "#7c3aed" },
   chipText: { fontSize: 13, color: "#374151", fontWeight: "500" },
   chipTextActive: { color: "#fff", fontWeight: "600" },
   tabs: { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#f3f4f6" },
@@ -233,34 +599,71 @@ const styles = StyleSheet.create({
   tabActive: { borderBottomColor: "#2563eb" },
   tabText: { fontSize: 13, color: "#9ca3af", fontWeight: "500" },
   tabTextActive: { color: "#2563eb", fontWeight: "700" },
-  counterSection: { marginTop: 16 },
-  counterRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#f3f4f6" },
-  counterLabel: { fontSize: 14, color: "#374151", flex: 1 },
+  recordedSection: { marginTop: 16 },
+  recordedRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#f3f4f6" },
+  recordedName: { fontSize: 14, fontWeight: "600", color: "#111827" },
+  recordedSeverity: { fontSize: 11, fontWeight: "500", marginTop: 2 },
   counterControls: { flexDirection: "row", alignItems: "center", gap: 12 },
   counterBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
   counterBtnPlus: { backgroundColor: "#2563eb" },
   counterBtnText: { fontSize: 18, color: "#374151", fontWeight: "600" },
   counterNum: { fontSize: 20, fontWeight: "800", color: "#111827", minWidth: 32, textAlign: "center" },
-  input: { borderWidth: 1, borderColor: "#d1d5db", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: "#111827", marginBottom: 14, backgroundColor: "#fff" },
-  trialStats: { backgroundColor: "#eff6ff", borderRadius: 12, padding: 14, marginBottom: 16 },
-  trialCount: { fontSize: 13, color: "#6b7280", marginBottom: 4 },
-  trialPct: { fontSize: 28, fontWeight: "900", color: "#2563eb", marginBottom: 8 },
-  trialBar: { height: 8, backgroundColor: "#dbeafe", borderRadius: 4 },
-  trialBarFill: { height: 8, backgroundColor: "#2563eb", borderRadius: 4 },
-  trialButtons: { flexDirection: "row", gap: 8, marginBottom: 16 },
-  trialBtnCorrect: { flex: 1, backgroundColor: "#16a34a", paddingVertical: 16, borderRadius: 12, alignItems: "center" },
-  trialBtnPrompted: { flex: 1, backgroundColor: "#d97706", paddingVertical: 16, borderRadius: 12, alignItems: "center" },
-  trialBtnIncorrect: { flex: 1, backgroundColor: "#dc2626", paddingVertical: 16, borderRadius: 12, alignItems: "center" },
+  targetChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: "#d1d5db", backgroundColor: "#fff", marginRight: 8, minWidth: 100 },
+  targetChipActive: { backgroundColor: "#7c3aed", borderColor: "#7c3aed" },
+  targetChipProgram: { fontSize: 10, color: "#9ca3af", fontWeight: "600", textTransform: "uppercase" },
+  targetChipName: { fontSize: 13, color: "#374151", fontWeight: "700", marginTop: 2 },
+  trialButtons: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
+  trialBtnCorrect: { flex: 1, minWidth: "45%", backgroundColor: "#16a34a", paddingVertical: 16, borderRadius: 12, alignItems: "center" },
+  trialBtnPrompted: { flex: 1, minWidth: "45%", backgroundColor: "#d97706", paddingVertical: 16, borderRadius: 12, alignItems: "center" },
+  trialBtnIncorrect: { flex: 1, minWidth: "45%", backgroundColor: "#dc2626", paddingVertical: 16, borderRadius: 12, alignItems: "center" },
+  trialBtnNoResponse: { flex: 1, minWidth: "45%", backgroundColor: "#6b7280", paddingVertical: 16, borderRadius: 12, alignItems: "center" },
   trialBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  trialHistory: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 16 },
-  trialDot: { width: 16, height: 16, borderRadius: 8 },
+  trialStats: { backgroundColor: "#eff6ff", borderRadius: 12, padding: 14, marginTop: 8 },
+  trialCount: { fontSize: 14, fontWeight: "700", color: "#2563eb", marginBottom: 8 },
+  trialBar: { height: 8, backgroundColor: "#dbeafe", borderRadius: 4, marginBottom: 8 },
+  trialBarFill: { height: 8, backgroundColor: "#2563eb", borderRadius: 4 },
+  trialHistory: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginBottom: 8 },
+  trialDot: { width: 14, height: 14, borderRadius: 7 },
   trialDotCorrect: { backgroundColor: "#16a34a" },
   trialDotPrompted: { backgroundColor: "#d97706" },
   trialDotIncorrect: { backgroundColor: "#dc2626" },
-  resetBtn: { paddingVertical: 10, alignItems: "center" },
-  resetBtnText: { color: "#6b7280", fontSize: 13, textDecorationLine: "underline" },
+  trialDotNR: { backgroundColor: "#6b7280" },
+  resetBtnText: { color: "#6b7280", fontSize: 12, textDecorationLine: "underline", textAlign: "center" },
+  timerCard: { backgroundColor: "#fff", borderRadius: 16, padding: 16, marginBottom: 12, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
+  timerLabel: { fontSize: 13, fontWeight: "600", color: "#374151", borderBottomWidth: 1, borderBottomColor: "#f3f4f6", paddingBottom: 8, marginBottom: 12 },
+  timerDisplay: { fontSize: 48, fontWeight: "900", color: "#9ca3af", textAlign: "center", marginBottom: 12, fontVariant: ["tabular-nums"] },
+  timerDisplayActive: { color: "#2563eb" },
+  timerControls: { flexDirection: "row", gap: 8, alignItems: "center" },
+  timerBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
+  timerBtnStart: { backgroundColor: "#2563eb" },
+  timerBtnStop: { backgroundColor: "#dc2626" },
+  timerBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  timerBtnReset: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: "#d1d5db" },
+  timerBtnResetText: { color: "#6b7280", fontSize: 13, fontWeight: "600" },
+  timerBtnRemoveText: { color: "#dc2626", fontSize: 18, paddingHorizontal: 8 },
+  addTimerBtn: { borderWidth: 2, borderColor: "#e5e7eb", borderStyle: "dashed", borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 4 },
+  addTimerBtnText: { color: "#6b7280", fontSize: 14, fontWeight: "600" },
+  emptyBox: { alignItems: "center", paddingVertical: 40 },
+  emptyEmoji: { fontSize: 40, marginBottom: 10 },
+  emptyText: { fontSize: 14, color: "#9ca3af", textAlign: "center" },
+  emptySubText: { fontSize: 12, color: "#d1d5db", textAlign: "center", marginTop: 4 },
   saveSection: { padding: 16 },
   saveBtn: { backgroundColor: "#2563eb", paddingVertical: 16, borderRadius: 14, alignItems: "center" },
   saveBtnDisabled: { backgroundColor: "#93c5fd" },
   saveBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  modalCard: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  modalTitle: { fontSize: 18, fontWeight: "800", color: "#111827", marginBottom: 4 },
+  modalSubtitle: { fontSize: 13, color: "#6b7280", marginBottom: 16 },
+  modalOption: { borderLeftWidth: 4, borderRadius: 8, padding: 14, marginBottom: 8, backgroundColor: "#f9fafb" },
+  modalOptionLabel: { fontSize: 14, fontWeight: "700" },
+  modalOptionDesc: { fontSize: 12, color: "#6b7280", marginTop: 2 },
+  modalOptionNR: { padding: 14, alignItems: "center", marginBottom: 8 },
+  modalOptionNRText: { color: "#6b7280", fontSize: 13, textDecorationLine: "underline" },
+  modalCancel: { padding: 14, alignItems: "center", borderTopWidth: 1, borderTopColor: "#f3f4f6", marginTop: 8 },
+  modalCancelText: { color: "#6b7280", fontSize: 14, fontWeight: "600" },
+  promptOption: { flexDirection: "row", alignItems: "center", padding: 14, borderBottomWidth: 1, borderBottomColor: "#f3f4f6", gap: 12 },
+  promptAbbr: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#7c3aed", alignItems: "center", justifyContent: "center" },
+  promptAbbrText: { color: "#fff", fontSize: 12, fontWeight: "800" },
+  promptLabel: { fontSize: 14, color: "#374151", fontWeight: "600" },
 });
