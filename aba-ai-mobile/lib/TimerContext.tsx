@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { Audio } from "expo-av";
 
 export type SoundOption = "chime" | "bell" | "ding" | "soft" | "none";
 
@@ -31,6 +32,30 @@ export function useTimers() {
   return ctx;
 }
 
+const SOUND_FILES: Record<SoundOption, any> = {
+  chime: require("../assets/sounds/mixkit-page-forward-single-chime-1107.wav"),
+  bell: require("../assets/sounds/mixkit-happy-bells-notification-937.wav"),
+  ding: require("../assets/sounds/mixkit-positive-notification-951.wav"),
+  soft: require("../assets/sounds/mixkit-musical-reveal-961.wav"),
+  none: null,
+};
+
+async function playAlert(soundOption: SoundOption) {
+  if (soundOption === "none") return;
+  try {
+    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+    const { sound } = await Audio.Sound.createAsync(SOUND_FILES[soundOption]);
+    await sound.playAsync();
+    sound.setOnPlaybackStatusUpdate(status => {
+      if (status.isLoaded && status.didJustFinish) {
+        sound.unloadAsync();
+      }
+    });
+  } catch (e) {
+    console.log("Sound error:", e);
+  }
+}
+
 export function TimerProvider({ children }: { children: React.ReactNode }) {
   const [timers, setTimers] = useState<Timer[]>([]);
   const [sound, setSound] = useState<SoundOption>("chime");
@@ -48,6 +73,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
           if (elapsed === t.elapsed) return t;
           changed = true;
           if (t.durationSeconds !== null && t.durationSeconds - elapsed <= 0 && !t.alerted) {
+            playAlert(soundRef.current);
             return { ...t, elapsed, alerted: true };
           }
           return { ...t, elapsed };
