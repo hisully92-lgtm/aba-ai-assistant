@@ -8,6 +8,8 @@ import { supabase } from "../../lib/supabase";
 import AppHeader from "../../components/AppHeader";
 import { getCachedClients } from "../../lib/offline";
 import { router } from "expo-router";
+import EVVClockIn from "../../components/EVVClockIn";
+import { useEVV } from "../../lib/EVVContext";
 
 type Client = { id: string; full_name: string };
 type ClientLocation = { id: string; name: string; address: string; city: string; state: string; latitude: number; longitude: number; is_primary: boolean };
@@ -24,6 +26,8 @@ type ScheduleEntry = {
   status: string;
 };
 
+const { activeSession, elapsed, refreshSession } = useEVV();
+const [showEVVClockIn, setShowEVVClockIn] = useState(false);
 const ADJUSTMENT_REASONS = [
   "App failed to open", "Forgot to start timer", "Forgot to end timer",
   "Client arrived late", "Session ran over", "Technical issues", "Other",
@@ -38,6 +42,7 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 export default function HomeScreen() {
+    
   const [userName, setUserName] = useState("");
   const [role, setRole] = useState("");
   const [userId, setUserId] = useState("");
@@ -50,6 +55,7 @@ export default function HomeScreen() {
   const [todaySchedule, setTodaySchedule] = useState<ScheduleEntry[]>([]);
 
   // CLOCK IN FLOW
+  
   const [showClockInModal, setShowClockInModal] = useState(false);
   const [clockInStep, setClockInStep] = useState<"client" | "location" | "geofence" | "time" | "confirm">("client");
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -242,30 +248,39 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* SESSION TIMER */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Session Timer</Text>
-        {clockedIn ? (
-          <View style={{ alignItems: "center" }}>
-            <Text style={styles.timer}>{formatElapsed(elapsed)}</Text>
-            <Text style={styles.timerSub}>Client: {clientMap.get(clockedIn.client_id ?? "") ?? "Unknown"}</Text>
-            {clockedIn.location_name && <Text style={styles.timerSub}>📍 {clockedIn.location_name}</Text>}
-            <Text style={styles.timerSub}>Started: {new Date(clockedIn.clock_in).toLocaleTimeString()}</Text>
-            <TouchableOpacity style={styles.clockOutBtn} onPress={() => {
-              setEndTime(new Date().toTimeString().slice(0, 5));
-              setEndAdjusted(false);
-              setEndReason("");
-              setShowClockOutModal(true);
-            }}>
-              <Text style={styles.clockOutText}>⏹ Clock Out</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <TouchableOpacity style={styles.clockInBtn} onPress={startClockInFlow}>
-            <Text style={styles.clockInText}>📍 Clock In with Geofence</Text>
-          </TouchableOpacity>
-        )}
+      {/* SESSION TIMER / EVV */}
+<View style={styles.card}>
+  <Text style={styles.cardTitle}>Visit Status</Text>
+  {activeSession ? (
+    <View style={styles.activeVisit}>
+      <View style={styles.activeVisitHeader}>
+        <View style={styles.activeDot} />
+        <Text style={styles.activeVisitLabel}>Session in Progress</Text>
       </View>
+      <Text style={styles.activeTimer}>{formatElapsed(elapsed)}</Text>
+      <Text style={styles.activeClient}>👤 {activeSession.client_name}</Text>
+      {activeSession.location_name && <Text style={styles.activeLocation}>📍 {activeSession.location_name}</Text>}
+      <Text style={styles.activeStarted}>Started: {new Date(activeSession.clock_in).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
+      <Text style={styles.activeHint}>Tap END VISIT in the top banner to complete the EVV</Text>
+    </View>
+  ) : (
+    <View>
+      <Text style={styles.noVisitText}>No active visit. Start your session below.</Text>
+      <TouchableOpacity style={styles.startVisitBtn} onPress={() => setShowEVVClockIn(true)}>
+        <Text style={styles.startVisitBtnText}>▶ Start Visit (EVV)</Text>
+      </TouchableOpacity>
+    </View>
+  )}
+</View>
+
+<EVVClockIn
+  visible={showEVVClockIn}
+  onClose={() => setShowEVVClockIn(false)}
+  onComplete={() => { setShowEVVClockIn(false); refreshSession(); init(); }}
+  clients={clients}
+  companyId={companyId}
+  userId={userId}
+/>
 
       {/* TODAY'S SCHEDULE */}
       {todaySchedule.length > 0 && (
@@ -576,4 +591,16 @@ const styles = StyleSheet.create({
   confirmValue: { fontSize: 13, color: "#111827", fontWeight: "600", flex: 2, textAlign: "right" },
   clockOutConfirmBtn: { backgroundColor: "#dc2626", paddingVertical: 14, borderRadius: 12, alignItems: "center", marginTop: 16 },
   clockOutConfirmText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  activeVisit: { alignItems: "center", paddingVertical: 8 },
+activeVisitHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+activeDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#16a34a" },
+activeVisitLabel: { fontSize: 13, fontWeight: "600", color: "#16a34a" },
+activeTimer: { fontSize: 52, fontWeight: "900", color: "#2563eb", fontVariant: ["tabular-nums"] },
+activeClient: { fontSize: 15, fontWeight: "600", color: "#111827", marginTop: 4 },
+activeLocation: { fontSize: 13, color: "#6b7280", marginTop: 2 },
+activeStarted: { fontSize: 12, color: "#9ca3af", marginTop: 2 },
+activeHint: { fontSize: 11, color: "#9ca3af", marginTop: 8, textAlign: "center", fontStyle: "italic" },
+noVisitText: { fontSize: 13, color: "#9ca3af", textAlign: "center", marginBottom: 14 },
+startVisitBtn: { backgroundColor: "#16a34a", paddingVertical: 16, borderRadius: 14, alignItems: "center" },
+startVisitBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
 });
