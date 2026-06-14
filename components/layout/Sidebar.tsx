@@ -131,6 +131,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       href: "/dashboard/programs",
       icon: "🎯",
       children: sortChildren([
+        { label: "Program Books", href: "/dashboard/program-books" },
         { label: "Active Programs", href: "/dashboard/programs" },
         { label: "Add Program", href: "/dashboard/programs/new" },
         { label: "DTT Data Collection", href: "/dashboard/dtt" },
@@ -145,6 +146,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       href: "/dashboard/clients",
       icon: "👥",
       children: sortChildren([
+        { label: "Program Books", href: "/dashboard/program-books" },
         { label: "Add Client", href: "/dashboard/clients/new" },
         { label: "All Clients", href: "/dashboard/clients" },
         { label: "Assessments", href: "/dashboard/assessments" },
