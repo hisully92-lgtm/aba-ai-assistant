@@ -10,6 +10,7 @@ import { getCachedClients } from "../../lib/offline";
 import { router } from "expo-router";
 import EVVClockIn from "../../components/EVVClockIn";
 import { useEVV } from "../../lib/EVVContext";
+import EVVClockOut from "../../components/EVVClockOut";
 
 type Client = { id: string; full_name: string };
 type ClientLocation = { id: string; name: string; address: string; city: string; state: string; latitude: number; longitude: number; is_primary: boolean };
@@ -26,8 +27,6 @@ type ScheduleEntry = {
   status: string;
 };
 
-const { activeSession, elapsed, refreshSession } = useEVV();
-const [showEVVClockIn, setShowEVVClockIn] = useState(false);
 const ADJUSTMENT_REASONS = [
   "App failed to open", "Forgot to start timer", "Forgot to end timer",
   "Client arrived late", "Session ran over", "Technical issues", "Other",
@@ -42,17 +41,19 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 export default function HomeScreen() {
-    
+  // ✅ Hooks called inside the component
+  const { activeSession, elapsed, refreshSession } = useEVV();
+  const [showEVVClockIn, setShowEVVClockIn] = useState(false);
+  const [showEVVClockOut, setShowEVVClockOut] = useState(false);
+    const [todaySchedule, setTodaySchedule] = useState<ScheduleEntry[]>([]);
   const [userName, setUserName] = useState("");
   const [role, setRole] = useState("");
   const [userId, setUserId] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [clients, setClients] = useState<Client[]>([]);
   const [clockedIn, setClockedIn] = useState<TimeEntry | null>(null);
-  const [elapsed, setElapsed] = useState(0);
   const [loading, setLoading] = useState(true);
   const [todaySessions, setTodaySessions] = useState<any[]>([]);
-  const [todaySchedule, setTodaySchedule] = useState<ScheduleEntry[]>([]);
 
   // CLOCK IN FLOW
   
@@ -77,14 +78,6 @@ export default function HomeScreen() {
   const [clockingOut, setClockingOut] = useState(false);
 
   useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!clockedIn) return;
-    const interval = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - new Date(clockedIn.clock_in).getTime()) / 1000));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [clockedIn]);
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
@@ -136,7 +129,6 @@ export default function HomeScreen() {
     }
 
     setClockedIn(entryData ?? null);
-    if (entryData) setElapsed(Math.floor((Date.now() - new Date(entryData.clock_in).getTime()) / 1000));
     setTodaySessions(sessionData);
     setTodaySchedule(scheduleData);
     setLoading(false);
@@ -195,7 +187,6 @@ export default function HomeScreen() {
       start_time_adjusted: startAdjusted,
       start_adjustment_reason: startAdjusted ? startReason : null,
     }).select().single();
-    if (data) { setClockedIn(data); setElapsed(0); }
     setShowClockInModal(false);
     setClockingIn(false);
   }
@@ -216,7 +207,6 @@ export default function HomeScreen() {
       end_adjustment_reason: endAdjusted ? endReason : null,
     }).eq("id", clockedIn.id);
     setClockedIn(null);
-    setElapsed(0);
     setShowClockOutModal(false);
     setClockingOut(false);
     Alert.alert("Clocked out", `Session duration: ${Math.floor(duration / 60)}h ${duration % 60}m`);
@@ -260,8 +250,12 @@ export default function HomeScreen() {
       <Text style={styles.activeTimer}>{formatElapsed(elapsed)}</Text>
       <Text style={styles.activeClient}>👤 {activeSession.client_name}</Text>
       {activeSession.location_name && <Text style={styles.activeLocation}>📍 {activeSession.location_name}</Text>}
-      <Text style={styles.activeStarted}>Started: {new Date(activeSession.clock_in).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
-      <Text style={styles.activeHint}>Tap END VISIT in the top banner to complete the EVV</Text>
+      <Text style={styles.activeStarted}>
+        Started: {new Date(activeSession.clock_in).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+      </Text>
+      <TouchableOpacity style={styles.endVisitBtn} onPress={() => setShowEVVClockOut(true)}>
+        <Text style={styles.endVisitBtnText}>⏹ End Visit (EVV)</Text>
+      </TouchableOpacity>
     </View>
   ) : (
     <View>
@@ -280,6 +274,14 @@ export default function HomeScreen() {
   clients={clients}
   companyId={companyId}
   userId={userId}
+/>
+
+<EVVClockOut
+  visible={showEVVClockOut}
+  onClose={() => setShowEVVClockOut(false)}
+  onComplete={() => { setShowEVVClockOut(false); init(); }}
+  behaviorsCount={0}
+  trialsCount={0}
 />
 
       {/* TODAY'S SCHEDULE */}
@@ -519,6 +521,8 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+    endVisitBtn: { marginTop: 14, backgroundColor: "#dc2626", paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12, alignItems: "center", width: "100%" },
+    endVisitBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   container: { flex: 1, backgroundColor: "#f9fafb" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   greetingCard: { backgroundColor: "#1a2234", paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24 },

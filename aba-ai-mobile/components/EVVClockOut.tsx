@@ -124,10 +124,17 @@ export default function EVVClockOut({ visible, onClose, onComplete, behaviorsCou
 
     const today = new Date().toISOString().split("T")[0];
     const endDateTime = new Date();
-    if (endAdjusted) {
-      const [h, m] = endTime.split(":").map(Number);
-      endDateTime.setHours(h, m, 0, 0);
-    }
+if (endAdjusted) {
+  // supports "YYYY-MM-DD HH:MM" or "YYYY-MM-DDTHH:MM" or just "HH:MM"
+  const dtMatch = endTime.match(/^(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):(\d{2})$/);
+  const timeMatch = endTime.match(/^(\d{2}):(\d{2})$/);
+  if (dtMatch) {
+    endDateTime.setFullYear(Number(dtMatch[1]), Number(dtMatch[2]) - 1, Number(dtMatch[3]));
+    endDateTime.setHours(Number(dtMatch[4]), Number(dtMatch[5]), 0, 0);
+  } else if (timeMatch) {
+    endDateTime.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
+  }
+}
 
     const duration = Math.floor((endDateTime.getTime() - new Date(activeSession.clock_in).getTime()) / 60000);
 
@@ -281,57 +288,83 @@ export default function EVVClockOut({ visible, onClose, onComplete, behaviorsCou
           )}
 
           {/* STEP 2 — END TIME */}
-          {step === "time" && (
-            <View>
-              <Text style={styles.stepTitle}>⏱️ Confirm End Time</Text>
-              <Text style={styles.stepSubtitle}>Verify or adjust the session end time</Text>
+{step === "time" && (
+  <View>
+    <Text style={styles.stepTitle}>⏱️ Confirm End Time</Text>
+    <Text style={styles.stepSubtitle}>Verify or adjust the session end time</Text>
 
-              <View style={styles.timeRow}>
-                <View style={styles.timeBox}>
-                  <Text style={styles.timeBoxLabel}>Start</Text>
-                  <Text style={styles.timeBoxValue}>{startDt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
-                </View>
-                <Text style={styles.timeArrow}>→</Text>
-                <View style={styles.timeBox}>
-                  <Text style={styles.timeBoxLabel}>End</Text>
-                  <TextInput style={styles.timeInput} value={endTime}
-                    onChangeText={t => { setEndTime(t); setEndAdjusted(true); }}
-                    keyboardType="numbers-and-punctuation" />
-                </View>
-              </View>
+    <View style={styles.timeRow}>
+      <View style={styles.timeBox}>
+        <Text style={styles.timeBoxLabel}>Start</Text>
+        <Text style={styles.timeBoxValue}>
+          {startDt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        </Text>
+      </View>
+      <Text style={styles.timeArrow}>→</Text>
+      <View style={styles.timeBox}>
+        <Text style={styles.timeBoxLabel}>End</Text>
+        <Text style={styles.timeBoxValue}>{endTime}</Text>
+      </View>
+    </View>
 
-              <View style={styles.durationBox}>
-                <Text style={styles.durationLabel}>Total Duration</Text>
-                <Text style={styles.durationValue}>{fmt(elapsed)}</Text>
-              </View>
+    <View style={styles.durationBox}>
+      <Text style={styles.durationLabel}>Total Duration</Text>
+      <Text style={styles.durationValue}>{fmt(elapsed)}</Text>
+    </View>
 
-              {endAdjusted && (
-                <View style={{ marginBottom: 16 }}>
-                  <Text style={styles.fieldLabel}>Reason for time adjustment *</Text>
-                  {END_TIME_REASONS.map(r => (
-                    <TouchableOpacity key={r} style={[styles.reasonOption, endReason === r && styles.reasonOptionActive]}
-                      onPress={() => setEndReason(r)}>
-                      <Text style={[styles.reasonOptionText, endReason === r && styles.reasonOptionTextActive]}>{r}</Text>
-                      {endReason === r && <Text style={{ color: "#2563eb" }}>✓</Text>}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
+    <TouchableOpacity
+      style={styles.adjustBtn}
+      onPress={() => setEndAdjusted(true)}>
+      <Text style={styles.adjustBtnText}>✏️ Adjust Date & Time</Text>
+    </TouchableOpacity>
 
-              <Text style={styles.fieldLabel}>Session Notes (optional)</Text>
-              <TextInput style={styles.notesInput} value={endNotes}
-                onChangeText={setEndNotes}
-                placeholder="Any notes about the session ending..."
-                multiline numberOfLines={3} textAlignVertical="top" />
+    {endAdjusted && (
+      <View style={styles.adjustBox}>
+        <Text style={styles.fieldLabel}>Date & Time (YYYY-MM-DD HH:MM)</Text>
+        <TextInput
+          style={styles.dtInput}
+          value={endTime}
+          onChangeText={setEndTime}
+          placeholder="2026-06-14 17:30"
+          keyboardType="numbers-and-punctuation"
+          autoCapitalize="none"
+        />
+        <Text style={styles.dtHint}>Format: YYYY-MM-DD HH:MM (24hr)</Text>
 
-              <TouchableOpacity style={styles.primaryBtn} onPress={() => setStep("summary")}>
-                <Text style={styles.primaryBtnText}>Continue →</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.backBtn} onPress={() => setStep("location")}>
-                <Text style={styles.backBtnText}>‹ Back</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+        <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Reason for time adjustment *</Text>
+        {END_TIME_REASONS.map(r => (
+          <TouchableOpacity key={r}
+            style={[styles.reasonOption, endReason === r && styles.reasonOptionActive]}
+            onPress={() => setEndReason(r)}>
+            <Text style={[styles.reasonOptionText, endReason === r && styles.reasonOptionTextActive]}>{r}</Text>
+            {endReason === r && <Text style={{ color: "#2563eb" }}>✓</Text>}
+          </TouchableOpacity>
+        ))}
+      </View>
+    )}
+
+    <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Session Notes (optional)</Text>
+    <TextInput style={styles.notesInput} value={endNotes}
+      onChangeText={setEndNotes}
+      placeholder="Any notes about the session ending..."
+      multiline numberOfLines={3} textAlignVertical="top" />
+
+    <TouchableOpacity
+      style={[styles.primaryBtn, { marginTop: 8 }]}
+      onPress={() => {
+        if (endAdjusted && !endReason) {
+          Alert.alert("Required", "Please select a reason for the time adjustment.");
+          return;
+        }
+        setStep("summary");
+      }}>
+      <Text style={styles.primaryBtnText}>Continue →</Text>
+    </TouchableOpacity>
+    <TouchableOpacity style={styles.backBtn} onPress={() => setStep("location")}>
+      <Text style={styles.backBtnText}>‹ Back</Text>
+    </TouchableOpacity>
+  </View>
+)}
 
           {/* STEP 3 — SESSION SUMMARY */}
           {step === "summary" && (
@@ -567,6 +600,11 @@ export default function EVVClockOut({ visible, onClose, onComplete, behaviorsCou
 }
 
 const styles = StyleSheet.create({
+    adjustBtn: { backgroundColor: "#f3f4f6", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginBottom: 12 },
+    adjustBtnText: { fontSize: 14, color: "#374151", fontWeight: "600" },
+    adjustBox: { backgroundColor: "#fff", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#e5e7eb", marginBottom: 8 },
+    dtInput: { backgroundColor: "#f9fafb", borderWidth: 1, borderColor: "#d1d5db", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 14, fontSize: 18, fontWeight: "700", color: "#111827", textAlign: "center", marginBottom: 4 },
+    dtHint: { fontSize: 12, color: "#9ca3af", textAlign: "center" },
   container: { flex: 1, backgroundColor: "#f9fafb" },
   header: { backgroundColor: "#1a2234", paddingTop: 56, paddingBottom: 16, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerTitle: { fontSize: 18, fontWeight: "800", color: "#fff" },

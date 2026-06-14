@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   View, Text, StyleSheet, Modal, ScrollView,
-  TouchableOpacity, TextInput, ActivityIndicator, Alert
+  TouchableOpacity, TextInput, ActivityIndicator, Alert, Platform
 } from "react-native";
 import * as Location from "expo-location";
 import { supabase } from "../lib/supabase";
@@ -21,6 +21,22 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function pad(n: number) { return String(n).padStart(2, "0"); }
+
+function formatDateTimeLocal(d: Date) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function parseDateTimeLocal(s: string): Date | null {
+  // expects "YYYY-MM-DDTHH:MM"
+  const match = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  const d = new Date();
+  d.setFullYear(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  d.setHours(Number(match[4]), Number(match[5]), 0, 0);
+  return d;
 }
 
 type Props = {
@@ -47,7 +63,9 @@ export default function EVVClockIn({ visible, onClose, onComplete, clients, comp
   const [currentLat, setCurrentLat] = useState<number | null>(null);
   const [currentLon, setCurrentLon] = useState<number | null>(null);
   const [locationChecking, setLocationChecking] = useState(false);
-  const [startTime, setStartTime] = useState(new Date().toTimeString().slice(0, 5));
+
+  // datetime as "YYYY-MM-DDTHH:MM" string
+  const [startDateTime, setStartDateTime] = useState(formatDateTimeLocal(new Date()));
   const [startAdjusted, setStartAdjusted] = useState(false);
   const [startReason, setStartReason] = useState("");
 
@@ -83,14 +101,15 @@ export default function EVVClockIn({ visible, onClose, onComplete, clients, comp
     if (!selectedClient || !selectedLocation) return;
     setSaving(true);
 
-    const clockInTime = new Date();
+    let clockInTime = new Date();
     if (startAdjusted) {
-      const [h, m] = startTime.split(":").map(Number);
-      clockInTime.setHours(h, m, 0, 0);
+      const parsed = parseDateTimeLocal(startDateTime);
+      if (parsed) clockInTime = parsed;
     }
 
     try {
-      const { data } = await supabase.from("time_entries").insert({
+      const { data, error } = await supabase.from("time_entries").insert({
+        company_id: companyId,
         client_id: selectedClient.id,
         clock_in: clockInTime.toISOString(),
         session_type: "Direct Therapy",
@@ -106,6 +125,12 @@ export default function EVVClockIn({ visible, onClose, onComplete, clients, comp
         start_time_adjusted: startAdjusted,
         start_adjustment_reason: startAdjusted ? startReason : null,
       }).select("*, clients(full_name)").single();
+
+      if (error) {
+        Alert.alert("Clock In Failed", error.message);
+        setSaving(false);
+        return;
+      }
 
       if (data) {
         setActiveSession({
@@ -140,9 +165,16 @@ export default function EVVClockIn({ visible, onClose, onComplete, clients, comp
     setGeofenceDistance(null);
     setCurrentLat(null);
     setCurrentLon(null);
-    setStartTime(new Date().toTimeString().slice(0, 5));
+    setStartDateTime(formatDateTimeLocal(new Date()));
     setStartAdjusted(false);
     setStartReason("");
+  }
+
+  // Display helpers
+  function displayDateTime(s: string) {
+    const d = parseDateTimeLocal(s);
+    if (!d) return s;
+    return d.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   }
 
   const stepIndex = (["client", "location", "geofence", "time", "confirm"] as Step[]).indexOf(step);
@@ -150,7 +182,6 @@ export default function EVVClockIn({ visible, onClose, onComplete, clients, comp
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={() => { reset(); onClose(); }}>
       <View style={styles.container}>
-        {/* HEADER */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => { reset(); onClose(); }} style={styles.closeBtn}>
             <Text style={styles.closeBtnText}>✕</Text>
@@ -159,7 +190,6 @@ export default function EVVClockIn({ visible, onClose, onComplete, clients, comp
           <View style={{ width: 36 }} />
         </View>
 
-        {/* PROGRESS */}
         <View style={styles.progress}>
           {[0, 1, 2, 3, 4].map(i => (
             <View key={i} style={[styles.progressDot, stepIndex === i && styles.progressDotActive, stepIndex > i && styles.progressDotDone]} />
@@ -217,31 +247,23 @@ export default function EVVClockIn({ visible, onClose, onComplete, clients, comp
             <>
               <Text style={styles.stepTitle}>🛰️ Location Verification</Text>
               <Text style={styles.stepSub}>{selectedLocation?.name} — {selectedLocation?.address}</Text>
-
               <View style={styles.geofenceBox}>
                 {locationChecking && <><ActivityIndicator color="#2563eb" size="large" /><Text style={styles.geofenceText}>Checking your location...</Text></>}
                 {!locationChecking && geofenceStatus === "inside" && (
-                  <>
-                    <Text style={styles.geofenceEmoji}>✅</Text>
-                    <Text style={[styles.geofenceText, { color: "#16a34a" }]}>You are at the session location</Text>
-                    <Text style={styles.geofenceSub}>{geofenceDistance}m from address</Text>
-                  </>
+                  <><Text style={styles.geofenceEmoji}>✅</Text>
+                  <Text style={[styles.geofenceText, { color: "#16a34a" }]}>You are at the session location</Text>
+                  <Text style={styles.geofenceSub}>{geofenceDistance}m from address</Text></>
                 )}
                 {!locationChecking && geofenceStatus === "outside" && (
-                  <>
-                    <Text style={styles.geofenceEmoji}>⚠️</Text>
-                    <Text style={[styles.geofenceText, { color: "#d97706" }]}>You are {geofenceDistance}m away</Text>
-                    <Text style={styles.geofenceSub}>Outside 300m radius — you can still continue</Text>
-                  </>
+                  <><Text style={styles.geofenceEmoji}>⚠️</Text>
+                  <Text style={[styles.geofenceText, { color: "#d97706" }]}>You are {geofenceDistance}m away</Text>
+                  <Text style={styles.geofenceSub}>Outside 300m radius — you can still continue</Text></>
                 )}
                 {!locationChecking && geofenceStatus === "error" && (
-                  <>
-                    <Text style={styles.geofenceEmoji}>❌</Text>
-                    <Text style={[styles.geofenceText, { color: "#dc2626" }]}>Could not verify location</Text>
-                  </>
+                  <><Text style={styles.geofenceEmoji}>❌</Text>
+                  <Text style={[styles.geofenceText, { color: "#dc2626" }]}>Could not verify location</Text></>
                 )}
               </View>
-
               {!locationChecking && (
                 <TouchableOpacity style={styles.primaryBtn} onPress={() => setStep("time")}>
                   <Text style={styles.primaryBtnText}>
@@ -255,26 +277,38 @@ export default function EVVClockIn({ visible, onClose, onComplete, clients, comp
             </>
           )}
 
-          {/* STEP 4 — START TIME */}
+          {/* STEP 4 — START DATE & TIME */}
           {step === "time" && (
             <>
               <Text style={styles.stepTitle}>⏰ Confirm Start Time</Text>
               <Text style={styles.stepSub}>Verify or adjust when the session started</Text>
 
               <View style={styles.timeCard}>
-                <Text style={styles.timeCardLabel}>Start Time</Text>
-                <TextInput
-                  style={styles.timeInput}
-                  value={startTime}
-                  onChangeText={t => { setStartTime(t); setStartAdjusted(true); }}
-                  keyboardType="numbers-and-punctuation"
-                />
-                <Text style={styles.timeHint}>Current time: {new Date().toTimeString().slice(0, 5)}</Text>
+                <Text style={styles.timeCardLabel}>Session Start</Text>
+                <Text style={styles.timeDisplay}>{displayDateTime(startDateTime)}</Text>
+                <Text style={styles.timeHint}>Now: {displayDateTime(formatDateTimeLocal(new Date()))}</Text>
               </View>
 
+              <TouchableOpacity
+                style={styles.adjustBtn}
+                onPress={() => { setStartAdjusted(true); }}>
+                <Text style={styles.adjustBtnText}>✏️ Adjust Date & Time</Text>
+              </TouchableOpacity>
+
               {startAdjusted && (
-                <View style={{ marginBottom: 16 }}>
-                  <Text style={styles.fieldLabel}>Reason for adjustment *</Text>
+                <View style={styles.adjustBox}>
+                  <Text style={styles.fieldLabel}>Date & Time (YYYY-MM-DD HH:MM)</Text>
+                  <TextInput
+                    style={styles.dtInput}
+                    value={startDateTime.replace("T", " ")}
+                    onChangeText={t => setStartDateTime(t.trim().replace(" ", "T"))}
+                    placeholder="2026-06-14 09:30"
+                    keyboardType="numbers-and-punctuation"
+                    autoCapitalize="none"
+                  />
+                  <Text style={styles.timeHint}>Format: YYYY-MM-DD HH:MM (24hr)</Text>
+
+                  <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Reason for adjustment *</Text>
                   {ADJUSTMENT_REASONS.map(r => (
                     <TouchableOpacity key={r}
                       style={[styles.reasonOption, startReason === r && styles.reasonOptionActive]}
@@ -286,7 +320,15 @@ export default function EVVClockIn({ visible, onClose, onComplete, clients, comp
                 </View>
               )}
 
-              <TouchableOpacity style={styles.primaryBtn} onPress={() => setStep("confirm")}>
+              <TouchableOpacity
+                style={[styles.primaryBtn, { marginTop: 16 }]}
+                onPress={() => {
+                  if (startAdjusted && !startReason) {
+                    Alert.alert("Required", "Please select a reason for the time adjustment.");
+                    return;
+                  }
+                  setStep("confirm");
+                }}>
                 <Text style={styles.primaryBtnText}>Continue →</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.backBtn} onPress={() => setStep("geofence")}>
@@ -300,12 +342,11 @@ export default function EVVClockIn({ visible, onClose, onComplete, clients, comp
             <>
               <Text style={styles.stepTitle}>✅ Confirm Visit Start</Text>
               <Text style={styles.stepSub}>Review details before clocking in</Text>
-
               <View style={styles.confirmCard}>
                 <Row label="Client" value={selectedClient?.full_name ?? ""} />
                 <Row label="Location" value={selectedLocation?.name ?? ""} />
                 <Row label="Address" value={`${selectedLocation?.address}, ${selectedLocation?.city}`} />
-                <Row label="Start Time" value={`${startTime}${startAdjusted ? " ⚠️ Adjusted" : " ✓"}`} />
+                <Row label="Start Time" value={`${displayDateTime(startDateTime)}${startAdjusted ? " ⚠️ Adjusted" : " ✓"}`} />
                 {startAdjusted && startReason && <Row label="Reason" value={startReason} />}
                 <Row
                   label="Geofence"
@@ -313,7 +354,6 @@ export default function EVVClockIn({ visible, onClose, onComplete, clients, comp
                   valueColor={geofenceStatus === "inside" ? "#16a34a" : "#d97706"}
                 />
               </View>
-
               <TouchableOpacity
                 style={[styles.startBtn, saving && { opacity: 0.6 }]}
                 onPress={confirmClockIn}
@@ -366,10 +406,14 @@ const styles = StyleSheet.create({
   geofenceEmoji: { fontSize: 48 },
   geofenceText: { fontSize: 16, fontWeight: "700", color: "#111827", textAlign: "center" },
   geofenceSub: { fontSize: 13, color: "#6b7280", textAlign: "center" },
-  timeCard: { backgroundColor: "#fff", borderRadius: 14, padding: 20, marginBottom: 16, alignItems: "center", borderWidth: 1, borderColor: "#e5e7eb" },
-  timeCardLabel: { fontSize: 12, fontWeight: "700", color: "#6b7280", textTransform: "uppercase", marginBottom: 12 },
-  timeInput: { fontSize: 36, fontWeight: "900", color: "#111827", textAlign: "center", borderWidth: 0, padding: 0, fontVariant: ["tabular-nums"] },
-  timeHint: { fontSize: 12, color: "#9ca3af", marginTop: 8 },
+  timeCard: { backgroundColor: "#fff", borderRadius: 14, padding: 20, marginBottom: 12, alignItems: "center", borderWidth: 1, borderColor: "#e5e7eb" },
+  timeCardLabel: { fontSize: 12, fontWeight: "700", color: "#6b7280", textTransform: "uppercase", marginBottom: 8 },
+  timeDisplay: { fontSize: 28, fontWeight: "900", color: "#111827", textAlign: "center" },
+  timeHint: { fontSize: 12, color: "#9ca3af", marginTop: 6, textAlign: "center" },
+  adjustBtn: { backgroundColor: "#f3f4f6", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginBottom: 16 },
+  adjustBtnText: { fontSize: 14, color: "#374151", fontWeight: "600" },
+  adjustBox: { backgroundColor: "#fff", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#e5e7eb", marginBottom: 8 },
+  dtInput: { backgroundColor: "#f9fafb", borderWidth: 1, borderColor: "#d1d5db", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 14, fontSize: 20, fontWeight: "700", color: "#111827", textAlign: "center", marginBottom: 4 },
   fieldLabel: { fontSize: 12, fontWeight: "700", color: "#6b7280", textTransform: "uppercase", marginBottom: 8, letterSpacing: 0.5 },
   reasonOption: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 14, borderRadius: 10, borderWidth: 1, borderColor: "#e5e7eb", marginBottom: 6, backgroundColor: "#fff" },
   reasonOptionActive: { backgroundColor: "#eff6ff", borderColor: "#2563eb" },
