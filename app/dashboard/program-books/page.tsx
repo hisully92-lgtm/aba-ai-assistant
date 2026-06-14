@@ -90,7 +90,7 @@ export default function ProgramBooksPage() {
   ]);
 
   useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (selectedClient) loadClientData(); }, [selectedClient]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (selectedClient && companyId) loadClientData(); }, [selectedClient, companyId]);
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
