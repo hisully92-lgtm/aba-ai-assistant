@@ -24,6 +24,9 @@ export default function TabsLayout() {
         paddingBottom: 8,
       },
     }}>
+        <Tabs.Screen name="timers" options={{
+         tabBarIcon: ({ focused }) => <TabIcon emoji="⏱️" label="Timers" focused={focused} />,
+    }} />
       <Tabs.Screen name="home" options={{
         tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" label="Home" focused={focused} />,
       }} />

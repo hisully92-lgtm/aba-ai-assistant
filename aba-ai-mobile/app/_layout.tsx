@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Stack, router } from "expo-router";
 import { supabase } from "../lib/supabase";
+import { TimerProvider } from "../lib/TimerContext";
 
 export default function RootLayout() {
   useEffect(() => {
@@ -13,5 +14,9 @@ export default function RootLayout() {
     });
   }, []);
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <TimerProvider>
+      <Stack screenOptions={{ headerShown: false }} />
+    </TimerProvider>
+  );
 }
