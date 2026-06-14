@@ -4,6 +4,7 @@ import {
   StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView,
   Platform, ScrollView
 } from "react-native";
+import { router } from "expo-router";
 import { supabase } from "../../lib/supabase";
 
 export default function LoginScreen() {
@@ -18,7 +19,7 @@ export default function LoginScreen() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: "exp://192.168.1.160:8081/--/auth/confirm" },
+      options: { emailRedirectTo: "exp://192.168.1.160:8082/--/auth/confirm" },
     });
     setLoading(false);
     if (error) { Alert.alert("Error", error.message); return; }
@@ -33,7 +34,11 @@ export default function LoginScreen() {
       password,
     });
     setLoading(false);
-    if (error) Alert.alert("Error", error.message);
+    if (error) {
+      Alert.alert("Error", error.message);
+    } else {
+      router.replace("/(tabs)/home");
+    }
   }
 
   return (
