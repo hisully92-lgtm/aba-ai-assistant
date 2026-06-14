@@ -19,6 +19,196 @@ type Integration = {
 };
 
 const INTEGRATIONS = [
+  // ── PAYROLL ──────────────────────────────────────────────
+  {
+    type: "quickbooks",
+    label: "QuickBooks Online",
+    icon: "📊",
+    category: "Payroll",
+    description: "Push approved time entries directly to QuickBooks as time activities. Staff hours sync automatically for payroll processing.",
+    status: "coming_soon",
+    statusLabel: "Coming Soon",
+    docs: "https://developer.intuit.com/app/developer/qbo/docs/api/accounting/most-commonly-used/time-activity",
+    fields: [
+      { key: "client_id", label: "Client ID", type: "text", placeholder: "Your QuickBooks client ID" },
+      { key: "client_secret", label: "Client Secret", type: "password", placeholder: "Your QuickBooks client secret" },
+      { key: "realm_id", label: "Realm ID (Company ID)", type: "text", placeholder: "Your QuickBooks company ID" },
+    ],
+    setupSteps: [
+      "Sign up at developer.intuit.com",
+      "Create an app and select QuickBooks Online Accounting scope",
+      "Copy Client ID and Client Secret",
+      "Connect your QuickBooks company via OAuth to get Realm ID",
+      "Enter credentials below and save",
+    ],
+  },
+  {
+    type: "gusto",
+    label: "Gusto Payroll",
+    icon: "💼",
+    category: "Payroll",
+    description: "Sync approved hours to Gusto payroll runs. Map RBT/BCBA roles to Gusto compensation types automatically.",
+    status: "coming_soon",
+    statusLabel: "Coming Soon",
+    docs: "https://docs.gusto.com",
+    fields: [
+      { key: "api_token", label: "API Token", type: "password", placeholder: "Your Gusto API token" },
+      { key: "company_id", label: "Company ID", type: "text", placeholder: "Your Gusto company ID" },
+    ],
+    setupSteps: [
+      "Sign up at gusto.com",
+      "Go to Settings → Integrations → API",
+      "Generate an API token",
+      "Find your Company ID in the Gusto dashboard URL",
+      "Enter credentials below",
+    ],
+  },
+  {
+    type: "adp",
+    label: "ADP Workforce Now",
+    icon: "🏢",
+    category: "Payroll",
+    description: "Export approved time entries in ADP-compatible CSV format for import into your ADP account.",
+    status: "coming_soon",
+    statusLabel: "Coming Soon — CSV export available now",
+    docs: "https://developers.adp.com",
+    fields: [
+      { key: "client_id", label: "Client ID", type: "text", placeholder: "Your ADP client ID" },
+      { key: "client_secret", label: "Client Secret", type: "password", placeholder: "Your ADP client secret" },
+    ],
+    setupSteps: [
+      "Register at developers.adp.com",
+      "Create an application for Workforce Now",
+      "Complete ADP marketplace enrollment",
+      "Enter credentials below",
+      "Use CSV export in the meantime — works with any ADP import",
+    ],
+  },
+  // ── INSURANCE BILLING ────────────────────────────────────
+  {
+    type: "availity",
+    label: "Availity Clearinghouse",
+    icon: "🏦",
+    category: "Billing",
+    description: "Free clearinghouse for EDI 837 claim submission and real-time eligibility checks.",
+    status: "ready_to_configure",
+    statusLabel: "Ready to configure",
+    docs: "https://www.availity.com/developers",
+    fields: [
+      { key: "username", label: "Availity Username", type: "text", placeholder: "Your Availity username" },
+      { key: "password", label: "Availity Password", type: "password", placeholder: "Your Availity password" },
+      { key: "submitter_id", label: "Submitter ID", type: "text", placeholder: "Your EDI submitter ID" },
+      { key: "trading_partner_id", label: "Trading Partner ID", type: "text", placeholder: "Payer trading partner ID" },
+    ],
+    setupSteps: [
+      "Register at availity.com (free for providers)",
+      "Complete provider enrollment",
+      "Request EDI/API access",
+      "Obtain submitter ID and trading partner IDs",
+      "Enter credentials below",
+    ],
+  },
+  {
+    type: "office_ally",
+    label: "Office Ally",
+    icon: "🗂️",
+    category: "Billing",
+    description: "Free EDI clearinghouse — great starting point for small practices.",
+    status: "ready_to_configure",
+    statusLabel: "Ready to configure",
+    docs: "https://www.officeally.com",
+    fields: [
+      { key: "username", label: "Office Ally Username", type: "text", placeholder: "Your Office Ally username" },
+      { key: "password", label: "Office Ally Password", type: "password", placeholder: "Your password" },
+      { key: "group_id", label: "Group/Provider ID", type: "text", placeholder: "Your provider group ID" },
+    ],
+    setupSteps: [
+      "Register at officeally.com (free)",
+      "Complete provider setup",
+      "Enroll with payers through their portal",
+      "Enter credentials below",
+      "Test with a sample claim",
+    ],
+  },
+  {
+    type: "change_healthcare",
+    label: "Change Healthcare EDI",
+    icon: "🔄",
+    category: "Billing",
+    description: "Enterprise clearinghouse for high-volume EDI 837 claim submission.",
+    status: "ready_to_configure",
+    statusLabel: "Ready to configure",
+    docs: "https://developers.changehealthcare.com",
+    fields: [
+      { key: "client_id", label: "Client ID", type: "text", placeholder: "Your Change Healthcare client ID" },
+      { key: "client_secret", label: "Client Secret", type: "password", placeholder: "Your client secret" },
+      { key: "submitter_id", label: "Submitter ID", type: "text", placeholder: "Your EDI submitter ID" },
+    ],
+    setupSteps: [
+      "Apply at developers.changehealthcare.com",
+      "Complete developer registration",
+      "Create an application to get client ID and secret",
+      "Complete payer enrollment for each insurer",
+      "Enter credentials below",
+    ],
+  },
+  {
+    type: "square",
+    label: "Square Payments",
+    icon: "💳",
+    category: "Billing",
+    description: "Accept payments for subscriptions and self-pay clients.",
+    status: "sandbox",
+    statusLabel: "Sandbox mode — switch to production at launch",
+    docs: "https://developer.squareup.com/docs",
+    fields: [
+      { key: "access_token", label: "Access Token", type: "password", placeholder: "sq0atp-xxxxxxxxxx" },
+      { key: "application_id", label: "Application ID", type: "text", placeholder: "sq0idp-xxxxxxxxxx" },
+      { key: "location_id", label: "Location ID", type: "text", placeholder: "Your Square location ID" },
+      { key: "environment", label: "Environment", type: "select", options: ["sandbox", "production"], placeholder: "" },
+    ],
+    setupSteps: [
+      "Currently in sandbox mode",
+      "Go to developer.squareup.com",
+      "Switch application to production",
+      "Copy production credentials",
+      "Update environment to 'production'",
+    ],
+  },
+  // ── EXPORTS ──────────────────────────────────────────────
+  {
+    type: "cms1500",
+    label: "CMS-1500 PDF Export",
+    icon: "📄",
+    category: "Export",
+    description: "Generate CMS-1500 claim forms as PDFs from approved time entries. Works with any billing system.",
+    status: "configured",
+    statusLabel: "Available now",
+    docs: "",
+    fields: [],
+    setupSteps: [
+      "No setup required",
+      "Go to Time Entries, approve an entry, and click Export CMS-1500",
+      "PDF will be generated with all required ABA billing fields pre-filled",
+    ],
+  },
+  {
+    type: "csv_export",
+    label: "CSV Export",
+    icon: "📋",
+    category: "Export",
+    description: "Export time entries, EVV records, and billing data as CSV for use in any spreadsheet or billing software.",
+    status: "configured",
+    statusLabel: "Available now",
+    docs: "",
+    fields: [],
+    setupSteps: [
+      "No setup required",
+      "Go to Time Entries and use the Export button",
+      "Compatible with Excel, Google Sheets, QuickBooks import, and ADP import",
+    ],
+  },
+  // ── COMMUNICATION ────────────────────────────────────────
   {
     type: "twilio",
     label: "Twilio SMS",
@@ -64,6 +254,27 @@ const INTEGRATIONS = [
     ],
   },
   {
+    type: "vapid_push",
+    label: "Web Push Notifications",
+    icon: "🔔",
+    category: "Communication",
+    description: "Browser push notifications for reminders, messages, and alerts.",
+    status: "configured",
+    statusLabel: "VAPID keys in .env.local",
+    docs: "https://web.dev/push-notifications-overview/",
+    fields: [
+      { key: "vapid_public_key", label: "VAPID Public Key", type: "text", placeholder: "Your public VAPID key" },
+      { key: "vapid_private_key", label: "VAPID Private Key", type: "password", placeholder: "Your private VAPID key" },
+    ],
+    setupSteps: [
+      "Keys already generated and in .env.local",
+      "Deploy to HTTPS (Vercel) to test",
+      "Users must grant notification permission",
+      "Test by sending a test notification below",
+    ],
+  },
+  // ── TELEHEALTH ───────────────────────────────────────────
+  {
     type: "daily",
     label: "Daily.co Video",
     icon: "🎥",
@@ -84,116 +295,7 @@ const INTEGRATIONS = [
       "Test by creating a room",
     ],
   },
-  {
-    type: "availity",
-    label: "Availity Clearinghouse",
-    icon: "🏦",
-    category: "Billing",
-    description: "Free clearinghouse for EDI 837 claim submission and real-time eligibility checks.",
-    status: "ready_to_configure",
-    statusLabel: "Ready to configure",
-    docs: "https://www.availity.com/developers",
-    fields: [
-      { key: "username", label: "Availity Username", type: "text", placeholder: "Your Availity username" },
-      { key: "password", label: "Availity Password", type: "password", placeholder: "Your Availity password" },
-      { key: "submitter_id", label: "Submitter ID", type: "text", placeholder: "Your EDI submitter ID" },
-      { key: "trading_partner_id", label: "Trading Partner ID", type: "text", placeholder: "Payer trading partner ID" },
-    ],
-    setupSteps: [
-      "Register at availity.com (free for providers)",
-      "Complete provider enrollment",
-      "Request EDI/API access",
-      "Obtain submitter ID and trading partner IDs",
-      "Enter credentials below",
-    ],
-  },
-  {
-    type: "change_healthcare",
-    label: "Change Healthcare EDI",
-    icon: "🔄",
-    category: "Billing",
-    description: "Enterprise clearinghouse for high-volume EDI 837 claim submission.",
-    status: "ready_to_configure",
-    statusLabel: "Ready to configure",
-    docs: "https://developers.changehealthcare.com",
-    fields: [
-      { key: "client_id", label: "Client ID", type: "text", placeholder: "Your Change Healthcare client ID" },
-      { key: "client_secret", label: "Client Secret", type: "password", placeholder: "Your client secret" },
-      { key: "submitter_id", label: "Submitter ID", type: "text", placeholder: "Your EDI submitter ID" },
-    ],
-    setupSteps: [
-      "Apply at developers.changehealthcare.com",
-      "Complete developer registration",
-      "Create an application to get client ID and secret",
-      "Complete payer enrollment for each insurer",
-      "Enter credentials below",
-    ],
-  },
-  {
-    type: "office_ally",
-    label: "Office Ally",
-    icon: "🗂️",
-    category: "Billing",
-    description: "Free EDI clearinghouse — great starting point for small practices.",
-    status: "ready_to_configure",
-    statusLabel: "Ready to configure",
-    docs: "https://www.officeally.com",
-    fields: [
-      { key: "username", label: "Office Ally Username", type: "text", placeholder: "Your Office Ally username" },
-      { key: "password", label: "Office Ally Password", type: "password", placeholder: "Your password" },
-      { key: "group_id", label: "Group/Provider ID", type: "text", placeholder: "Your provider group ID" },
-    ],
-    setupSteps: [
-      "Register at officeally.com (free)",
-      "Complete provider setup",
-      "Enroll with payers through their portal",
-      "Enter credentials below",
-      "Test with a sample claim",
-    ],
-  },
-  {
-    type: "vapid_push",
-    label: "Web Push Notifications",
-    icon: "🔔",
-    category: "Notifications",
-    description: "Browser push notifications for reminders, messages, and alerts.",
-    status: "configured",
-    statusLabel: "VAPID keys in .env.local",
-    docs: "https://web.dev/push-notifications-overview/",
-    fields: [
-      { key: "vapid_public_key", label: "VAPID Public Key", type: "text", placeholder: "Your public VAPID key" },
-      { key: "vapid_private_key", label: "VAPID Private Key", type: "password", placeholder: "Your private VAPID key" },
-    ],
-    setupSteps: [
-      "Keys already generated and in .env.local",
-      "Deploy to HTTPS (Vercel) to test",
-      "Users must grant notification permission",
-      "Test by sending a test notification below",
-    ],
-  },
-  {
-    type: "square",
-    label: "Square Payments",
-    icon: "💳",
-    category: "Billing",
-    description: "Accept payments for subscriptions and self-pay clients.",
-    status: "sandbox",
-    statusLabel: "Sandbox mode — switch to production at launch",
-    docs: "https://developer.squareup.com/docs",
-    fields: [
-      { key: "access_token", label: "Access Token", type: "password", placeholder: "sq0atp-xxxxxxxxxx" },
-      { key: "application_id", label: "Application ID", type: "text", placeholder: "sq0idp-xxxxxxxxxx" },
-      { key: "location_id", label: "Location ID", type: "text", placeholder: "Your Square location ID" },
-      { key: "environment", label: "Environment", type: "select", options: ["sandbox", "production"], placeholder: "" },
-    ],
-    setupSteps: [
-      "Currently in sandbox mode",
-      "Go to developer.squareup.com",
-      "Switch application to production",
-      "Copy production credentials",
-      "Update environment to 'production'",
-    ],
-  },
+  // ── CREDENTIALING ────────────────────────────────────────
   {
     type: "caqh",
     label: "CAQH ProView",
@@ -230,6 +332,7 @@ const INTEGRATIONS = [
       "NPIs are verified against the CMS NPPES database",
     ],
   },
+  // ── MOBILE ───────────────────────────────────────────────
   {
     type: "apple_developer",
     label: "Apple Developer (iOS)",
@@ -243,7 +346,7 @@ const INTEGRATIONS = [
     setupSteps: [
       "Purchase Apple Developer account at developer.apple.com ($99/yr)",
       "Configure app bundle ID and signing certificates",
-      "Convert Next.js PWA to React Native or use Capacitor",
+      "Run EAS build for iOS production build",
       "Submit for App Store review",
       "Estimated timeline: 4-6 weeks after account purchase",
     ],
@@ -260,7 +363,7 @@ const INTEGRATIONS = [
     fields: [],
     setupSteps: [
       "Purchase Google Play Developer account ($25 one-time)",
-      "Convert Next.js PWA to React Native or use Capacitor",
+      "Run EAS build for Android production build",
       "Configure app signing and release track",
       "Submit for Google Play review",
       "Estimated timeline: 2-3 weeks after account purchase",
@@ -269,10 +372,11 @@ const INTEGRATIONS = [
 ];
 
 const CATEGORY_ICONS: Record<string, string> = {
+  Payroll: "💰",
+  Billing: "🏥",
+  Export: "📤",
   Communication: "💬",
   Telehealth: "🎥",
-  Billing: "💰",
-  Notifications: "🔔",
   Credentialing: "🏅",
   Mobile: "📱",
 };
@@ -282,8 +386,24 @@ const STATUS_STYLES: Record<string, string> = {
   sandbox: "bg-yellow-100 text-yellow-700",
   pending_purchase: "bg-orange-100 text-orange-700",
   ready_to_configure: "bg-blue-100 text-blue-700",
+  coming_soon: "bg-purple-100 text-purple-700",
   manual: "bg-gray-100 text-gray-600",
   deferred: "bg-gray-100 text-gray-400",
+};
+
+const ENV_VARS: Record<string, string> = {
+  quickbooks: `QUICKBOOKS_CLIENT_ID=your_client_id\nQUICKBOOKS_CLIENT_SECRET=your_secret\nQUICKBOOKS_REALM_ID=your_company_id`,
+  gusto: `GUSTO_API_TOKEN=your_token\nGUSTO_COMPANY_ID=your_company_id`,
+  adp: `ADP_CLIENT_ID=your_client_id\nADP_CLIENT_SECRET=your_secret`,
+  availity: `AVAILITY_USERNAME=your_username\nAVAILITY_PASSWORD=your_password\nAVAILITY_SUBMITTER_ID=your_id`,
+  office_ally: `OFFICE_ALLY_USERNAME=your_username\nOFFICE_ALLY_PASSWORD=your_password`,
+  change_healthcare: `CHANGE_HEALTHCARE_CLIENT_ID=your_id\nCHANGE_HEALTHCARE_SECRET=your_secret`,
+  square: `SQUARE_ACCESS_TOKEN=your_token\nSQUARE_APPLICATION_ID=your_app_id\nSQUARE_LOCATION_ID=your_location\nSQUARE_ENVIRONMENT=production`,
+  twilio: `TWILIO_ACCOUNT_SID=ACxxxxxxxxxx\nTWILIO_AUTH_TOKEN=your_auth_token\nTWILIO_PHONE_NUMBER=+15550000000`,
+  resend: `RESEND_API_KEY=re_xxxxxxxxxx\nRESEND_FROM_EMAIL=noreply@yourdomain.com`,
+  daily: `DAILY_API_KEY=your_daily_api_key\nDAILY_DOMAIN=yourdomain.daily.co`,
+  vapid_push: `NEXT_PUBLIC_VAPID_PUBLIC_KEY=your_public_key\nVAPID_PRIVATE_KEY=your_private_key`,
+  npi_registry: `# No API key required\n# NPPES API is free and public`,
 };
 
 export default function IntegrationsPage() {
@@ -296,7 +416,7 @@ export default function IntegrationsPage() {
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({});
   const [filterCategory, setFilterCategory] = useState("all");
 
-  useEffect(() => { init(); }, []);
+  useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
@@ -314,11 +434,10 @@ export default function IntegrationsPage() {
     });
     setSettings(map);
 
-    // Pre-fill form values from saved config
     const forms: Record<string, Record<string, string>> = {};
     INTEGRATIONS.forEach((intg) => {
       forms[intg.type] = {};
-      intg.fields.forEach((field) => {
+      (intg.fields ?? []).forEach((field) => {
         forms[intg.type][field.key] = map[intg.type]?.config[field.key] ?? "";
       });
     });
@@ -334,83 +453,52 @@ export default function IntegrationsPage() {
 
     const config = formValues[integrationType] ?? {};
     const hasValues = Object.values(config).some((v) => v.trim() !== "");
-
     const existing = settings[integrationType];
 
     if (existing) {
       await supabase.from("integration_settings").update({
-        config,
-        is_configured: hasValues,
-        updated_at: new Date().toISOString(),
+        config, is_configured: hasValues, updated_at: new Date().toISOString(),
       }).eq("id", existing.id);
     } else {
       await supabase.from("integration_settings").insert([{
-        integration_type: integrationType,
-        config,
-        is_enabled: hasValues,
-        is_configured: hasValues,
-        created_by: user.id,
+        integration_type: integrationType, config,
+        is_enabled: hasValues, is_configured: hasValues, created_by: user.id,
       }]);
     }
 
     setSettings((prev) => ({
       ...prev,
-      [integrationType]: {
-        ...prev[integrationType],
-        config,
-        is_configured: hasValues,
-        integration_type: integrationType,
-      } as Integration,
+      [integrationType]: { ...prev[integrationType], config, is_configured: hasValues, integration_type: integrationType } as Integration,
     }));
-
     setSaving(null);
   }
 
   async function handleTest(integrationType: string) {
     setTesting(integrationType);
-
-    // Simulate test — in production these would call real API endpoints
     await new Promise((r) => setTimeout(r, 1500));
 
     const config = formValues[integrationType] ?? {};
     const hasValues = Object.values(config).some((v) => v.trim() !== "");
 
     if (!hasValues) {
-      setTestResults((prev) => ({
-        ...prev,
-        [integrationType]: { success: false, message: "No credentials configured. Please enter your API keys first." },
-      }));
+      setTestResults((prev) => ({ ...prev, [integrationType]: { success: false, message: "No credentials configured. Please enter your API keys first." } }));
     } else {
-      // In production: make actual API test calls here
-      setTestResults((prev) => ({
-        ...prev,
-        [integrationType]: {
-          success: true,
-          message: `✓ Credentials saved. Live test will be available once ${integrationType} is fully activated.`,
-        },
-      }));
-
-      // Save last test
+      setTestResults((prev) => ({ ...prev, [integrationType]: { success: true, message: `✓ Credentials saved. Live test will be available once ${integrationType} is fully activated.` } }));
       const existing = settings[integrationType];
       if (existing) {
         await supabase.from("integration_settings").update({
-          last_tested_at: new Date().toISOString(),
-          last_test_status: "pending_activation",
+          last_tested_at: new Date().toISOString(), last_test_status: "pending_activation",
         }).eq("id", existing.id);
       }
     }
-
     setTesting(null);
   }
 
   function updateField(integrationType: string, fieldKey: string, value: string) {
-    setFormValues((prev) => ({
-      ...prev,
-      [integrationType]: { ...(prev[integrationType] ?? {}), [fieldKey]: value },
-    }));
+    setFormValues((prev) => ({ ...prev, [integrationType]: { ...(prev[integrationType] ?? {}), [fieldKey]: value } }));
   }
 
-  const categories = ["all", ...Array.from(new Set(INTEGRATIONS.map((i) => i.category)))];
+  const categories = ["all", "Payroll", "Billing", "Export", "Communication", "Telehealth", "Credentialing", "Mobile"];
   const filtered = filterCategory === "all" ? INTEGRATIONS : INTEGRATIONS.filter((i) => i.category === filterCategory);
 
   const configuredCount = INTEGRATIONS.filter((i) => settings[i.type]?.is_configured).length;
@@ -419,32 +507,25 @@ export default function IntegrationsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="External Integrations">
-        <p className="text-gray-500 text-sm">Configure external services — credentials saved, ready to activate at launch.</p>
+        <p className="text-gray-500 text-sm">Connect payroll, billing, communication, and credentialing systems.</p>
       </PageHeader>
 
       {/* SUMMARY */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="border rounded-xl p-4 text-center bg-white">
-          <p className="text-2xl font-bold text-blue-600">{INTEGRATIONS.length}</p>
-          <p className="text-xs text-gray-500 mt-1">Total Integrations</p>
-        </div>
-        <div className="border rounded-xl p-4 text-center bg-white">
-          <p className="text-2xl font-bold text-green-600">{configuredCount}</p>
-          <p className="text-xs text-gray-500 mt-1">Configured</p>
-        </div>
-        <div className="border rounded-xl p-4 text-center bg-white">
-          <p className="text-2xl font-bold text-blue-500">{readyCount}</p>
-          <p className="text-xs text-gray-500 mt-1">Ready to Configure</p>
-        </div>
-        <div className="border rounded-xl p-4 text-center bg-white">
-          <p className="text-2xl font-bold text-gray-400">
-            {INTEGRATIONS.filter((i) => i.status === "deferred").length}
-          </p>
-          <p className="text-xs text-gray-500 mt-1">Deferred</p>
-        </div>
+        {[
+          { label: "Total Integrations", val: INTEGRATIONS.length, color: "text-blue-600" },
+          { label: "Configured", val: configuredCount, color: "text-green-600" },
+          { label: "Ready to Configure", val: readyCount, color: "text-blue-500" },
+          { label: "Deferred", val: INTEGRATIONS.filter(i => i.status === "deferred").length, color: "text-gray-400" },
+        ].map(s => (
+          <div key={s.label} className="border rounded-xl p-4 text-center bg-white">
+            <p className={`text-2xl font-bold ${s.color}`}>{s.val}</p>
+            <p className="text-xs text-gray-500 mt-1">{s.label}</p>
+          </div>
+        ))}
       </div>
 
-      {/* LAUNCH CHECKLIST */}
+      {/* PRE-LAUNCH CHECKLIST */}
       <Section title="🚀 Pre-Launch Integration Checklist">
         <div className="space-y-2">
           {[
@@ -456,20 +537,19 @@ export default function IntegrationsPage() {
             { label: "Register all clinicians in CAQH ProView", done: false, link: "https://proview.caqh.org", priority: "high" },
             { label: "Verify sending domain in Resend", done: true, link: "https://resend.com", priority: "done" },
             { label: "Configure NPI auto-verification", done: false, link: "#", priority: "low" },
+            { label: "Connect QuickBooks or Gusto for payroll", done: false, link: "https://developer.intuit.com", priority: "medium" },
+            { label: "Set up Office Ally or Availity for insurance claims", done: false, link: "https://www.officeally.com", priority: "high" },
           ].map((item) => (
             <div key={item.label} className={`flex items-center gap-3 border rounded-lg p-3 ${item.done ? "border-green-200 bg-green-50" : item.priority === "high" ? "border-orange-100 bg-orange-50" : "border-gray-100 bg-white"}`}>
-              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${item.done ? "bg-green-500 border-green-500 text-white" : "border-gray-300"}`}>
+              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 text-xs font-bold ${item.done ? "bg-green-500 border-green-500 text-white" : "border-gray-300"}`}>
                 {item.done && "✓"}
               </div>
-              <span className={`text-sm flex-1 ${item.done ? "line-through text-gray-400" : "text-gray-700"}`}>
-                {item.label}
-              </span>
+              <span className={`text-sm flex-1 ${item.done ? "line-through text-gray-400" : "text-gray-700"}`}>{item.label}</span>
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.priority === "high" ? "bg-orange-100 text-orange-700" : item.priority === "medium" ? "bg-blue-100 text-blue-700" : item.priority === "done" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                 {item.priority === "done" ? "✓ Done" : item.priority}
               </span>
               {item.link && item.link !== "#" && (
-                <a href={item.link} target={item.link.startsWith("http") ? "_blank" : "_self"}
-                  rel="noopener noreferrer"
+                <a href={item.link} target={item.link.startsWith("http") ? "_blank" : "_self"} rel="noopener noreferrer"
                   className="text-xs text-blue-500 hover:underline shrink-0">
                   {item.link.startsWith("http") ? "Open →" : "Go →"}
                 </a>
@@ -479,11 +559,17 @@ export default function IntegrationsPage() {
         </div>
       </Section>
 
+      {/* HOW IT WORKS */}
+      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+        <p className="text-sm font-semibold text-blue-800 mb-1">🔗 How Integrations Work</p>
+        <p className="text-sm text-blue-700">Each clinic connects their own accounts — your data never goes to another clinic. Once a time entry is approved by a BCBA, it can be pushed to your connected payroll or billing system with one click. Exports are always available regardless of which integrations you connect.</p>
+      </div>
+
       {/* CATEGORY FILTER */}
       <div className="flex flex-wrap gap-2">
         {categories.map((cat) => (
           <button key={cat} onClick={() => setFilterCategory(cat)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors capitalize ${filterCategory === cat ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 text-gray-600 hover:border-blue-300"}`}>
+            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${filterCategory === cat ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 text-gray-600 hover:border-blue-300"}`}>
             {cat === "all" ? "All" : `${CATEGORY_ICONS[cat] ?? ""} ${cat}`}
           </button>
         ))}
@@ -496,6 +582,8 @@ export default function IntegrationsPage() {
           const saved = settings[intg.type];
           const isConfigured = saved?.is_configured ?? false;
           const testResult = testResults[intg.type];
+          const hasFields = (intg.fields ?? []).length > 0;
+          const canExpand = intg.status !== "deferred" && intg.status !== "manual";
 
           return (
             <div key={intg.type} className={`border rounded-xl bg-white ${isConfigured ? "border-green-200" : "border-gray-100"}`}>
@@ -509,28 +597,20 @@ export default function IntegrationsPage() {
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[intg.status] ?? "bg-gray-100 text-gray-500"}`}>
                           {isConfigured ? "✓ Configured" : intg.statusLabel}
                         </span>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
-                          {intg.category}
-                        </span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{intg.category}</span>
                       </div>
                       <p className="text-xs text-gray-500 mt-1">{intg.description}</p>
                       {saved?.last_tested_at && (
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          Last tested: {new Date(saved.last_tested_at).toLocaleDateString()}
-                        </p>
+                        <p className="text-xs text-gray-400 mt-0.5">Last tested: {new Date(saved.last_tested_at).toLocaleDateString()}</p>
                       )}
                     </div>
                   </div>
                   <div className="flex gap-2 items-center">
                     {intg.docs && (
-                      <a href={intg.docs} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-blue-500 hover:underline">
-                        Docs →
-                      </a>
+                      <a href={intg.docs} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline">Docs →</a>
                     )}
-                    {intg.status !== "deferred" && intg.status !== "manual" && (
-                      <button onClick={() => setExpandedType(isExpanded ? null : intg.type)}
-                        className="text-xs text-gray-400 hover:text-gray-600">
+                    {canExpand && (
+                      <button onClick={() => setExpandedType(isExpanded ? null : intg.type)} className="text-xs text-gray-400 hover:text-gray-600">
                         {isExpanded ? "▲" : "▼"}
                       </button>
                     )}
@@ -546,9 +626,7 @@ export default function IntegrationsPage() {
                       <div className="space-y-1">
                         {intg.setupSteps.map((step, i) => (
                           <div key={i} className="flex gap-2 items-start">
-                            <span className="w-5 h-5 bg-blue-100 text-blue-600 rounded-full text-xs flex items-center justify-center shrink-0 mt-0.5 font-bold">
-                              {i + 1}
-                            </span>
+                            <span className="w-5 h-5 bg-blue-100 text-blue-600 rounded-full text-xs flex items-center justify-center shrink-0 mt-0.5 font-bold">{i + 1}</span>
                             <p className="text-xs text-gray-600">{step}</p>
                           </div>
                         ))}
@@ -556,7 +634,7 @@ export default function IntegrationsPage() {
                     </div>
 
                     {/* CREDENTIAL FIELDS */}
-                    {intg.fields.length > 0 && (
+                    {hasFields && (
                       <div>
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Credentials</p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -564,19 +642,14 @@ export default function IntegrationsPage() {
                             <div key={field.key}>
                               <label className="text-xs font-medium text-gray-700 mb-1 block">{field.label}</label>
                               {field.type === "select" ? (
-                                <select
-                                  value={formValues[intg.type]?.[field.key] ?? ""}
+                                <select value={formValues[intg.type]?.[field.key] ?? ""}
                                   onChange={(e) => updateField(intg.type, field.key, e.target.value)}
                                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                                   <option value="">Select...</option>
-                                  {field.options?.map((opt) => (
-                                    <option key={opt} value={opt}>{opt}</option>
-                                  ))}
+                                  {(field as any).options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                                 </select>
                               ) : (
-                                <input
-                                  type={field.type}
-                                  value={formValues[intg.type]?.[field.key] ?? ""}
+                                <input type={field.type} value={formValues[intg.type]?.[field.key] ?? ""}
                                   onChange={(e) => updateField(intg.type, field.key, e.target.value)}
                                   placeholder={field.placeholder}
                                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
@@ -584,16 +657,10 @@ export default function IntegrationsPage() {
                             </div>
                           ))}
                         </div>
-
                         <div className="flex gap-2 mt-4">
-                          <Button onClick={() => handleSave(intg.type)} loading={saving === intg.type}>
-                            💾 Save Credentials
-                          </Button>
-                          <Button variant="outline" onClick={() => handleTest(intg.type)} loading={testing === intg.type}>
-                            🔌 Test Connection
-                          </Button>
+                          <Button onClick={() => handleSave(intg.type)} loading={saving === intg.type}>💾 Save Credentials</Button>
+                          <Button variant="outline" onClick={() => handleTest(intg.type)} loading={testing === intg.type}>🔌 Test Connection</Button>
                         </div>
-
                         {testResult && (
                           <div className={`mt-3 p-3 rounded-lg text-sm ${testResult.success ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
                             {testResult.message}
@@ -602,27 +669,27 @@ export default function IntegrationsPage() {
                       </div>
                     )}
 
-                    {/* ENV VAR REFERENCE */}
-                    <div className="bg-gray-900 rounded-xl p-4">
-                      <p className="text-xs font-semibold text-gray-400 mb-2">Add to .env.local & Vercel Environment Variables</p>
-                      <code className="text-xs text-green-400 whitespace-pre-wrap">
-                        {intg.type === "twilio" && `TWILIO_ACCOUNT_SID=ACxxxxxxxxxx\nTWILIO_AUTH_TOKEN=your_auth_token\nTWILIO_PHONE_NUMBER=+15550000000`}
-                        {intg.type === "resend" && `RESEND_API_KEY=re_xxxxxxxxxx\nRESEND_FROM_EMAIL=noreply@yourdomain.com`}
-                        {intg.type === "daily" && `DAILY_API_KEY=your_daily_api_key\nDAILY_DOMAIN=yourdomain.daily.co`}
-                        {intg.type === "availity" && `AVAILITY_USERNAME=your_username\nAVAILITY_PASSWORD=your_password\nAVAILITY_SUBMITTER_ID=your_id`}
-                        {intg.type === "change_healthcare" && `CHANGE_HEALTHCARE_CLIENT_ID=your_id\nCHANGE_HEALTHCARE_SECRET=your_secret`}
-                        {intg.type === "office_ally" && `OFFICE_ALLY_USERNAME=your_username\nOFFICE_ALLY_PASSWORD=your_password`}
-                        {intg.type === "vapid_push" && `NEXT_PUBLIC_VAPID_PUBLIC_KEY=your_public_key\nVAPID_PRIVATE_KEY=your_private_key`}
-                        {intg.type === "square" && `SQUARE_ACCESS_TOKEN=your_token\nSQUARE_APPLICATION_ID=your_app_id\nSQUARE_LOCATION_ID=your_location\nSQUARE_ENVIRONMENT=production`}
-                        {intg.type === "npi_registry" && `# No API key required\n# NPPES API is free and public`}
-                      </code>
-                    </div>
+                    {/* ENV VAR BLOCK */}
+                    {ENV_VARS[intg.type] && (
+                      <div className="bg-gray-900 rounded-xl p-4">
+                        <p className="text-xs font-semibold text-gray-400 mb-2">Add to .env.local & Vercel Environment Variables</p>
+                        <code className="text-xs text-green-400 whitespace-pre-wrap">{ENV_VARS[intg.type]}</code>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             </div>
           );
         })}
+      </div>
+
+      {/* REQUEST AN INTEGRATION */}
+      <div className="border border-dashed border-gray-300 rounded-xl p-6 text-center">
+        <p className="text-2xl mb-2">🔌</p>
+        <p className="font-semibold text-gray-800 mb-1">Need a different integration?</p>
+        <p className="text-sm text-gray-500 mb-4">Tell us what billing, payroll, or other system you use and we'll add it.</p>
+        <Button variant="outline" onClick={() => window.location.href = "/dashboard/suggestions"}>Request an Integration</Button>
       </div>
     </div>
   );
