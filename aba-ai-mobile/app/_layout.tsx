@@ -3,7 +3,7 @@ import { Stack, router } from "expo-router";
 import { supabase } from "../lib/supabase";
 import { TimerProvider } from "../lib/TimerContext";
 import * as Notifications from "expo-notifications";
-import { Platform } from "react-native";
+import { prefetchForOffline, syncQueue } from "../lib/offline";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -34,7 +34,6 @@ async function registerPushToken() {
       .from("company_users").select("company_id")
       .eq("user_id", user.id).eq("status", "active").limit(1).maybeSingle();
 
-    // Upsert notification preferences with push token
     const { data: existing_pref } = await supabase
       .from("notification_preferences")
       .select("id").eq("user_id", user.id).limit(1).maybeSingle();
@@ -51,6 +50,15 @@ async function registerPushToken() {
         push_enabled: true,
       });
     }
+
+    // Prefetch data for offline use
+    if (companyUser?.company_id) {
+      await prefetchForOffline(companyUser.company_id, user.id);
+    }
+
+    // Sync any queued entries
+    await syncQueue();
+
   } catch (e) {
     console.log("Push token error:", e);
   }

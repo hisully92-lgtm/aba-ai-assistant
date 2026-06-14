@@ -1,11 +1,12 @@
 import { useState } from "react";
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal,
-  Animated, Dimensions, ScrollView, Alert, ActivityIndicator
+  Dimensions, ScrollView, Alert, ActivityIndicator
 } from "react-native";
 import { router } from "expo-router";
 import { supabase } from "../lib/supabase";
 import { useTimers } from "../lib/TimerContext";
+import OfflineBanner from "./OfflineBanner";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -44,14 +45,12 @@ export default function AppHeader({ title }: { title: string }) {
   return (
     <>
       <View style={styles.header}>
-        {/* HAMBURGER */}
         <TouchableOpacity style={styles.headerBtn} onPress={() => setDrawerOpen(true)}>
           <Text style={styles.hamburger}>☰</Text>
         </TouchableOpacity>
 
         <Text style={styles.headerTitle}>{title}</Text>
 
-        {/* TIMER BUTTON */}
         <TouchableOpacity style={[styles.headerBtn, styles.timerBtn]} onPress={() => setTimerOpen(true)}>
           <Text style={styles.timerIcon}>⏱️</Text>
           {hasRunning && (
@@ -61,6 +60,8 @@ export default function AppHeader({ title }: { title: string }) {
           )}
         </TouchableOpacity>
       </View>
+
+      <OfflineBanner />
 
       {/* DRAWER */}
       <Modal visible={drawerOpen} transparent animationType="none" onRequestClose={() => setDrawerOpen(false)}>
@@ -107,7 +108,7 @@ export default function AppHeader({ title }: { title: string }) {
             {timers.length === 0 ? (
               <View style={styles.timerEmpty}>
                 <Text style={styles.timerEmptyText}>No timers running.</Text>
-                <Text style={styles.timerEmptySubText}>Start timers from the Session screen.</Text>
+                <Text style={styles.timerEmptySubText}>Start timers from the Timers screen.</Text>
               </View>
             ) : (
               <ScrollView>
@@ -175,8 +176,6 @@ const styles = StyleSheet.create({
   timerIcon: { fontSize: 22 },
   timerBadge: { position: "absolute", top: -4, right: -4, backgroundColor: "#dc2626", borderRadius: 8, width: 16, height: 16, alignItems: "center", justifyContent: "center" },
   timerBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
-
-  // DRAWER
   drawerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", flexDirection: "row" },
   drawer: { width: SCREEN_WIDTH * 0.75, backgroundColor: "#1a2234", height: "100%", paddingTop: 60 },
   drawerHeader: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingBottom: 24, borderBottomWidth: 1, borderBottomColor: "#2a3a54" },
@@ -187,8 +186,6 @@ const styles = StyleSheet.create({
   drawerItemLabel: { fontSize: 15, color: "#e2e8f0", fontWeight: "500" },
   drawerLogout: { padding: 20, backgroundColor: "#dc2626", margin: 16, borderRadius: 12, alignItems: "center" },
   drawerLogoutText: { color: "#fff", fontSize: 15, fontWeight: "700" },
-
-  // TIMER OVERLAY
   timerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   timerPanel: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "70%", paddingBottom: 40 },
   timerPanelHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },

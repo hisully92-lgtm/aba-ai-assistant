@@ -6,6 +6,7 @@ import {
 import * as Location from "expo-location";
 import { supabase } from "../../lib/supabase";
 import AppHeader from "../../components/AppHeader";
+import { isOnline, getCachedClients } from "../../lib/offline";
 
 type Client = { id: string; full_name: string };
 type TimeEntry = { id: string; clock_in: string; clock_out: string | null; session_type: string; client_id: string | null };
@@ -45,16 +46,35 @@ export default function HomeScreen() {
     setRole(companyUser?.role ?? profile?.role ?? "");
 
     const today = new Date().toISOString().split("T")[0];
-    const [{ data: clientData }, { data: entryData }, { data: sessionData }] = await Promise.all([
-      supabase.from("clients").select("id, full_name").eq("company_id", companyUser?.company_id),
-      supabase.from("time_entries").select("*").eq("created_by", user.id).is("clock_out", null).limit(1).maybeSingle(),
-      supabase.from("sessions").select("*, clients(full_name)").eq("created_by", user.id).eq("date", today),
-    ]);
+    const online = await isOnline();
 
-    setClients(clientData ?? []);
+    // Fetch clients — use cache if offline
+    let clientData: Client[] = [];
+    if (online) {
+      const { data } = await supabase
+        .from("clients").select("id, full_name")
+        .eq("company_id", companyUser?.company_id);
+      clientData = data ?? [];
+    } else {
+      clientData = await getCachedClients();
+    }
+
+    // Fetch time entries and sessions only if online
+    let entryData = null;
+    let sessionData: any[] = [];
+    if (online) {
+      const [{ data: entry }, { data: sessions }] = await Promise.all([
+        supabase.from("time_entries").select("*").eq("created_by", user.id).is("clock_out", null).limit(1).maybeSingle(),
+        supabase.from("sessions").select("*, clients(full_name)").eq("created_by", user.id).eq("date", today),
+      ]);
+      entryData = entry;
+      sessionData = sessions ?? [];
+    }
+
+    setClients(clientData);
     setClockedIn(entryData ?? null);
     if (entryData) setElapsed(Math.floor((Date.now() - new Date(entryData.clock_in).getTime()) / 1000));
-    setTodaySessions(sessionData ?? []);
+    setTodaySessions(sessionData);
     setLoading(false);
   }
 
@@ -116,6 +136,16 @@ export default function HomeScreen() {
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
       <AppHeader title="Home" />
 
+      {/* GREETING */}
+      <View style={styles.greetingCard}>
+        <Text style={styles.greeting}>{greeting},</Text>
+        <Text style={styles.name}>{userName || "Clinician"}</Text>
+        <View style={styles.roleBadge}>
+          <Text style={styles.roleText}>{role.toUpperCase()}</Text>
+        </View>
+      </View>
+
+      {/* CLOCK IN/OUT */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Session Timer</Text>
         {clockedIn ? (
@@ -151,8 +181,9 @@ export default function HomeScreen() {
         )}
       </View>
 
+      {/* TODAY'S SESSIONS */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Today&apos;s Sessions ({todaySessions.length})</Text>
+        <Text style={styles.cardTitle}>Today's Sessions ({todaySessions.length})</Text>
         {todaySessions.length === 0 ? (
           <Text style={styles.empty}>No sessions recorded today.</Text>
         ) : (
@@ -170,6 +201,7 @@ export default function HomeScreen() {
         )}
       </View>
 
+      {/* QUICK ACTIONS */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Quick Actions</Text>
         <View style={styles.quickGrid}>
@@ -193,7 +225,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f9fafb" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { backgroundColor: "#1a2234", paddingTop: 60, paddingBottom: 30, paddingHorizontal: 24 },
+  greetingCard: { backgroundColor: "#1a2234", paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24 },
   greeting: { fontSize: 14, color: "#94a3b8" },
   name: { fontSize: 26, fontWeight: "800", color: "#fff", marginTop: 2 },
   roleBadge: { marginTop: 8, backgroundColor: "#2563eb", alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },

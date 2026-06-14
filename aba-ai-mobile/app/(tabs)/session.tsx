@@ -5,6 +5,7 @@ import {
 } from "react-native";
 import { supabase } from "../../lib/supabase";
 import AppHeader from "../../components/AppHeader";
+import { isOnline, addToQueue, getCachedBehaviors, getCachedTargets } from "../../lib/offline";
 
 type Client = { id: string; full_name: string };
 type CustomBehavior = {
@@ -82,6 +83,8 @@ export default function SessionScreen() {
   }
 
   async function loadClientData() {
+  const online = await isOnline();
+  if (online) {
     const [{ data: behaviors }, { data: targets }] = await Promise.all([
       supabase.from("custom_behaviors")
         .select("*, severity_levels:behavior_severity_levels(*)")
@@ -94,9 +97,18 @@ export default function SessionScreen() {
     ]);
     setCustomBehaviors(behaviors ?? []);
     setSkillTargets(targets ?? []);
-    setBehaviorEntries([]);
-    setTrialEntries([]);
+  } else {
+    // Load from cache
+    const [behaviors, targets] = await Promise.all([
+      getCachedBehaviors(selectedClient),
+      getCachedTargets(selectedClient),
+    ]);
+    setCustomBehaviors(behaviors);
+    setSkillTargets(targets);
   }
+  setBehaviorEntries([]);
+  setTrialEntries([]);
+}
 
   function recordBehavior(behavior: CustomBehavior, severityId: string | null, severityLabel: string | null, severityColor: string | null) {
     setBehaviorEntries(prev => {
@@ -126,54 +138,68 @@ export default function SessionScreen() {
   const trialEntryPct = totalTrials > 0 ? Math.round((correctTrials / totalTrials) * 100) : 0;
 
   async function handleSave() {
-    if (!selectedClient) { Alert.alert("Please select a client."); return; }
-    setSaving(true);
-    const { data: auth } = await supabase.auth.getUser();
-    const user = auth?.user;
-    if (!user) return;
+  if (!selectedClient) { Alert.alert("Please select a client."); return; }
+  setSaving(true);
+  const { data: auth } = await supabase.auth.getUser();
+  const user = auth?.user;
+  if (!user) return;
 
-    const behaviorsStr = behaviorEntries.map(e =>
-      `${e.behaviorName}${e.severityLabel ? ` (${e.severityLabel})` : ""} x${e.frequency}`
-    ).join(", ");
-    const trialNote = trials.length > 0 ? `${trialProgram}: ${trialCorrect}/${trials.length} correct (${trialPct}%)` : "";
+  const online = await isOnline();
+  const behaviorsStr = behaviorEntries.map(e =>
+    `${e.behaviorName}${e.severityLabel ? ` (${e.severityLabel})` : ""} x${e.frequency}`
+  ).join(", ");
+  const trialNote = trials.length > 0 ? `${trialProgram}: ${trialCorrect}/${trials.length} correct (${trialPct}%)` : "";
 
-    const { data: session } = await supabase.from("sessions").insert({
-      client_id: selectedClient,
-      date: new Date().toISOString().split("T")[0],
-      status: "completed",
-      behaviors_observed: behaviorsStr || "No behaviors observed",
-      interventions_used: selectedInterventions.join(", "),
-      programs_targeted: [...new Set(trialEntries.map(t => `${t.programName}: ${t.targetName}`)), trialNote].filter(Boolean).join(", "),
-      created_by: user.id,
-      company_id: companyId,
-    }).select().single();
+  const sessionPayload = {
+    client_id: selectedClient,
+    date: new Date().toISOString().split("T")[0],
+    status: "completed",
+    behaviors_observed: behaviorsStr || "No behaviors observed",
+    interventions_used: selectedInterventions.join(", "),
+    programs_targeted: [...new Set(trialEntries.map(t => `${t.programName}: ${t.targetName}`)), trialNote].filter(Boolean).join(", "),
+    created_by: user.id,
+    company_id: companyId,
+  };
 
-    if (session) {
-      if (behaviorEntries.length > 0) {
-        await supabase.from("behavior_data").insert(
-          behaviorEntries.map(e => ({
-            session_id: session.id, client_id: selectedClient, company_id: companyId,
-            behavior_id: e.behaviorId, severity_level_id: e.severityId,
-            severity_label: e.severityLabel, frequency: e.frequency, created_by: user.id,
-          }))
-        );
-      }
-      if (trialEntries.length > 0) {
-        await supabase.from("skill_trial_data").insert(
-          trialEntries.map(e => ({
-            session_id: session.id, client_id: selectedClient, company_id: companyId,
-            target_id: e.targetId, prompt_level_id: e.promptId,
-            prompt_label: e.promptLabel, result: e.result, created_by: user.id,
-          }))
-        );
-      }
-    }
-
-    setBehaviorEntries([]); setTrialEntries([]); setSelectedInterventions([]);
-    setTrials([]); setTrialProgram("");
+  if (!online) {
+    // Queue everything for later
+    await addToQueue({ type: "sessions", payload: sessionPayload });
+    Alert.alert("Saved Offline", "Session queued and will sync when you're back online.");
+    setBehaviorEntries([]); setTrialEntries([]);
+    setSelectedInterventions([]); setTrials([]); setTrialProgram("");
     setSaving(false); setSuccess(true);
     setTimeout(() => setSuccess(false), 3000);
+    return;
   }
+
+  const { data: session } = await supabase.from("sessions").insert(sessionPayload).select().single();
+
+  if (session) {
+    if (behaviorEntries.length > 0) {
+      await supabase.from("behavior_data").insert(
+        behaviorEntries.map(e => ({
+          session_id: session.id, client_id: selectedClient, company_id: companyId,
+          behavior_id: e.behaviorId, severity_level_id: e.severityId,
+          severity_label: e.severityLabel, frequency: e.frequency, created_by: user.id,
+        }))
+      );
+    }
+    if (trialEntries.length > 0) {
+      await supabase.from("skill_trial_data").insert(
+        trialEntries.map(e => ({
+          session_id: session.id, client_id: selectedClient, company_id: companyId,
+          target_id: e.targetId, prompt_level_id: e.promptId,
+          prompt_label: e.promptLabel, result: e.result, created_by: user.id,
+        }))
+      );
+    }
+  }
+
+  setBehaviorEntries([]); setTrialEntries([]);
+  setSelectedInterventions([]); setTrials([]); setTrialProgram("");
+  setSaving(false); setSuccess(true);
+  setTimeout(() => setSuccess(false), 3000);
+}
 
   if (loading) return <View style={styles.center}><ActivityIndicator color="#2563eb" /></View>;
 
