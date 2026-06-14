@@ -69,6 +69,7 @@ type EVVRecord = {
 
 type Behavior = { id: string; name: string; category: string };
 type SkillTarget = { id: string; program_name: string; target_name: string };
+type DriveLocation = { id: string; name: string; address: string; city: string; latitude: number; longitude: number };
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-gray-100 text-gray-600",
@@ -118,9 +119,22 @@ export default function TimeEntriesPage() {
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [clients, setClients] = useState<{ id: string; full_name: string }[]>([]);
-  const [activeTab, setActiveTab] = useState<"evv" | "entries">("evv");
+  const [activeTab, setActiveTab] = useState<"evv" | "entries" | "drive">("evv");
 
-  // Client behaviors/skills for the convert form
+  // Drive time state
+  const [driveClient1Id, setDriveClient1Id] = useState("");
+  const [driveClient2Id, setDriveClient2Id] = useState("");
+  const [driveLocations1, setDriveLocations1] = useState<DriveLocation[]>([]);
+  const [driveLocations2, setDriveLocations2] = useState<DriveLocation[]>([]);
+  const [driveLocation1Id, setDriveLocation1Id] = useState("");
+  const [driveLocation2Id, setDriveLocation2Id] = useState("");
+  const [driveEstimated, setDriveEstimated] = useState<number | null>(null);
+  const [driveActual, setDriveActual] = useState("");
+  const [driveReason, setDriveReason] = useState("");
+  const [driveStep, setDriveStep] = useState<"select" | "confirm">("select");
+  const [driveSaving, setDriveSaving] = useState(false);
+
+  // Clinical data for convert form
   const [clientBehaviors, setClientBehaviors] = useState<Behavior[]>([]);
   const [clientSkills, setClientSkills] = useState<SkillTarget[]>([]);
 
@@ -128,22 +142,13 @@ export default function TimeEntriesPage() {
   const [convertingEVV, setConvertingEVV] = useState<EVVRecord | null>(null);
   const [convertStep, setConvertStep] = useState<"billing" | "clinical">("billing");
   const [convertForm, setConvertForm] = useState({
-    cpt_code: "97153",
-    session_type: "Direct Therapy",
-    drive_time_minutes: 0,
-    drive_time_billable: false,
-    notes: "",
-    behaviors_worked_on: [] as string[],
-    maladaptive_behaviors: [] as string[],
+    cpt_code: "97153", session_type: "Direct Therapy",
+    drive_time_minutes: 0, drive_time_billable: false, notes: "",
+    behaviors_worked_on: [] as string[], maladaptive_behaviors: [] as string[],
     progress_ratings: {} as Record<string, string>,
-    reinforcements_used: "",
-    reinforcements_worked: null as boolean | null,
-    reinforcements_timing: "",
-    antecedents: "",
-    who_was_present: [] as string[],
-    client_readiness: "",
-    client_disposition: "",
-    clinical_notes: "",
+    reinforcements_used: "", reinforcements_worked: null as boolean | null,
+    reinforcements_timing: "", antecedents: "", who_was_present: [] as string[],
+    client_readiness: "", client_disposition: "", clinical_notes: "",
   });
 
   // Manual entry form
@@ -222,6 +227,58 @@ export default function TimeEntriesPage() {
     setClientSkills(skills ?? []);
   }
 
+  async function loadDriveLocations(clientId: string, which: 1 | 2) {
+    const { data } = await supabase.from("client_locations").select("*")
+      .eq("client_id", clientId).order("is_primary", { ascending: false });
+    if (which === 1) { setDriveLocations1(data ?? []); setDriveLocation1Id(""); }
+    else { setDriveLocations2(data ?? []); setDriveLocation2Id(""); }
+  }
+
+  function calculateDriveEstimate() {
+    const loc1 = driveLocations1.find(l => l.id === driveLocation1Id);
+    const loc2 = driveLocations2.find(l => l.id === driveLocation2Id);
+    if (!loc1 || !loc2) return;
+    const R = 6371;
+    const dLat = (loc2.latitude - loc1.latitude) * Math.PI / 180;
+    const dLon = (loc2.longitude - loc1.longitude) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(loc1.latitude * Math.PI / 180) * Math.cos(loc2.latitude * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+    const distKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distMiles = distKm * 0.621371;
+    const mins = Math.round((distMiles / 30) * 60);
+    setDriveEstimated(mins);
+    setDriveActual(String(mins));
+    setDriveStep("confirm");
+  }
+
+  async function saveDriveTime() {
+    const loc1 = driveLocations1.find(l => l.id === driveLocation1Id);
+    const loc2 = driveLocations2.find(l => l.id === driveLocation2Id);
+    const client1 = clients.find(c => c.id === driveClient1Id);
+    const client2 = clients.find(c => c.id === driveClient2Id);
+    if (!loc1 || !loc2 || !client1 || !client2) return;
+    setDriveSaving(true);
+    const mins = parseInt(driveActual) || 0;
+    const today = new Date().toISOString().split("T")[0];
+    const now = new Date().toISOString();
+    await supabase.from("time_entry_logs").insert({
+      company_id: companyId, user_id: userId,
+      client_id: driveClient1Id, date: today,
+      start_time: now, end_time: now,
+      duration_minutes: mins, session_type: "Drive Time",
+      cpt_code: "T1016", drive_time_minutes: mins,
+      drive_time_billable: true,
+      notes: `Drive from ${client1.full_name} (${loc1.name}) to ${client2.full_name} (${loc2.name}).${driveReason ? ` Adjusted from ${driveEstimated}min: ${driveReason}` : ""}`,
+      status: "draft",
+    });
+    setDriveSaving(false);
+    setDriveStep("select");
+    setDriveClient1Id(""); setDriveClient2Id("");
+    setDriveLocation1Id(""); setDriveLocation2Id("");
+    setDriveEstimated(null); setDriveActual(""); setDriveReason("");
+    await loadEntries();
+    setActiveTab("entries");
+  }
+
   const isAdmin = ["bcba", "supervisor", "admin", "clinical_director"].includes(role);
 
   async function openConvertForm(evv: EVVRecord) {
@@ -247,19 +304,14 @@ export default function TimeEntriesPage() {
     setSaving("convert");
 
     const { data, error } = await supabase.from("time_entry_logs").insert({
-      company_id: companyId,
-      user_id: userId,
-      client_id: convertingEVV.client_id,
-      date: convertingEVV.date,
-      start_time: convertingEVV.actual_start,
-      end_time: convertingEVV.actual_end,
+      company_id: companyId, user_id: userId,
+      client_id: convertingEVV.client_id, date: convertingEVV.date,
+      start_time: convertingEVV.actual_start, end_time: convertingEVV.actual_end,
       duration_minutes: convertingEVV.session_duration_minutes,
-      session_type: convertForm.session_type,
-      cpt_code: convertForm.cpt_code,
+      session_type: convertForm.session_type, cpt_code: convertForm.cpt_code,
       drive_time_minutes: convertForm.drive_time_minutes,
       drive_time_billable: convertForm.drive_time_billable,
-      notes: convertForm.notes || null,
-      status: "draft",
+      notes: convertForm.notes || null, status: "draft",
       location_name: convertingEVV.location_name,
       geofence_verified: convertingEVV.start_geofence_verified,
       evv_record_id: convertingEVV.id,
@@ -277,9 +329,7 @@ export default function TimeEntriesPage() {
     }).select().single();
 
     if (error) { alert("Error: " + error.message); setSaving(null); return; }
-
     await supabase.from("evv_records").update({ time_entry_id: data.id }).eq("id", convertingEVV.id);
-
     setConvertingEVV(null);
     setSaving(null);
     setActiveTab("entries");
@@ -379,6 +429,7 @@ export default function TimeEntriesPage() {
         {[
           { key: "evv", label: "EVV Records", badge: unbilledEVV.length > 0 ? unbilledEVV.length : null, badgeColor: "bg-purple-500" },
           { key: "entries", label: "Time Entries", badge: pendingCount > 0 ? pendingCount : null, badgeColor: "bg-yellow-500" },
+          { key: "drive", label: "🚗 Drive Time", badge: null, badgeColor: "" },
         ].map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key as any)}
             className={`px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${activeTab === t.key ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
@@ -392,7 +443,6 @@ export default function TimeEntriesPage() {
       {convertingEVV && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col">
-            {/* Modal Header */}
             <div className="p-6 border-b border-gray-100 shrink-0">
               <div className="flex items-center justify-between">
                 <div>
@@ -401,7 +451,6 @@ export default function TimeEntriesPage() {
                 </div>
                 <button onClick={() => setConvertingEVV(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
               </div>
-              {/* Step indicator */}
               <div className="flex gap-2 mt-4">
                 {["billing", "clinical"].map((s, i) => (
                   <button key={s} type="button" onClick={() => setConvertStep(s as any)}
@@ -414,7 +463,6 @@ export default function TimeEntriesPage() {
             </div>
 
             <div className="overflow-y-auto flex-1 p-6 space-y-5">
-              {/* EVV Summary — always visible */}
               <div className="bg-gray-50 rounded-xl p-4">
                 <p className="text-xs font-bold text-gray-500 uppercase mb-2">From EVV Record</p>
                 <div className="grid grid-cols-3 gap-3 text-sm">
@@ -427,7 +475,6 @@ export default function TimeEntriesPage() {
                 </div>
               </div>
 
-              {/* STEP 1 — BILLING */}
               {convertStep === "billing" && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -446,7 +493,6 @@ export default function TimeEntriesPage() {
                       </select>
                     </div>
                   </div>
-
                   {driveTimeEnabled && (
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -465,39 +511,32 @@ export default function TimeEntriesPage() {
                       </div>
                     </div>
                   )}
-
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Billing Notes</label>
                     <textarea value={convertForm.notes} onChange={e => setConvertForm(p => ({ ...p, notes: e.target.value }))}
                       placeholder="Notes for billing review..." rows={2}
                       className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
                   </div>
-
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-2 block">Who Was Present</label>
                     <div className="flex flex-wrap gap-2">
                       {PRESENT_OPTIONS.map(p => chip(p, convertForm.who_was_present.includes(p), () => setConvertForm(f => ({ ...f, who_was_present: toggleArray(f.who_was_present, p) }))))}
                     </div>
                   </div>
-
                   <div className="flex justify-end">
                     <Button onClick={() => setConvertStep("clinical")}>Next: Clinical Notes →</Button>
                   </div>
                 </div>
               )}
 
-              {/* STEP 2 — CLINICAL */}
               {convertStep === "clinical" && (
                 <div className="space-y-5">
-                  {/* Client Readiness */}
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-2 block">Client Readiness at Start of Session</label>
                     <div className="flex flex-wrap gap-2">
                       {READINESS_OPTIONS.map(r => chip(r, convertForm.client_readiness === r, () => setConvertForm(f => ({ ...f, client_readiness: f.client_readiness === r ? "" : r }))))}
                     </div>
                   </div>
-
-                  {/* Behaviors Worked On */}
                   {clientSkills.length > 0 && (
                     <div>
                       <label className="text-sm font-medium text-gray-700 mb-2 block">Skill Targets Worked On</label>
@@ -509,8 +548,6 @@ export default function TimeEntriesPage() {
                       </div>
                     </div>
                   )}
-
-                  {/* Progress per skill */}
                   {convertForm.behaviors_worked_on.length > 0 && (
                     <div>
                       <label className="text-sm font-medium text-gray-700 mb-2 block">Progress Per Target</label>
@@ -532,8 +569,6 @@ export default function TimeEntriesPage() {
                       </div>
                     </div>
                   )}
-
-                  {/* Maladaptive Behaviors */}
                   {clientBehaviors.length > 0 && (
                     <div>
                       <label className="text-sm font-medium text-gray-700 mb-2 block">Maladaptive Behaviors Observed</label>
@@ -542,16 +577,12 @@ export default function TimeEntriesPage() {
                       </div>
                     </div>
                   )}
-
-                  {/* Antecedents */}
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Antecedents Noted</label>
                     <textarea value={convertForm.antecedents} onChange={e => setConvertForm(p => ({ ...p, antecedents: e.target.value }))}
                       placeholder="What happened before any behaviors? Environmental triggers, demands, transitions..." rows={2}
                       className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
                   </div>
-
-                  {/* Reinforcements */}
                   <div className="space-y-3">
                     <div>
                       <label className="text-sm font-medium text-gray-700 mb-1 block">Reinforcements Used</label>
@@ -577,23 +608,18 @@ export default function TimeEntriesPage() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Client Disposition */}
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-2 block">Client Disposition When Leaving Session</label>
                     <div className="flex flex-wrap gap-2">
                       {DISPOSITION_OPTIONS.map(d => chip(d, convertForm.client_disposition === d, () => setConvertForm(f => ({ ...f, client_disposition: f.client_disposition === d ? "" : d }))))}
                     </div>
                   </div>
-
-                  {/* Clinical Notes */}
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Clinical Session Notes</label>
                     <textarea value={convertForm.clinical_notes} onChange={e => setConvertForm(p => ({ ...p, clinical_notes: e.target.value }))}
                       placeholder="Overall session summary, anything notable, follow-up items for BCBA..." rows={4}
                       className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
                   </div>
-
                   <div className="flex gap-3 pt-2">
                     <Button variant="outline" onClick={() => setConvertStep("billing")}>← Back</Button>
                     <Button onClick={createEntryFromEVV} loading={saving === "convert"}>✓ Create Time Entry</Button>
@@ -803,7 +829,6 @@ export default function TimeEntriesPage() {
                     </div>
                   </div>
                 </button>
-
                 {expandedEntry === entry.id && (
                   <div className="px-4 pb-4 border-t border-gray-50 pt-3 space-y-3">
                     <div className="grid grid-cols-2 gap-3">
@@ -915,6 +940,100 @@ export default function TimeEntriesPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* DRIVE TIME TAB */}
+      {activeTab === "drive" && (
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+            <p className="text-sm font-semibold text-blue-800 mb-1">🚗 Drive Time Entry</p>
+            <p className="text-sm text-blue-700">Select your starting client location and ending client location. We'll estimate drive time and create a T1016 billing entry.</p>
+          </div>
+
+          {driveStep === "select" && (
+            <div className="bg-white border border-gray-100 rounded-xl p-6 space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">From: First Client</label>
+                  <select value={driveClient1Id}
+                    onChange={e => { setDriveClient1Id(e.target.value); if (e.target.value) loadDriveLocations(e.target.value, 1); }}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    <option value="">Select client...</option>
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">From: Location</label>
+                  <select value={driveLocation1Id} onChange={e => setDriveLocation1Id(e.target.value)}
+                    disabled={!driveClient1Id || driveLocations1.length === 0}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-50">
+                    <option value="">Select location...</option>
+                    {driveLocations1.map(l => <option key={l.id} value={l.id}>{l.name} — {l.address}, {l.city}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">To: Second Client</label>
+                  <select value={driveClient2Id}
+                    onChange={e => { setDriveClient2Id(e.target.value); if (e.target.value) loadDriveLocations(e.target.value, 2); }}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    <option value="">Select client...</option>
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">To: Location</label>
+                  <select value={driveLocation2Id} onChange={e => setDriveLocation2Id(e.target.value)}
+                    disabled={!driveClient2Id || driveLocations2.length === 0}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-50">
+                    <option value="">Select location...</option>
+                    {driveLocations2.map(l => <option key={l.id} value={l.id}>{l.name} — {l.address}, {l.city}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <Button onClick={calculateDriveEstimate} disabled={!driveLocation1Id || !driveLocation2Id}>
+                📍 Calculate Drive Time
+              </Button>
+            </div>
+          )}
+
+          {driveStep === "confirm" && driveEstimated !== null && (
+            <div className="bg-white border border-gray-100 rounded-xl p-6 space-y-4">
+              <div className="bg-blue-50 rounded-xl p-4">
+                <p className="text-xs font-bold text-gray-500 uppercase mb-2">Route Summary</p>
+                <p className="text-sm text-gray-800">📍 {driveLocations1.find(l => l.id === driveLocation1Id)?.name} ({clients.find(c => c.id === driveClient1Id)?.full_name})</p>
+                <p className="text-xs text-gray-400 ml-5">↓</p>
+                <p className="text-sm text-gray-800">📍 {driveLocations2.find(l => l.id === driveLocation2Id)?.name} ({clients.find(c => c.id === driveClient2Id)?.full_name})</p>
+                <p className="text-2xl font-bold text-blue-600 mt-3">~{driveEstimated} min estimated</p>
+                <p className="text-xs text-gray-400">Based on straight-line distance at 30mph average</p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Actual Drive Time (minutes)</label>
+                <input type="number" min={0} value={driveActual}
+                  onChange={e => setDriveActual(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              </div>
+
+              {driveActual !== String(driveEstimated) && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Reason for Adjustment</label>
+                  <textarea value={driveReason} onChange={e => setDriveReason(e.target.value)}
+                    placeholder="Traffic, detour, road closure, etc..."
+                    rows={2} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => setDriveStep("select")}>← Back</Button>
+                <Button onClick={saveDriveTime} loading={driveSaving}>✓ Save Drive Time Entry</Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
