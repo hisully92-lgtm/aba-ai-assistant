@@ -269,6 +269,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       href: "/dashboard/supervisor",
       icon: "📊",
       children: sortChildren([
+        { label: "Locations", href: "/dashboard/locations" },
         { label: "EDI Claims", href: "/dashboard/clearinghouse" },
         { label: "Referral Codes", href: "/dashboard/admin/referral-codes" },
         { label: "Analytics", href: "/dashboard/analytics" },
