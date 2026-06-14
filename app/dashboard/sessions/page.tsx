@@ -6,6 +6,8 @@ import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
+import { usePlanGate } from "@/lib/hooks/usePlanGate";
+import UpgradePrompt from "@/components/ui/UpgradePrompt";
 
 type Client = { id: string; full_name: string };
 type Session = {
@@ -265,6 +267,10 @@ export default function SessionsPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
 
+  // PLAN GATE
+  const { hasFeature, planName } = usePlanGate();
+  const aiGate = hasFeature("ai");
+
   // TIMER STATE
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(0);
@@ -321,7 +327,6 @@ export default function SessionsPage() {
     const user = auth?.user;
     if (!user) return;
 
-    // Fetch company_id for session inserts
     const { data: companyUser } = await supabase
       .from("company_users")
       .select("company_id")
@@ -477,6 +482,7 @@ export default function SessionsPage() {
 
           <GeofenceCheck />
 
+          {/* TIMER */}
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold text-gray-500 uppercase">Session Timer</p>
@@ -534,17 +540,20 @@ export default function SessionsPage() {
             )}
           </div>
 
-          <div className="mb-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Quick Templates</p>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(TEMPLATES).map(([key, template]) => (
-                <button type="button" key={key} onClick={() => applyTemplate(key)}
-                  className={`text-xs px-3 py-1.5 rounded-full border transition-all ${selectedTemplate === key ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300 hover:border-blue-300"}`}>
-                  {template.label}
-                </button>
-              ))}
+          {/* QUICK TEMPLATES — AI gated */}
+          {aiGate.allowed && (
+            <div className="mb-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Quick Templates</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(TEMPLATES).map(([key, template]) => (
+                  <button type="button" key={key} onClick={() => applyTemplate(key)}
+                    className={`text-xs px-3 py-1.5 rounded-full border transition-all ${selectedTemplate === key ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300 hover:border-blue-300"}`}>
+                    {template.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -634,30 +643,45 @@ export default function SessionsPage() {
                 placeholder="Additional session notes..." rows={3}
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
-            <div className="md:col-span-2">
-              <button type="button" onClick={() => setShowSOAP(!showSOAP)}
-                className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700">
-                <span>{showSOAP ? "▼" : "▶"}</span>
-                SOAP Notes {showSOAP ? "(hide)" : "(optional)"}
-              </button>
-            </div>
-            {showSOAP && (
-              <div className="md:col-span-2 space-y-3 border border-blue-100 rounded-xl p-4 bg-blue-50">
-                <p className="text-xs font-semibold text-blue-700 mb-2">SOAP Note Format</p>
-                {[
-                  { key: "subjective", label: "S — Subjective", placeholder: "Client/caregiver report, concerns, mood..." },
-                  { key: "objective", label: "O — Objective", placeholder: "Measurable data, frequency, duration, observations..." },
-                  { key: "assessment", label: "A — Assessment", placeholder: "Clinical interpretation, progress toward goals..." },
-                  { key: "plan", label: "P — Plan", placeholder: "Next session plan, goals, modifications..." },
-                ].map(field => (
-                  <div key={field.key}>
-                    <label className="text-xs font-medium text-gray-600 mb-0.5 block">{field.label}</label>
-                    <textarea value={soap[field.key as keyof typeof soap]}
-                      onChange={e => setSoap(prev => ({ ...prev, [field.key]: e.target.value }))}
-                      placeholder={field.placeholder} rows={2}
-                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white" />
+
+            {/* SOAP NOTES — AI gated */}
+            {aiGate.allowed ? (
+              <>
+                <div className="md:col-span-2">
+                  <button type="button" onClick={() => setShowSOAP(!showSOAP)}
+                    className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700">
+                    <span>{showSOAP ? "▼" : "▶"}</span>
+                    SOAP Notes {showSOAP ? "(hide)" : "(optional)"}
+                  </button>
+                </div>
+                {showSOAP && (
+                  <div className="md:col-span-2 space-y-3 border border-blue-100 rounded-xl p-4 bg-blue-50">
+                    <p className="text-xs font-semibold text-blue-700 mb-2">SOAP Note Format</p>
+                    {[
+                      { key: "subjective", label: "S — Subjective", placeholder: "Client/caregiver report, concerns, mood..." },
+                      { key: "objective", label: "O — Objective", placeholder: "Measurable data, frequency, duration, observations..." },
+                      { key: "assessment", label: "A — Assessment", placeholder: "Clinical interpretation, progress toward goals..." },
+                      { key: "plan", label: "P — Plan", placeholder: "Next session plan, goals, modifications..." },
+                    ].map(field => (
+                      <div key={field.key}>
+                        <label className="text-xs font-medium text-gray-600 mb-0.5 block">{field.label}</label>
+                        <textarea value={soap[field.key as keyof typeof soap]}
+                          onChange={e => setSoap(prev => ({ ...prev, [field.key]: e.target.value }))}
+                          placeholder={field.placeholder} rows={2}
+                          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white" />
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
+              </>
+            ) : (
+              <div className="md:col-span-2">
+                <UpgradePrompt
+                  reason={`AI-powered SOAP notes require the Professional plan or higher. You are on the ${planName} plan.`}
+                  upgradeTo={aiGate.upgradeTo}
+                  feature="AI SOAP Notes"
+                  inline
+                />
               </div>
             )}
           </div>

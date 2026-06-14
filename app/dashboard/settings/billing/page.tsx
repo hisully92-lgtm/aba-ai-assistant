@@ -520,6 +520,12 @@ export default function BillingPage() {
             Extra locations beyond plan limit: <strong>+$29/mo per location</strong>
           </p>
 
+          {/* NONPROFIT DISCOUNT */}
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700">
+            <p className="font-semibold mb-1">🌿 Nonprofit Discount Available</p>
+            <p className="text-xs">501(c)(3) organizations receive 20% off all plans. <a href="mailto:support@aba-ai-assistant.com?subject=Nonprofit Discount Request" className="underline font-medium">Contact us to apply →</a></p>
+          </div>
+
           {showCheckout && currentPlan && (
             <Section title="Complete Your Subscription">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

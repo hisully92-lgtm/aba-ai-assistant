@@ -71,6 +71,10 @@ async function sendEmail(to: string, subject: string, body: string) {
 }
 
 export default function OnboardingPage() {
+  const [isNonprofit, setIsNonprofit] = useState(false);
+  const [nonprofitEin, setNonprofitEin] = useState("");
+
+
   const router = useRouter();
 
   const [step, setStep] = useState<Step>("profile");
@@ -346,6 +350,7 @@ export default function OnboardingPage() {
               <p><strong>Signed Up:</strong> ${new Date().toLocaleString()}</p>
               <p><strong>Locations:</strong> ${locations.filter(l => l.name || l.address).map(l => `${l.name} - ${l.address}, ${l.city}, ${l.state}`).join(" | ") || "Main location only"}</p>
               <p><strong>Code Preference:</strong> ${codePreference}</p>
+              <p><strong>Nonprofit:</strong> ${isNonprofit ? `Yes — EIN: ${nonprofitEin}` : "No"}</p>
             </div>
           `
         );
@@ -588,6 +593,33 @@ export default function OnboardingPage() {
                   onChange={e => setCardCvc(e.target.value.slice(0, 4))} className={inputClass} />
               </div>
             </div>
+
+{/* NONPROFIT DISCOUNT */}
+<div className="border border-green-200 rounded-xl p-4 bg-green-50 space-y-2">
+  <div className="flex items-center justify-between">
+    <div>
+      <p className="text-sm font-semibold text-gray-700">Nonprofit Organization?</p>
+      <p className="text-xs text-gray-500">501(c)(3) organizations receive 20% off all plans.</p>
+    </div>
+    <button
+      type="button"
+      onClick={() => setIsNonprofit(p => !p)}
+      className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${isNonprofit ? "bg-green-500" : "bg-gray-300"}`}>
+      <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${isNonprofit ? "left-7" : "left-1"}`} />
+    </button>
+  </div>
+  {isNonprofit && (
+    <div className="space-y-2 pt-1">
+      <input type="text" placeholder="Organization EIN (e.g. 12-3456789)"
+        value={nonprofitEin} onChange={e => setNonprofitEin(e.target.value)}
+        className={inputClass} />
+      <p className="text-xs text-green-700">
+        20% discount applied after verification. We&apos;ll confirm your 501(c)(3) status within 1 business day.
+      </p>
+    </div>
+  )}
+</div>
+
 
             <div className="border border-gray-200 rounded-xl p-4 space-y-3">
               <p className="text-sm font-semibold text-gray-700">Company Code Delivery</p>

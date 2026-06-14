@@ -5,6 +5,8 @@ import { supabase } from "@/lib/supabase/client";
 import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
+import { usePlanGate } from "@/lib/hooks/usePlanGate";
+import UpgradePrompt from "@/components/ui/UpgradePrompt";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
@@ -43,6 +45,9 @@ type Reminder = {
 };
 
 export default function ParentPortalPage() {
+  const { hasFeature, planName } = usePlanGate();
+  const parentGate = hasFeature("parentPortal");
+
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -55,7 +60,10 @@ export default function ParentPortalPage() {
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { init(); }, []);
+  useEffect(() => {
+    if (parentGate.allowed) init();
+    else setLoading(false);
+  }, [parentGate.allowed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -113,7 +121,6 @@ export default function ParentPortalPage() {
     setReminders(reminderData ?? []);
     setLoading(false);
 
-    // Realtime messages
     supabase.channel("parent-messages")
       .on("postgres_changes", {
         event: "INSERT",
@@ -127,19 +134,16 @@ export default function ParentPortalPage() {
   async function handleSendMessage() {
     if (!messageInput.trim() || !userId) return;
     setSending(true);
-
     await supabase.from("notifications").insert({
       user_id: userId,
       message: messageInput.trim(),
       type: "parent_message",
       read: false,
     });
-
     setMessageInput("");
     setSending(false);
   }
 
-  // PROGRESS CHART DATA — program accuracy over time
   const progressData = sessions
     .filter((s) => s.programs_targeted)
     .map((s, i) => ({
@@ -162,6 +166,43 @@ export default function ParentPortalPage() {
     { key: "messages", label: "Messages" },
     { key: "reminders", label: "Reminders" },
   ] as const;
+
+  // PLAN GATE — show upgrade prompt if not on Professional+
+  if (!parentGate.allowed) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Parent Portal" />
+        <UpgradePrompt
+          reason={`The Parent Portal requires the Professional plan or higher. You are on the ${planName} plan.`}
+          upgradeTo={parentGate.upgradeTo}
+          feature="Parent Portal"
+        />
+        <div className="border border-gray-100 rounded-2xl p-6 bg-white space-y-4">
+          <h3 className="font-semibold text-gray-800">What is the Parent Portal?</h3>
+          <p className="text-sm text-gray-500">
+            The Parent Portal gives caregivers a dedicated view of their child&apos;s therapy progress,
+            session history, upcoming appointments, and shared documents — all in a family-friendly interface.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[
+              { icon: "📋", title: "Session History", desc: "Parents see every session date, programs, and behaviors" },
+              { icon: "📈", title: "Progress Charts", desc: "Visual attendance and program progress over time" },
+              { icon: "📄", title: "Shared Documents", desc: "Clinicians can share reports and home programs" },
+              { icon: "💬", title: "Messaging", desc: "Direct messaging between parents and therapy team" },
+            ].map(item => (
+              <div key={item.title} className="flex items-start gap-3 border border-gray-100 rounded-xl p-3">
+                <span className="text-xl">{item.icon}</span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">{item.title}</p>
+                  <p className="text-xs text-gray-500">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -223,8 +264,7 @@ export default function ParentPortalPage() {
                     <p className="text-sm font-medium text-gray-800">
                       {s.date
                         ? new Date(s.date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
-                        : new Date(s.created_at).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
-                      }
+                        : new Date(s.created_at).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
                     </p>
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${
                       s.status === "completed" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
@@ -242,9 +282,7 @@ export default function ParentPortalPage() {
                       <span className="font-medium">Programs:</span> {s.programs_targeted}
                     </p>
                   )}
-                  {s.notes && (
-                    <p className="text-sm text-gray-500 mt-1 italic">{s.notes}</p>
-                  )}
+                  {s.notes && <p className="text-sm text-gray-500 mt-1 italic">{s.notes}</p>}
                 </div>
               ))}
             </div>
@@ -308,10 +346,7 @@ export default function ParentPortalPage() {
                     </p>
                   </div>
                   {doc.file_url && (
-                    <Button
-                      variant="outline"
-                      onClick={() => window.open(doc.file_url!, "_blank")}
-                    >
+                    <Button variant="outline" onClick={() => window.open(doc.file_url!, "_blank")}>
                       View
                     </Button>
                   )}

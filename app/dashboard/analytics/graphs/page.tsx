@@ -9,6 +9,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   ReferenceLine, Legend, Label,
 } from "recharts";
+import { usePlanGate } from "@/lib/hooks/usePlanGate";
 
 type Client = { id: string; full_name: string };
 type DataPoint = { data_date: string; data_value: number; behavior_name: string; data_type: string };
@@ -26,6 +27,8 @@ const GRAPH_TYPES = [
 const COLORS = ["#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c", "#0891b2"];
 
 export default function ABAGraphsPage() {
+  const { hasFeature, planName } = usePlanGate();
+  const analyticsGate = hasFeature("analytics");
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState("");
   const [behaviorData, setBehaviorData] = useState<DataPoint[]>([]);

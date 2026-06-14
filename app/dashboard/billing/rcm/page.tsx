@@ -4,9 +4,18 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
+import { usePlanGate } from "@/lib/hooks/usePlanGate";
+import UpgradePrompt from "@/components/ui/UpgradePrompt";
+import Link from "next/link";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, LineChart, Line
+} from "recharts";
 
 export default function RCMPage() {
+  const { hasFeature, planName } = usePlanGate();
+  const insuranceGate = hasFeature("insurance");
+
   const [loading, setLoading] = useState(true);
   const [claimsData, setClaimsData] = useState<any[]>([]);
   const [eraData, setEraData] = useState<any[]>([]);
@@ -22,7 +31,10 @@ export default function RCMPage() {
     avgDaysToPayment: 0,
   });
 
-  useEffect(() => { init(); }, []);
+  useEffect(() => {
+    if (insuranceGate.allowed) init();
+    else setLoading(false);
+  }, [insuranceGate.allowed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
@@ -53,7 +65,6 @@ export default function RCMPage() {
       avgDaysToPayment: 21,
     });
 
-    // Monthly ERA trend
     const monthlyMap = new Map<string, { billed: number; paid: number }>();
     eraList.forEach((e: any) => {
       const month = e.payment_date?.slice(0, 7) ?? "";
@@ -64,15 +75,44 @@ export default function RCMPage() {
         paid: existing.paid + (e.total_paid ?? 0),
       });
     });
-
     setEraData(Array.from(monthlyMap.entries()).map(([month, data]) => ({ month, ...data })).sort((a, b) => a.month.localeCompare(b.month)).slice(-6));
 
-    // Claims by status
     const statusMap = new Map<string, number>();
     claimsList.forEach((c: any) => statusMap.set(c.status, (statusMap.get(c.status) ?? 0) + 1));
     setClaimsData(Array.from(statusMap.entries()).map(([status, count]) => ({ status, count })));
 
     setLoading(false);
+  }
+
+  // PLAN GATE
+  if (!insuranceGate.allowed) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Revenue Cycle Management" />
+        <UpgradePrompt
+          reason={`Revenue Cycle Management requires the Professional plan or higher. You are on the ${planName} plan.`}
+          upgradeTo={insuranceGate.upgradeTo}
+          feature="Revenue Cycle Management"
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            { icon: "📊", title: "Revenue Trends", desc: "Monthly billed vs collected charts" },
+            { icon: "💰", title: "Collection Rate", desc: "Track your overall collection rate" },
+            { icon: "📋", title: "Claims Pipeline", desc: "Pending, approved, and denied claim counts" },
+          ].map(item => (
+            <div key={item.title} className="border border-gray-100 rounded-xl p-5 bg-white text-center">
+              <div className="text-3xl mb-2">{item.icon}</div>
+              <p className="font-semibold text-gray-800 text-sm">{item.title}</p>
+              <p className="text-xs text-gray-500 mt-1">{item.desc}</p>
+            </div>
+          ))}
+        </div>
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-700">
+          💡 Upgrade to <strong>Professional</strong> to unlock revenue cycle management and billing analytics.
+          <Link href="/dashboard/settings/billing" className="ml-2 underline font-medium">View plans →</Link>
+        </div>
+      </div>
+    );
   }
 
   if (loading) return <div className="p-8 text-gray-400">Loading RCM data...</div>;
@@ -133,6 +173,14 @@ export default function RCMPage() {
             </LineChart>
           </ResponsiveContainer>
           <p className="text-xs text-gray-400 mt-2 text-center">Blue = Billed · Green = Collected</p>
+        </Section>
+      )}
+
+      {eraData.length === 0 && (
+        <Section title="Revenue Trend">
+          <div className="text-center py-8 text-gray-400 text-sm">
+            No ERA/EOB data yet. Post ERA records to see revenue trends.
+          </div>
         </Section>
       )}
 

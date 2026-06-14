@@ -1,4 +1,16 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "HIPAA Compliance — ABA AI Assistant",
+  description:
+    "ABA AI Assistant is fully HIPAA compliant. Learn about our BAA, encryption, audit logging, and data protection practices for ABA therapy clinics.",
+  openGraph: {
+    title: "HIPAA Compliance — ABA AI Assistant",
+    description: "HIPAA-compliant ABA therapy platform with BAA, encryption, and audit logging.",
+    url: "https://aba-ai-assistant.com/hipaa",
+  },
+};
 
 export default function HipaaPage() {
   return (
@@ -20,10 +32,11 @@ export default function HipaaPage() {
           🔒 HIPAA Compliant Platform
         </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">HIPAA Compliance</h1>
-        <p className="text-gray-400 text-sm mb-10">Last updated: {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
+        <p className="text-gray-400 text-sm mb-10">
+          Last updated: {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+        </p>
 
         <div className="space-y-8 text-gray-700 text-sm leading-relaxed">
-
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-3">Our HIPAA Commitment</h2>
             <p>ABA AI is built from the ground up for healthcare providers in the ABA therapy space. We understand that the data you enter into our platform is among the most sensitive information that exists — it involves children, families, and clinical diagnoses. We take that responsibility seriously.</p>
@@ -40,7 +53,6 @@ export default function HipaaPage() {
               <li>Provisions for return or destruction of PHI upon termination</li>
               <li>Obligations of our subcontractors and agents</li>
             </ul>
-            <p className="mt-3">The BAA is electronically signed by an authorized representative of your clinic during account setup and stored in your account records.</p>
           </section>
 
           <section>
@@ -79,7 +91,7 @@ export default function HipaaPage() {
 
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-3">Physical Safeguards</h2>
-            <p>ABA AI is hosted on Supabase and Vercel infrastructure which maintains SOC 2 Type II compliance. Physical safeguards for our infrastructure include:</p>
+            <p>ABA AI is hosted on Supabase and Vercel infrastructure which maintains SOC 2 Type II compliance. Physical safeguards include:</p>
             <ul className="list-disc list-inside space-y-1 mt-2">
               <li>Data centers with physical access controls and security monitoring</li>
               <li>Redundant systems to ensure data availability</li>
@@ -101,8 +113,7 @@ export default function HipaaPage() {
 
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-3">Your Responsibilities</h2>
-            <p>As a covered entity using ABA AI, your clinic is responsible for:</p>
-            <ul className="list-disc list-inside space-y-1 mt-2">
+            <ul className="list-disc list-inside space-y-1">
               <li>Obtaining required patient authorizations before entering PHI</li>
               <li>Managing staff access and promptly revoking access upon termination</li>
               <li>Using strong, unique passwords and protecting login credentials</li>
@@ -114,10 +125,9 @@ export default function HipaaPage() {
 
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-3">Questions & HIPAA Contact</h2>
-            <p>For HIPAA-related questions, to request a copy of our BAA, or to report a potential security incident:</p>
             <div className="mt-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
               <p className="font-medium text-gray-800">ABA AI HIPAA Compliance Team</p>
-              <p className="mt-1">Email: <a href="mailto:hipaa@abaai.app" className="text-blue-600 hover:underline">hipaa@abaai.app</a></p>
+              <p className="mt-1">Email: <a href="mailto:hipaa@aba-ai-assistant.com" className="text-blue-600 hover:underline">hipaa@aba-ai-assistant.com</a></p>
               <p className="mt-1 text-xs text-gray-500">We respond to all HIPAA inquiries within 2 business days.</p>
             </div>
           </section>

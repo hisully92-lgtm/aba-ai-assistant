@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect } from "react";
 import Link from "next/link";
@@ -17,6 +17,7 @@ export default function Error({
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 text-center space-y-6">
+        <div className="text-5xl">⚠️</div>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Something went wrong</h1>
           <p className="text-gray-500 text-sm mt-2">
@@ -41,6 +42,12 @@ export default function Error({
           >
             Back to Dashboard
           </Link>
+          
+            href="mailto:support@aba-ai-assistant.com"
+            className="text-xs text-blue-500 hover:underline mt-1"
+          >
+            Contact support if this keeps happening
+          </a>
         </div>
       </div>
     </div>

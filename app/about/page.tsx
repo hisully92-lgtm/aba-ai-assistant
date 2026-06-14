@@ -1,4 +1,17 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "About ABA AI Assistant — Built for ABA Therapy Clinics",
+  description:
+    "Learn about ABA AI Assistant, the HIPAA-compliant practice management platform built specifically for RBTs, BCBAs, and ABA therapy clinics.",
+  openGraph: {
+    title: "About ABA AI Assistant",
+    description:
+      "Built by someone who understands ABA therapy documentation firsthand. We help clinicians spend less time on paperwork and more time with clients.",
+    url: "https://aba-ai-assistant.com/about",
+  },
+};
 
 export default function AboutPage() {
   return (
@@ -19,10 +32,10 @@ export default function AboutPage() {
 
       <div className="max-w-3xl mx-auto px-6 py-20">
         <h1 className="text-4xl font-bold text-gray-900 mb-6">About ABA AI Assistant</h1>
-        
+
         <div className="prose prose-gray max-w-none space-y-6 text-gray-600">
           <p className="text-lg">
-            ABA AI Assistant was built by someone who understands the challenges of ABA therapy documentation firsthand. 
+            ABA AI Assistant was built by someone who understands the challenges of ABA therapy documentation firsthand.
             We saw clinicians spending hours on paperwork instead of time with clients, and we knew there had to be a better way.
           </p>
 
@@ -33,7 +46,7 @@ export default function AboutPage() {
 
           <h2 className="text-2xl font-bold text-gray-900 mt-10">What We Do</h2>
           <p>
-            ABA AI Assistant is a comprehensive practice management platform built specifically for ABA therapy clinics. 
+            ABA AI Assistant is a comprehensive practice management platform built specifically for ABA therapy clinics.
             From session notes and goal tracking to billing and progress reports, we handle the documentation so you can handle the therapy.
           </p>
 
@@ -54,7 +67,7 @@ export default function AboutPage() {
 
           <h2 className="text-2xl font-bold text-gray-900 mt-10">Our Commitment</h2>
           <p>
-            We are committed to continuous improvement based on feedback from the ABA community. 
+            We are committed to continuous improvement based on feedback from the ABA community.
             Every feature we build is designed with clinicians in mind.
           </p>
 

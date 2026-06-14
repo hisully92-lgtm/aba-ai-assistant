@@ -1,4 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy — ABA AI Assistant",
+  description:
+    "Read ABA AI Assistant's privacy policy. We protect your clinic's data and your clients' PHI with enterprise-grade security and HIPAA compliance.",
+  openGraph: {
+    title: "Privacy Policy — ABA AI Assistant",
+    url: "https://aba-ai-assistant.com/privacy",
+  },
+};
 
 export default function PrivacyPage() {
   return (
@@ -17,10 +28,11 @@ export default function PrivacyPage() {
 
       <div className="max-w-3xl mx-auto px-6 py-16">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Privacy Policy</h1>
-        <p className="text-gray-400 text-sm mb-10">Last updated: {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
+        <p className="text-gray-400 text-sm mb-10">
+          Last updated: {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+        </p>
 
         <div className="prose prose-gray max-w-none space-y-8 text-gray-700 text-sm leading-relaxed">
-
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-3">1. Introduction</h2>
             <p>ABA AI (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) is committed to protecting your privacy and the privacy of your clients. This Privacy Policy explains how we collect, use, disclose, and safeguard information when you use our platform.</p>
@@ -82,7 +94,6 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-3">7. Your Rights</h2>
-            <p>Depending on your location, you may have rights including:</p>
             <ul className="list-disc list-inside space-y-1 mt-2">
               <li>The right to access your personal data</li>
               <li>The right to correct inaccurate data</li>
@@ -90,7 +101,7 @@ export default function PrivacyPage() {
               <li>The right to data portability</li>
               <li>The right to opt out of certain data processing</li>
             </ul>
-            <p className="mt-3">To exercise these rights, contact us at <a href="mailto:privacy@abaai.app" className="text-blue-600 hover:underline">privacy@abaai.app</a>.</p>
+            <p className="mt-3">To exercise these rights, contact us at <a href="mailto:privacy@aba-ai-assistant.com" className="text-blue-600 hover:underline">privacy@aba-ai-assistant.com</a>.</p>
           </section>
 
           <section>
@@ -105,10 +116,9 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-3">10. Contact Us</h2>
-            <p>If you have questions about this Privacy Policy or our data practices, contact us at:</p>
             <div className="mt-2 p-4 bg-gray-50 rounded-xl border border-gray-200">
-              <p className="font-medium text-gray-800">ABA AI</p>
-              <p>Email: <a href="mailto:privacy@abaai.app" className="text-blue-600 hover:underline">privacy@abaai.app</a></p>
+              <p className="font-medium text-gray-800">ABA AI Assistant</p>
+              <p>Email: <a href="mailto:privacy@aba-ai-assistant.com" className="text-blue-600 hover:underline">privacy@aba-ai-assistant.com</a></p>
             </div>
           </section>
         </div>
