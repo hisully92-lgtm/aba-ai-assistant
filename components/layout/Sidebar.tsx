@@ -165,7 +165,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       href: "/dashboard/schedule",
       icon: "📅",
       children: sortChildren([
-        { label: "Time Entries", href: "/dashboard/time-entries" },
+        
         { label: "Calendar View", href: "/dashboard/schedule" },
         { label: "Geofence", href: "/dashboard/geofence" },
         { label: "Reminders", href: "/dashboard/reminders" },
