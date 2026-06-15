@@ -195,8 +195,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       href: "/dashboard/insurance",
       icon: "🏦",
       children: sortChildren([
-        { label: "Time Entries", href: "/dashboard/time-entries" },
-        { label: "AI Compliance Check", href: "/dashboard/insurance/ai-check" },
+               { label: "AI Compliance Check", href: "/dashboard/insurance/ai-check" },
         { label: "Authorizations", href: "/dashboard/authorizations" },
         { label: "Claims & Auth", href: "/dashboard/insurance" },
         { label: "CMS-1500 Claims", href: "/dashboard/billing/cms1500" },
