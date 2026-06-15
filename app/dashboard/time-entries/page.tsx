@@ -240,13 +240,15 @@ export default function TimeEntriesPage() {
   // New entry flow functions
   async function selectClientForEntry(client: Client) {
   setSelectedClient(client);
+  const { data: authUser } = await supabase.auth.getUser();
+  console.log("LOGGED IN AS:", authUser?.user?.id);
   const { data, error } = await supabase
     .from("authorizations")
     .select("*")
     .eq("client_id", client.id)
     .eq("status", "approved")
     .order("end_date", { ascending: false });
-  console.log("AUTHS:", data, "ERROR:", error); // ADD THIS
+  console.log("AUTHS:", JSON.stringify(data), "ERROR:", JSON.stringify(error));
   setAuthorizations(data ?? []);
   setNewEntryStep("select_auth");
 }
