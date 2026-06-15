@@ -2,643 +2,681 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
-import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
 
 type Client = { id: string; full_name: string };
+type EVVRecord = {
+  id: string; client_id: string; date: string;
+  actual_start: string; actual_end: string;
+  session_duration_minutes: number; location_name: string | null;
+  evv_status: string; time_entry_id: string | null;
+};
+type CustomBehavior = {
+  id: string; name: string; category: string;
+  operational_definition: string | null;
+  antecedent: string | null; consequence: string | null;
+  bcba_notes: string | null; replacement_behavior: string | null;
+  severity_levels: { id: string; level_number: number; label: string; description: string | null; color: string }[];
+};
+type SkillTarget = {
+  id: string; program_name: string; target_name: string;
+  description: string | null; goal: string | null;
+  mastery_criteria: string | null; instructions: string | null;
+  sd_text: string | null; sets_per_session: number | null;
+  trials_per_set: number | null; current_accuracy: number | null;
+  bcba_notes: string | null; materials: string | null;
+  status: string | null;
+  prompt_levels: { id: string; level_number: number; label: string; abbreviation: string | null }[];
+};
+type BehaviorEntry = {
+  behaviorId: string; behaviorName: string;
+  severityId: string | null; severityLabel: string | null;
+  severityColor: string | null; frequency: number;
+};
+type TrialEntry = {
+  targetId: string; targetName: string; programName: string;
+  promptId: string | null; promptLabel: string | null;
+  result: "correct" | "prompted" | "incorrect" | "no_response";
+};
 
-const METHODS = [
-  { key: "frequency", label: "Frequency", icon: "🔢", desc: "Count every instance of a behavior", category: "continuous" },
-  { key: "rate", label: "Rate", icon: "📈", desc: "Frequency divided by observation time", category: "continuous" },
-  { key: "duration", label: "Duration", icon: "⏱", desc: "Total time engaged in a behavior", category: "continuous" },
-  { key: "latency", label: "Latency", icon: "⏳", desc: "Time between instruction and behavior start", category: "continuous" },
-  { key: "irt", label: "IRT", icon: "↔️", desc: "Time between end of one behavior and start of next", category: "continuous" },
-  { key: "partial", label: "Partial Interval", icon: "◑", desc: "Behavior occurs at any point in interval", category: "discontinuous" },
-  { key: "whole", label: "Whole Interval", icon: "⬤", desc: "Behavior persists entire interval", category: "discontinuous" },
-  { key: "momentary", label: "Momentary Time Sampling", icon: "📍", desc: "Behavior occurring at end of interval", category: "discontinuous" },
-  { key: "permanent", label: "Permanent Product", icon: "📋", desc: "Tangible results or outcomes of behavior", category: "other" },
-  { key: "abc", label: "ABC Data", icon: "🔤", desc: "Antecedent, Behavior, Consequence recording", category: "other" },
+const INTERVENTIONS = [
+  "Redirection", "Planned ignoring", "Differential reinforcement",
+  "Response blocking", "NCR", "Token economy", "Visual supports", "Prompting hierarchy"
 ];
 
-const BEHAVIOR_NAMES = [
-  "Aggression", "Self-Injurious Behavior", "Elopement", "On-task behavior",
-  "Stereotypy", "Vocal Disruption", "Engagement", "Compliance", "Manding", "Other"
-];
-
-function playAlertSound() {
-  try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = 880;
-    osc.type = "sine";
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.8);
-  } catch {}
-}
+type Screen = "clients" | "evv" | "session";
+type SessionTab = "behaviors" | "skills" | "dtt";
 
 export default function DataCollectionPage() {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
-  const [clientId, setClientId] = useState("");
-  const [behaviorName, setBehaviorName] = useState("");
-  const [sessionDate, setSessionDate] = useState(new Date().toISOString().split("T")[0]);
-  const [notes, setNotes] = useState("");
+  const [screen, setScreen] = useState<Screen>("clients");
+  const [userId, setUserId] = useState("");
+  const [companyId, setCompanyId] = useState("");
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [loading, setLoading] = useState(true);
 
-  // Frequency
-  const [freqCount, setFreqCount] = useState(0);
-  const [freqHistory, setFreqHistory] = useState<number[]>([]);
+  // Clients
+  const [clients, setClients] = useState<Client[]>([]);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
-  // Rate
-  const [rateCount, setRateCount] = useState(0);
-  const [rateRunning, setRateRunning] = useState(false);
-  const [rateElapsed, setRateElapsed] = useState(0);
-  const rateStartRef = useRef<number | null>(null);
+  // EVV
+  const [evvRecords, setEvvRecords] = useState<EVVRecord[]>([]);
+  const [selectedEVV, setSelectedEVV] = useState<EVVRecord | null>(null);
+  const [evvLoading, setEvvLoading] = useState(false);
 
-  // Duration
-  const [durRunning, setDurRunning] = useState(false);
-  const [durElapsed, setDurElapsed] = useState(0);
-  const [durSessions, setDurSessions] = useState<number[]>([]);
-  const durStartRef = useRef<number | null>(null);
+  // Clinical data
+  const [customBehaviors, setCustomBehaviors] = useState<CustomBehavior[]>([]);
+  const [skillTargets, setSkillTargets] = useState<SkillTarget[]>([]);
+  const [activeTab, setActiveTab] = useState<SessionTab>("behaviors");
+  const [expandedBehavior, setExpandedBehavior] = useState<string | null>(null);
+  const [expandedSkill, setExpandedSkill] = useState<string | null>(null);
 
-  // Latency
-  const [latRunning, setLatRunning] = useState(false);
-  const [latElapsed, setLatElapsed] = useState(0);
-  const [latInstruction, setLatInstruction] = useState("");
-  const [latHistory, setLatHistory] = useState<number[]>([]);
-  const latStartRef = useRef<number | null>(null);
+  // Data collection
+  const [behaviorEntries, setBehaviorEntries] = useState<BehaviorEntry[]>([]);
+  const [selectedInterventions, setSelectedInterventions] = useState<string[]>([]);
+  const [trialEntries, setTrialEntries] = useState<TrialEntry[]>([]);
+  const [sessionNotes, setSessionNotes] = useState("");
 
-  // IRT
-  const [irtRunning, setIrtRunning] = useState(false);
-  const [irtElapsed, setIrtElapsed] = useState(0);
-  const [irtIntervals, setIrtIntervals] = useState<number[]>([]);
-  const irtStartRef = useRef<number | null>(null);
+  // DTT
+  const [trialProgram, setTrialProgram] = useState("");
+  const [trials, setTrials] = useState<Array<{ result: "correct" | "incorrect" | "prompted" }>>([]);
 
-  // Permanent product
-  const [permCount, setPermCount] = useState(0);
-  const [permDesc, setPermDesc] = useState("");
+  // Severity modal
+  const [severityModal, setSeverityModal] = useState<CustomBehavior | null>(null);
+  const [promptModal, setPromptModal] = useState<{ target: SkillTarget; result: "correct" | "prompted" | "incorrect" | "no_response" } | null>(null);
 
-  // ABC
-  const [abcAntecedent, setAbcAntecedent] = useState("");
-  const [abcBehavior, setAbcBehavior] = useState("");
-  const [abcConsequence, setAbcConsequence] = useState("");
-
-  useEffect(() => { init(); }, []);
-
-  // SINGLE BACKGROUND-SAFE TIMER EFFECT FOR ALL TIMERS
-  useEffect(() => {
-    const tick = () => {
-      if (rateRunning && rateStartRef.current)
-        setRateElapsed(Math.floor((Date.now() - rateStartRef.current) / 1000));
-      if (durRunning && durStartRef.current)
-        setDurElapsed(Math.floor((Date.now() - durStartRef.current) / 1000));
-      if (latRunning && latStartRef.current)
-        setLatElapsed(Math.floor((Date.now() - latStartRef.current) / 1000));
-      if (irtRunning && irtStartRef.current)
-        setIrtElapsed(Math.floor((Date.now() - irtStartRef.current) / 1000));
-    };
-    const interval = setInterval(tick, 500);
-    document.addEventListener("visibilitychange", tick);
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", tick);
-    };
-  }, [rateRunning, durRunning, latRunning, irtRunning]);
+  useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
-    const { data } = await supabase.from("clients").select("id, full_name");
-    setClients(data ?? []);
+    setUserId(user.id);
+
+    const { data: companyUser } = await supabase
+      .from("company_users").select("company_id")
+      .eq("user_id", user.id).eq("status", "active").limit(1).maybeSingle();
+    setCompanyId(companyUser?.company_id ?? "");
+
+    // Assigned clients only
+    const { data: assignments } = await supabase
+      .from("assignments")
+      .select("client_id, clients(id, full_name)")
+      .eq("rbt_id", user.id);
+
+    const assignedClients: Client[] = (assignments ?? [])
+      .map((a: any) => a.clients)
+      .filter(Boolean)
+      .sort((a: Client, b: Client) => a.full_name.localeCompare(b.full_name));
+
+    const unique = assignedClients.filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i);
+    setClients(unique);
     setLoading(false);
   }
 
-  function formatTime(seconds: number) {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, "0")}`;
+  async function selectClient(client: Client) {
+    setSelectedClient(client);
+    setEvvLoading(true);
+    setScreen("evv");
+
+    const { data: evv } = await supabase
+      .from("evv_records")
+      .select("*")
+      .eq("client_id", client.id)
+      .eq("evv_status", "complete")
+      .order("actual_start", { ascending: false })
+      .limit(20);
+
+    setEvvRecords(evv ?? []);
+    setEvvLoading(false);
   }
 
-  function startRate() {
-    rateStartRef.current = Date.now();
-    setRateRunning(true);
+  async function selectEVV(evv: EVVRecord) {
+    setSelectedEVV(evv);
+    setScreen("session");
+    setActiveTab("behaviors");
+    setBehaviorEntries([]);
+    setTrialEntries([]);
+    setSelectedInterventions([]);
+    setTrials([]);
+    setSessionNotes("");
+    setExpandedBehavior(null);
+    setExpandedSkill(null);
+
+    const [{ data: behaviors }, { data: targets }] = await Promise.all([
+      supabase.from("custom_behaviors")
+        .select("*, severity_levels:behavior_severity_levels(*)")
+        .eq("client_id", evv.client_id)
+        .eq("is_active", true)
+        .order("display_order"),
+      supabase.from("skill_targets")
+        .select("*, prompt_levels(*)")
+        .eq("client_id", evv.client_id)
+        .eq("is_active", true)
+        .order("display_order"),
+    ]);
+    setCustomBehaviors(behaviors ?? []);
+    setSkillTargets(targets ?? []);
   }
 
-  function stopRate() {
-    setRateRunning(false);
-    rateStartRef.current = null;
+  function recordBehavior(behavior: CustomBehavior, severityId: string | null, severityLabel: string | null, severityColor: string | null) {
+    setBehaviorEntries(prev => {
+      const existing = prev.find(e => e.behaviorId === behavior.id && e.severityId === severityId);
+      if (existing) return prev.map(e => e.behaviorId === behavior.id && e.severityId === severityId ? { ...e, frequency: e.frequency + 1 } : e);
+      return [...prev, { behaviorId: behavior.id, behaviorName: behavior.name, severityId, severityLabel, severityColor, frequency: 1 }];
+    });
+    setSeverityModal(null);
   }
 
-  function startDuration() {
-    durStartRef.current = Date.now();
-    setDurRunning(true);
+  function recordTrial(target: SkillTarget, promptId: string | null, promptLabel: string | null, result: "correct" | "prompted" | "incorrect" | "no_response") {
+    setTrialEntries(prev => [...prev, { targetId: target.id, targetName: target.target_name, programName: target.program_name, promptId, promptLabel, result }]);
+    setPromptModal(null);
   }
 
-  function stopDuration() {
-    setDurRunning(false);
-    durStartRef.current = null;
-    setDurSessions(prev => [...prev, durElapsed]);
-    setDurElapsed(0);
-    playAlertSound();
-  }
+  const totalTrials = trialEntries.length;
+  const correctTrials = trialEntries.filter(t => t.result === "correct").length;
+  const trialPct = totalTrials > 0 ? Math.round((correctTrials / totalTrials) * 100) : 0;
+  const dttCorrect = trials.filter(t => t.result === "correct").length;
+  const dttPct = trials.length > 0 ? Math.round((dttCorrect / trials.length) * 100) : 0;
 
-  function startLatency() {
-    latStartRef.current = Date.now();
-    setLatRunning(true);
-  }
-
-  function stopLatency() {
-    setLatRunning(false);
-    latStartRef.current = null;
-    setLatHistory(prev => [...prev, latElapsed]);
-    playAlertSound();
-  }
-
-  function startIRT() {
-    irtStartRef.current = Date.now();
-    setIrtRunning(true);
-  }
-
-  function recordIRT() {
-    setIrtIntervals(prev => [...prev, irtElapsed]);
-    setIrtElapsed(0);
-    irtStartRef.current = Date.now();
-    playAlertSound();
-  }
-
-  function stopIRT() {
-    setIrtRunning(false);
-    irtStartRef.current = null;
-  }
+  const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+  const fmt = (minutes: number) => { const h = Math.floor(minutes / 60); const m = minutes % 60; return h > 0 ? `${h}h ${m}m` : `${m}m`; };
 
   async function handleSave() {
-    if (!clientId || !behaviorName || !selectedMethod) return;
+    if (!selectedClient || !selectedEVV) return;
     setSaving(true);
-    const { data: auth } = await supabase.auth.getUser();
-    const user = auth?.user;
-    if (!user) return;
-    try {
-      if (selectedMethod === "frequency") {
-        await supabase.from("behaviors").insert([{
-          client_id: clientId, behavior_name: behaviorName,
-          frequency: freqCount, recording_method: "frequency", notes, created_by: user.id,
-        }]);
-      } else if (selectedMethod === "rate") {
-        await supabase.from("rate_data").insert([{
-          client_id: clientId, behavior_name: behaviorName,
-          count: rateCount, observation_minutes: Math.ceil(rateElapsed / 60),
-          session_date: sessionDate, notes, created_by: user.id,
-        }]);
-      } else if (selectedMethod === "duration") {
-        const totalDuration = durSessions.reduce((a, b) => a + b, 0);
-        await supabase.from("behaviors").insert([{
-          client_id: clientId, behavior_name: behaviorName,
-          duration_minutes: Math.ceil(totalDuration / 60), recording_method: "duration",
-          notes: `Episodes: ${durSessions.map(s => formatTime(s)).join(", ")}. ${notes}`,
-          created_by: user.id,
-        }]);
-      } else if (selectedMethod === "latency") {
-        await supabase.from("latency_recordings").insert([{
-          client_id: clientId, behavior_name: behaviorName,
-          instruction_given: latInstruction, latency_seconds: latElapsed,
-          recording_type: "latency", session_date: sessionDate, notes, created_by: user.id,
-        }]);
-      } else if (selectedMethod === "irt") {
-        const avgIRT = irtIntervals.length
-          ? irtIntervals.reduce((a, b) => a + b, 0) / irtIntervals.length : 0;
-        await supabase.from("irt_recordings").insert([{
-          client_id: clientId, behavior_name: behaviorName,
-          intervals: JSON.stringify(irtIntervals), avg_irt_seconds: avgIRT,
-          session_date: sessionDate, notes, created_by: user.id,
-        }]);
-      } else if (selectedMethod === "permanent") {
-        await supabase.from("permanent_product").insert([{
-          client_id: clientId, behavior_name: behaviorName,
-          product_description: permDesc, count: permCount,
-          session_date: sessionDate, notes, created_by: user.id,
-        }]);
-      } else if (selectedMethod === "abc") {
-        await supabase.from("behaviors").insert([{
-          client_id: clientId, behavior_name: behaviorName,
-          antecedent: abcAntecedent, consequence: abcConsequence,
-          recording_method: "abc", notes: abcBehavior, created_by: user.id,
-        }]);
+
+    const behaviorsStr = behaviorEntries.map(e => `${e.behaviorName}${e.severityLabel ? ` (${e.severityLabel})` : ""} x${e.frequency}`).join(", ");
+    const dttNote = trials.length > 0 ? `${trialProgram}: ${dttCorrect}/${trials.length} (${dttPct}%)` : "";
+
+    const { data: session } = await supabase.from("sessions").insert({
+      client_id: selectedClient.id,
+      date: selectedEVV.date,
+      status: "completed",
+      behaviors_observed: behaviorsStr || "No behaviors observed",
+      interventions_used: selectedInterventions.join(", "),
+      programs_targeted: [...new Set(trialEntries.map(t => `${t.programName}: ${t.targetName}`)), dttNote].filter(Boolean).join(", "),
+      created_by: userId,
+      company_id: companyId,
+      start_time: selectedEVV.actual_start,
+      end_time: selectedEVV.actual_end,
+      notes: sessionNotes || null,
+      evv_record_id: selectedEVV.id,
+    }).select().single();
+
+    if (session) {
+      if (behaviorEntries.length > 0) {
+        await supabase.from("behavior_data").insert(
+          behaviorEntries.map(e => ({
+            session_id: session.id, client_id: selectedClient.id, company_id: companyId,
+            behavior_id: e.behaviorId, severity_level_id: e.severityId,
+            severity_label: e.severityLabel, frequency: e.frequency, created_by: userId,
+          }))
+        );
       }
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-      resetForm();
-    } catch (err) { console.error(err); }
+      if (trialEntries.length > 0) {
+        await supabase.from("skill_trial_data").insert(
+          trialEntries.map(e => ({
+            session_id: session.id, client_id: selectedClient.id, company_id: companyId,
+            target_id: e.targetId, prompt_level_id: e.promptId,
+            prompt_label: e.promptLabel, result: e.result, created_by: userId,
+          }))
+        );
+      }
+
+      // Save back to EVV
+      await supabase.from("evv_records").update({
+        behaviors_recorded: behaviorEntries.reduce((sum, e) => sum + e.frequency, 0),
+        trials_recorded: trialEntries.length,
+        session_notes: sessionNotes || null,
+        session_id: session.id,
+      }).eq("id", selectedEVV.id);
+    }
+
     setSaving(false);
+    setSuccess(true);
+    setTimeout(() => {
+      setSuccess(false);
+      setScreen("clients");
+      setSelectedClient(null);
+      setSelectedEVV(null);
+    }, 2000);
   }
 
-  function resetForm() {
-    setFreqCount(0); setFreqHistory([]);
-    setRateCount(0); setRateElapsed(0); setRateRunning(false); rateStartRef.current = null;
-    setDurElapsed(0); setDurRunning(false); setDurSessions([]); durStartRef.current = null;
-    setLatElapsed(0); setLatRunning(false); setLatInstruction(""); setLatHistory([]); latStartRef.current = null;
-    setIrtElapsed(0); setIrtRunning(false); setIrtIntervals([]); irtStartRef.current = null;
-    setPermCount(0); setPermDesc("");
-    setAbcAntecedent(""); setAbcBehavior(""); setAbcConsequence("");
-    setNotes("");
-  }
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
 
-  const continuous = METHODS.filter(m => m.category === "continuous");
-  const discontinuous = METHODS.filter(m => m.category === "discontinuous");
-  const other = METHODS.filter(m => m.category === "other");
+  const chip = (label: string, active: boolean, onClick: () => void, colorActive = "bg-blue-600 text-white border-blue-600") => (
+    <button key={label} type="button" onClick={onClick}
+      className={`text-xs px-3 py-1.5 rounded-full border transition-all ${active ? colorActive : "bg-white text-gray-600 border-gray-300 hover:border-blue-300"}`}>
+      {label}
+    </button>
+  );
 
-  const inputClass = "w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300";
+  // ── CLIENTS SCREEN ─────────────────────────────────────
+  if (screen === "clients") {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Data Collection">
+          <p className="text-gray-500 text-sm">Select a client to begin session documentation.</p>
+        </PageHeader>
 
-  return (
-    <div className="space-y-6">
-      <PageHeader title="ABA Data Collection">
-        <p className="text-gray-500 text-sm">All recording methods in one place.</p>
-      </PageHeader>
+        {success && <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-green-700 font-semibold">✓ Session saved successfully!</div>}
 
-      {success && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
-          ✓ Data saved successfully.
-        </div>
-      )}
-
-      {/* METHOD SELECTOR */}
-      <div className="space-y-4">
-        <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Continuous Recording</p>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-            {continuous.map(m => (
-              <button type="button" key={m.key} onClick={() => { setSelectedMethod(m.key); resetForm(); }}
-                className={`border-2 rounded-xl p-3 text-left transition-all ${selectedMethod === m.key ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300 bg-white"}`}>
-                <p className="text-xl mb-1">{m.icon}</p>
-                <p className="text-xs font-bold text-gray-800">{m.label}</p>
-                <p className="text-xs text-gray-400 mt-0.5 leading-tight">{m.desc}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Discontinuous / Interval Recording</p>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {discontinuous.map(m => (
-              <button type="button" key={m.key} onClick={() => { setSelectedMethod(m.key); resetForm(); }}
-                className={`border-2 rounded-xl p-3 text-left transition-all ${selectedMethod === m.key ? "border-purple-500 bg-purple-50" : "border-gray-200 hover:border-purple-300 bg-white"}`}>
-                <p className="text-xl mb-1">{m.icon}</p>
-                <p className="text-xs font-bold text-gray-800">{m.label}</p>
-                <p className="text-xs text-gray-400 mt-0.5 leading-tight">{m.desc}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Other Methods</p>
-          <div className="grid grid-cols-2 gap-2">
-            {other.map(m => (
-              <button type="button" key={m.key} onClick={() => { setSelectedMethod(m.key); resetForm(); }}
-                className={`border-2 rounded-xl p-3 text-left transition-all ${selectedMethod === m.key ? "border-green-500 bg-green-50" : "border-gray-200 hover:border-green-300 bg-white"}`}>
-                <p className="text-xl mb-1">{m.icon}</p>
-                <p className="text-xs font-bold text-gray-800">{m.label}</p>
-                <p className="text-xs text-gray-400 mt-0.5 leading-tight">{m.desc}</p>
-              </button>
-            ))}
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {clients.length === 0 ? (
+            <div className="col-span-3 text-center py-20 border border-dashed border-gray-200 rounded-2xl">
+              <p className="text-4xl mb-4">👥</p>
+              <p className="font-semibold text-gray-700">No clients assigned</p>
+              <p className="text-sm text-gray-400 mt-1">Ask your admin or BCBA to assign clients to you.</p>
+            </div>
+          ) : clients.map(client => (
+            <button key={client.id} type="button" onClick={() => selectClient(client)}
+              className="bg-white border border-gray-100 rounded-2xl p-5 text-left hover:border-blue-300 hover:shadow-md transition-all flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-lg shrink-0">
+                {client.full_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-800">{client.full_name}</p>
+                <p className="text-xs text-gray-400 mt-0.5">Tap to view sessions →</p>
+              </div>
+              <span className="text-gray-300 text-xl">›</span>
+            </button>
+          ))}
         </div>
       </div>
+    );
+  }
 
-      {/* SESSION SETUP */}
-      {selectedMethod && (
-        <Section title={`${METHODS.find(m => m.key === selectedMethod)?.icon} ${METHODS.find(m => m.key === selectedMethod)?.label} Recording`}>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Client *</label>
-              <select value={clientId} onChange={e => setClientId(e.target.value)} className={inputClass}>
-                <option value="">Select client...</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Behavior *</label>
-              <select value={behaviorName} onChange={e => setBehaviorName(e.target.value)} className={inputClass}>
-                <option value="">Select behavior...</option>
-                {BEHAVIOR_NAMES.map(b => <option key={b} value={b}>{b}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Session Date</label>
-              <input type="date" value={sessionDate} onChange={e => setSessionDate(e.target.value)} className={inputClass} />
-            </div>
+  // ── EVV SCREEN ─────────────────────────────────────────
+  if (screen === "evv") {
+    return (
+      <div className="space-y-6">
+        <PageHeader title={selectedClient?.full_name ?? "Sessions"}>
+          <button onClick={() => { setScreen("clients"); setSelectedClient(null); }}
+            className="text-sm text-blue-600 hover:underline">‹ All Clients</button>
+        </PageHeader>
+
+        <p className="text-sm text-gray-500">Select the EVV visit you want to document.</p>
+
+        {evvLoading ? (
+          <div className="flex items-center justify-center h-40"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
+        ) : evvRecords.length === 0 ? (
+          <div className="text-center py-20 border border-dashed border-gray-200 rounded-2xl">
+            <p className="text-4xl mb-4">📋</p>
+            <p className="font-semibold text-gray-700">No completed EVV sessions</p>
+            <p className="text-sm text-gray-400 mt-1">Complete a visit via the EVV clock-in flow first.</p>
           </div>
-
-          {/* FREQUENCY */}
-          {selectedMethod === "frequency" && (
-            <div className="text-center space-y-4 py-4">
-              <p className="text-7xl font-bold text-blue-600">{freqCount}</p>
-              <p className="text-gray-400 text-sm">Total occurrences</p>
-              {freqHistory.length > 0 && (
-                <div className="flex flex-wrap gap-2 justify-center">
-                  <p className="text-xs text-gray-400 w-full">Recent counts — click to reuse:</p>
-                  {freqHistory.map((h, i) => (
-                    <button type="button" key={i} onClick={() => setFreqCount(h)}
-                      className="text-xs px-2 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-100">
-                      {h}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div className="flex gap-4 justify-center">
-                <button type="button" onClick={() => setFreqCount(c => c + 1)}
-                  className="w-32 h-20 bg-blue-600 hover:bg-blue-700 text-white text-2xl font-bold rounded-2xl shadow-lg active:scale-95 transition-transform">
-                  + Count
-                </button>
-                <button type="button" onClick={() => setFreqCount(c => Math.max(0, c - 1))}
-                  className="w-20 h-20 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xl font-bold rounded-2xl active:scale-95 transition-transform">
-                  −
-                </button>
-              </div>
-              <div className="flex gap-2 justify-center">
-                <Button variant="outline" onClick={() => { setFreqHistory(prev => [freqCount, ...prev].slice(0, 5)); setFreqCount(0); }}>
-                  Save & Reset
-                </Button>
-                <Button variant="outline" onClick={() => setFreqCount(0)}>Reset</Button>
-              </div>
-            </div>
-          )}
-
-          {/* RATE */}
-          {selectedMethod === "rate" && (
-            <div className="text-center space-y-4 py-4">
-              <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto">
-                <div>
-                  <p className="text-4xl font-bold text-blue-600">{rateCount}</p>
-                  <p className="text-xs text-gray-400">Count</p>
-                </div>
-                <div>
-                  <p className="text-4xl font-bold text-gray-700">{formatTime(rateElapsed)}</p>
-                  <p className="text-xs text-gray-400">Elapsed</p>
-                </div>
-                <div>
-                  <p className="text-4xl font-bold text-green-600">
-                    {rateElapsed > 0 ? (rateCount / (rateElapsed / 60)).toFixed(2) : "0"}
-                  </p>
-                  <p className="text-xs text-gray-400">Per Min</p>
-                </div>
-              </div>
-              <button type="button" onClick={() => { if (rateRunning) setRateCount(c => c + 1); }}
-                disabled={!rateRunning}
-                className="w-40 h-24 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-2xl font-bold rounded-2xl shadow-lg active:scale-95 transition-transform">
-                + Count
-              </button>
-              <div className="flex gap-3 justify-center">
-                <Button onClick={() => rateRunning ? stopRate() : startRate()} variant={rateRunning ? "danger" : "secondary"}>
-                  {rateRunning ? "⏸ Stop" : "▶ Start"}
-                </Button>
-                <Button variant="outline" onClick={() => { setRateCount(0); setRateElapsed(0); stopRate(); }}>Reset</Button>
-              </div>
-            </div>
-          )}
-
-          {/* DURATION */}
-          {selectedMethod === "duration" && (
-            <div className="text-center space-y-4 py-4">
-              <p className="text-7xl font-bold text-purple-600">{formatTime(durElapsed)}</p>
-              <p className="text-gray-400 text-sm">
-                Current episode · Total: {formatTime(durSessions.reduce((a, b) => a + b, 0))} across {durSessions.length} episodes
-              </p>
-              {durSessions.length > 0 && (
-                <div className="flex flex-wrap gap-2 justify-center">
-                  <p className="text-xs text-gray-400 w-full">Recorded episodes — click to reuse:</p>
-                  {durSessions.map((s, i) => (
-                    <button type="button" key={i} onClick={() => { durStartRef.current = Date.now() - s * 1000; setDurElapsed(s); setDurRunning(true); }}
-                      className="text-xs px-2 py-1 bg-purple-50 border border-purple-200 text-purple-600 rounded-lg hover:bg-purple-100">
-                      {formatTime(s)}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div className="flex gap-4 justify-center">
-                <button type="button" onClick={() => durRunning ? stopDuration() : startDuration()}
-                  className={`w-36 h-20 text-white text-xl font-bold rounded-2xl shadow-lg active:scale-95 transition-all ${durRunning ? "bg-red-500 hover:bg-red-600" : "bg-purple-600 hover:bg-purple-700"}`}>
-                  {durRunning ? "⏹ Stop" : "▶ Start"}
-                </button>
-              </div>
-              {durSessions.map((s, i) => (
-                <span key={i} className="inline-block text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full mx-1">
-                  Episode {i + 1}: {formatTime(s)}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* LATENCY */}
-          {selectedMethod === "latency" && (
-            <div className="space-y-4 py-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Instruction Given</label>
-                <input type="text" value={latInstruction} onChange={e => setLatInstruction(e.target.value)}
-                  placeholder="e.g. Sit down, Touch red, Come here" className={inputClass} />
-              </div>
-              <div className="text-center space-y-4">
-                <p className="text-7xl font-bold text-orange-500">{formatTime(latElapsed)}</p>
-                <p className="text-gray-400 text-sm">Time since instruction given</p>
-                {latHistory.length > 0 && (
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    <p className="text-xs text-gray-400 w-full">Recent latencies — click to reuse:</p>
-                    {latHistory.map((h, i) => (
-                      <button type="button" key={i} onClick={() => { latStartRef.current = Date.now() - h * 1000; setLatElapsed(h); setLatRunning(true); }}
-                        className="text-xs px-2 py-1 bg-orange-50 border border-orange-200 text-orange-600 rounded-lg hover:bg-orange-100">
-                        {formatTime(h)}
-                      </button>
-                    ))}
+        ) : (
+          <div className="space-y-3">
+            {evvRecords.map(evv => {
+              const hasEntry = !!evv.time_entry_id;
+              return (
+                <button key={evv.id} type="button" onClick={() => selectEVV(evv)}
+                  className={`w-full text-left bg-white border rounded-2xl p-5 hover:shadow-md transition-all flex items-center gap-4 ${!hasEntry ? "border-purple-200" : "border-gray-100"}`}>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-semibold text-gray-800">{fmtDate(evv.actual_start)}</p>
+                      {!hasEntry && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-semibold">Needs Documentation</span>}
+                    </div>
+                    <p className="text-sm text-gray-500">{fmtTime(evv.actual_start)} – {fmtTime(evv.actual_end)} · {fmt(evv.session_duration_minutes)}</p>
+                    {evv.location_name && <p className="text-xs text-gray-400 mt-1">📍 {evv.location_name}</p>}
                   </div>
-                )}
-                <div className="flex gap-4 justify-center">
-                  <button type="button" onClick={startLatency} disabled={latRunning}
-                    className="w-36 h-20 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white text-lg font-bold rounded-2xl shadow-lg active:scale-95 transition-transform">
-                    Give Instruction
-                  </button>
-                  <button type="button" onClick={stopLatency} disabled={!latRunning}
-                    className="w-36 h-20 bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white text-lg font-bold rounded-2xl shadow-lg active:scale-95 transition-transform">
-                    Behavior Started
-                  </button>
-                </div>
-                <Button variant="outline" onClick={() => { setLatElapsed(0); setLatRunning(false); latStartRef.current = null; }}>Reset</Button>
-              </div>
-            </div>
-          )}
+                  <span className="text-gray-300 text-xl">›</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
 
-          {/* IRT */}
-          {selectedMethod === "irt" && (
-            <div className="text-center space-y-4 py-4">
-              <p className="text-7xl font-bold text-teal-600">{formatTime(irtElapsed)}</p>
-              <p className="text-gray-400 text-sm">
-                Time since last behavior ended · {irtIntervals.length} intervals recorded
-                {irtIntervals.length > 0 && ` · Avg: ${formatTime(Math.round(irtIntervals.reduce((a, b) => a + b, 0) / irtIntervals.length))}`}
-              </p>
-              {irtIntervals.length > 0 && (
-                <div className="flex flex-wrap gap-2 justify-center">
-                  <p className="text-xs text-gray-400 w-full">Recorded IRTs — click to reuse:</p>
-                  {irtIntervals.map((s, i) => (
-                    <button type="button" key={i} onClick={() => { irtStartRef.current = Date.now() - s * 1000; setIrtElapsed(s); setIrtRunning(true); }}
-                      className="text-xs px-2 py-1 bg-teal-50 border border-teal-200 text-teal-600 rounded-lg hover:bg-teal-100">
-                      IRT {i + 1}: {formatTime(s)}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div className="flex gap-4 justify-center">
-                {!irtRunning ? (
-                  <button type="button" onClick={startIRT}
-                    className="w-40 h-24 bg-blue-600 hover:bg-blue-700 text-white text-lg font-bold rounded-2xl shadow-lg active:scale-95 transition-transform">
-                    ▶ Start
-                  </button>
-                ) : (
-                  <button type="button" onClick={recordIRT}
-                    className="w-40 h-24 bg-teal-500 hover:bg-teal-600 text-white text-lg font-bold rounded-2xl shadow-lg active:scale-95 transition-transform">
-                    Behavior Ended (Record IRT)
-                  </button>
-                )}
-              </div>
-              <div className="flex gap-2 justify-center">
-                {irtRunning && <Button variant="outline" onClick={stopIRT}>Stop</Button>}
-                <Button variant="outline" onClick={() => { setIrtElapsed(0); setIrtRunning(false); setIrtIntervals([]); irtStartRef.current = null; }}>Reset</Button>
-              </div>
-            </div>
-          )}
+  // ── SESSION SCREEN ──────────────────────────────────────
+  return (
+    <div className="space-y-6">
+      <PageHeader title={selectedClient?.full_name ?? "Session"}>
+        <button onClick={() => { setScreen("evv"); setSelectedEVV(null); }}
+          className="text-sm text-blue-600 hover:underline">‹ Back to Sessions</button>
+      </PageHeader>
 
-          {/* INTERVAL METHODS */}
-          {(selectedMethod === "partial" || selectedMethod === "whole" || selectedMethod === "momentary") && (
-            <div className="text-center py-8 space-y-4">
-              <p className="text-4xl">{selectedMethod === "partial" ? "◑" : selectedMethod === "whole" ? "⬤" : "📍"}</p>
-              <p className="text-gray-700 font-medium">
-                {selectedMethod === "partial" ? "Partial Interval Recording" : selectedMethod === "whole" ? "Whole Interval Recording" : "Momentary Time Sampling"}
-              </p>
-              <p className="text-sm text-gray-500 max-w-sm mx-auto">
-                {selectedMethod === "partial" && "Behavior is scored if it occurs at any point during the interval."}
-                {selectedMethod === "whole" && "Behavior is scored only if it persists the entire interval."}
-                {selectedMethod === "momentary" && "Behavior is scored only if occurring at the exact end of the interval."}
-              </p>
-              <Button onClick={() => window.location.href = "/dashboard/interval-recording"}>
-                Open Interval Recording Tool →
-              </Button>
-            </div>
-          )}
-
-          {/* PERMANENT PRODUCT */}
-          {selectedMethod === "permanent" && (
-            <div className="space-y-4 py-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Product Description</label>
-                <input type="text" value={permDesc} onChange={e => setPermDesc(e.target.value)}
-                  placeholder="e.g. Completed math problems, cleaned bedroom items" className={inputClass} />
-              </div>
-              <div className="text-center space-y-4">
-                <p className="text-7xl font-bold text-indigo-600">{permCount}</p>
-                <p className="text-gray-400 text-sm">Products counted</p>
-                <div className="flex gap-4 justify-center">
-                  <button type="button" onClick={() => setPermCount(c => c + 1)}
-                    className="w-32 h-20 bg-indigo-600 hover:bg-indigo-700 text-white text-2xl font-bold rounded-2xl shadow-lg active:scale-95 transition-transform">
-                    + Count
-                  </button>
-                  <button type="button" onClick={() => setPermCount(c => Math.max(0, c - 1))}
-                    className="w-20 h-20 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xl font-bold rounded-2xl active:scale-95 transition-transform">
-                    −
-                  </button>
-                </div>
-                <Button variant="outline" onClick={() => setPermCount(0)}>Reset</Button>
-              </div>
-            </div>
-          )}
-
-          {/* ABC */}
-          {selectedMethod === "abc" && (
-            <div className="space-y-4 py-2">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="border-2 border-blue-200 rounded-xl p-4 bg-blue-50">
-                  <p className="text-xs font-bold text-blue-600 uppercase tracking-wide mb-2">A — Antecedent</p>
-                  <p className="text-xs text-blue-500 mb-2">What happened right before?</p>
-                  <textarea value={abcAntecedent} onChange={e => setAbcAntecedent(e.target.value)}
-                    placeholder="Describe what triggered the behavior..." rows={4} className={inputClass} />
-                </div>
-                <div className="border-2 border-red-200 rounded-xl p-4 bg-red-50">
-                  <p className="text-xs font-bold text-red-600 uppercase tracking-wide mb-2">B — Behavior</p>
-                  <p className="text-xs text-red-500 mb-2">Exact behavior observed?</p>
-                  <textarea value={abcBehavior} onChange={e => setAbcBehavior(e.target.value)}
-                    placeholder="Describe the behavior exactly as observed..." rows={4} className={inputClass} />
-                </div>
-                <div className="border-2 border-green-200 rounded-xl p-4 bg-green-50">
-                  <p className="text-xs font-bold text-green-600 uppercase tracking-wide mb-2">C — Consequence</p>
-                  <p className="text-xs text-green-500 mb-2">What happened after?</p>
-                  <textarea value={abcConsequence} onChange={e => setAbcConsequence(e.target.value)}
-                    placeholder="Describe the response/consequence..." rows={4} className={inputClass} />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* NOTES + SAVE */}
-          {selectedMethod && !["partial", "whole", "momentary"].includes(selectedMethod) && (
-            <div className="mt-6 space-y-3 border-t border-gray-100 pt-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Notes</label>
-                <textarea value={notes} onChange={e => setNotes(e.target.value)}
-                  placeholder="Additional observations..." rows={2} className={inputClass} />
-              </div>
-              <Button onClick={handleSave} loading={saving} disabled={!clientId || !behaviorName}>
-                💾 Save Data
-              </Button>
-            </div>
-          )}
-        </Section>
+      {/* EVV Summary */}
+      {selectedEVV && (
+        <div className="bg-[#1a2234] rounded-xl px-5 py-3">
+          <p className="text-sm text-blue-300 font-semibold">
+            📅 {fmtDate(selectedEVV.actual_start)} · {fmtTime(selectedEVV.actual_start)} – {fmtTime(selectedEVV.actual_end)} · {fmt(selectedEVV.session_duration_minutes)}
+          </p>
+          {selectedEVV.location_name && <p className="text-xs text-gray-400 mt-0.5">📍 {selectedEVV.location_name}</p>}
+        </div>
       )}
 
-      {/* REFERENCE GUIDE */}
-      {!selectedMethod && (
-        <Section title="Recording Method Reference">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div className="border border-blue-100 rounded-xl p-4 bg-blue-50">
-              <p className="font-bold text-blue-800 mb-3">Continuous Recording</p>
-              <div className="space-y-2">
-                {continuous.map(m => (
-                  <div key={m.key}>
-                    <p className="font-medium text-gray-700">{m.icon} {m.label}</p>
-                    <p className="text-xs text-gray-500">{m.desc}</p>
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200">
+        {(["behaviors", "skills", "dtt"] as const).map(tab => (
+          <button key={tab} type="button" onClick={() => setActiveTab(tab)}
+            className={`px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors ${activeTab === tab ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
+            {tab === "behaviors" ? "🧠 Behaviors" : tab === "skills" ? "🎯 Skills" : "📊 DTT"}
+          </button>
+        ))}
+      </div>
+
+      {/* BEHAVIORS TAB */}
+      {activeTab === "behaviors" && (
+        <div className="space-y-4">
+          {customBehaviors.length === 0 ? (
+            <div className="text-center py-16 border border-dashed border-gray-200 rounded-2xl">
+              <p className="text-3xl mb-3">🧠</p>
+              <p className="font-semibold text-gray-700">No behaviors set up</p>
+              <p className="text-sm text-gray-400 mt-1">Ask your BCBA to add behaviors in the client profile.</p>
+            </div>
+          ) : (
+            <>
+              {customBehaviors.map(b => (
+                <div key={b.id} className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+                  {/* Header */}
+                  <div className="flex items-center gap-3 p-4">
+                    <button type="button"
+                      onClick={() => b.severity_levels?.length > 0 ? setSeverityModal(b) : recordBehavior(b, null, null, null)}
+                      className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors">
+                      + {b.name}
+                    </button>
+                    <button type="button" onClick={() => setExpandedBehavior(expandedBehavior === b.id ? null : b.id)}
+                      className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center text-xs text-gray-500 transition-colors">
+                      {expandedBehavior === b.id ? "▲" : "▼"}
+                    </button>
                   </div>
+
+                  {/* Expanded details */}
+                  {expandedBehavior === b.id && (
+                    <div className="border-t border-gray-100 p-4 bg-gray-50 space-y-3">
+                      {b.operational_definition && (
+                        <div className="bg-white rounded-lg p-3">
+                          <p className="text-xs font-bold text-gray-400 uppercase mb-1">Operational Definition</p>
+                          <p className="text-sm text-gray-700">{b.operational_definition}</p>
+                        </div>
+                      )}
+                      {b.antecedent && (
+                        <div className="bg-white rounded-lg p-3">
+                          <p className="text-xs font-bold text-gray-400 uppercase mb-1">Antecedent</p>
+                          <p className="text-sm text-gray-700">{b.antecedent}</p>
+                        </div>
+                      )}
+                      {b.consequence && (
+                        <div className="bg-white rounded-lg p-3">
+                          <p className="text-xs font-bold text-gray-400 uppercase mb-1">Consequence</p>
+                          <p className="text-sm text-gray-700">{b.consequence}</p>
+                        </div>
+                      )}
+                      {b.replacement_behavior && (
+                        <div className="bg-white rounded-lg p-3">
+                          <p className="text-xs font-bold text-gray-400 uppercase mb-1">Replacement Behavior</p>
+                          <p className="text-sm text-gray-700">{b.replacement_behavior}</p>
+                        </div>
+                      )}
+                      {b.bcba_notes && (
+                        <div className="bg-yellow-50 rounded-lg p-3">
+                          <p className="text-xs font-bold text-yellow-600 uppercase mb-1">BCBA Notes</p>
+                          <p className="text-sm text-yellow-800">{b.bcba_notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Recorded counts */}
+                  {behaviorEntries.filter(e => e.behaviorId === b.id).map((entry, i) => (
+                    <div key={i} className="flex items-center justify-between px-4 py-2 border-t border-gray-50">
+                      <span className="text-sm text-gray-600">{entry.severityLabel ?? "No severity"}</span>
+                      <div className="flex items-center gap-3">
+                        <button type="button"
+                          onClick={() => setBehaviorEntries(prev => prev.map(e => e.behaviorId === b.id && e.severityId === entry.severityId ? { ...e, frequency: Math.max(0, e.frequency - 1) } : e).filter(e => e.frequency > 0))}
+                          className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-gray-600">−</button>
+                        <span className="text-lg font-bold text-gray-800 min-w-[2rem] text-center">{entry.frequency}</span>
+                        <button type="button"
+                          onClick={() => setBehaviorEntries(prev => prev.map(e => e.behaviorId === b.id && e.severityId === entry.severityId ? { ...e, frequency: e.frequency + 1 } : e))}
+                          className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center font-bold text-white">+</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+
+              {/* Interventions */}
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase mb-2">Interventions Used</p>
+                <div className="flex flex-wrap gap-2">
+                  {INTERVENTIONS.map(i => chip(i, selectedInterventions.includes(i), () => setSelectedInterventions(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* SKILLS TAB */}
+      {activeTab === "skills" && (
+        <div className="space-y-4">
+          {skillTargets.length === 0 ? (
+            <div className="text-center py-16 border border-dashed border-gray-200 rounded-2xl">
+              <p className="text-3xl mb-3">🎯</p>
+              <p className="font-semibold text-gray-700">No skill targets set up</p>
+              <p className="text-sm text-gray-400 mt-1">Ask your BCBA to add targets in the client profile.</p>
+            </div>
+          ) : skillTargets.map(target => (
+            <div key={target.id} className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+              {/* Header */}
+              <div className="flex items-start gap-3 p-4">
+                <div className="flex-1">
+                  <p className="text-xs font-bold text-purple-600 uppercase">{target.program_name}</p>
+                  <p className="font-semibold text-gray-800 mt-0.5">{target.target_name}</p>
+                  {target.current_accuracy !== null && (
+                    <p className="text-xs text-gray-400 mt-1">Current accuracy: {target.current_accuracy}% · {target.status}</p>
+                  )}
+                </div>
+                <button type="button" onClick={() => setExpandedSkill(expandedSkill === target.id ? null : target.id)}
+                  className="w-9 h-9 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center text-xs text-gray-500 shrink-0">
+                  {expandedSkill === target.id ? "▲" : "▼"}
+                </button>
+              </div>
+
+              {/* Expanded details */}
+              {expandedSkill === target.id && (
+                <div className="border-t border-gray-100 p-4 bg-gray-50 space-y-3">
+                  {target.sd_text && (
+                    <div className="bg-blue-50 rounded-lg p-3">
+                      <p className="text-xs font-bold text-blue-600 uppercase mb-1">SD (Discriminative Stimulus)</p>
+                      <p className="text-sm text-blue-800">{target.sd_text}</p>
+                    </div>
+                  )}
+                  {target.instructions && (
+                    <div className="bg-white rounded-lg p-3">
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-1">How to Run This Program</p>
+                      <p className="text-sm text-gray-700">{target.instructions}</p>
+                    </div>
+                  )}
+                  {target.materials && (
+                    <div className="bg-white rounded-lg p-3">
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-1">Materials Needed</p>
+                      <p className="text-sm text-gray-700">{target.materials}</p>
+                    </div>
+                  )}
+                  {target.mastery_criteria && (
+                    <div className="bg-white rounded-lg p-3">
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-1">Mastery Criteria</p>
+                      <p className="text-sm text-gray-700">{target.mastery_criteria}</p>
+                    </div>
+                  )}
+                  {(target.sets_per_session || target.trials_per_set) && (
+                    <div className="grid grid-cols-2 gap-3">
+                      {target.sets_per_session && (
+                        <div className="bg-white rounded-lg p-3 text-center">
+                          <p className="text-xs font-bold text-gray-400 uppercase mb-1">Sets/Session</p>
+                          <p className="text-2xl font-black text-blue-600">{target.sets_per_session}</p>
+                        </div>
+                      )}
+                      {target.trials_per_set && (
+                        <div className="bg-white rounded-lg p-3 text-center">
+                          <p className="text-xs font-bold text-gray-400 uppercase mb-1">Trials/Set</p>
+                          <p className="text-2xl font-black text-blue-600">{target.trials_per_set}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {target.goal && (
+                    <div className="bg-white rounded-lg p-3">
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-1">Goal</p>
+                      <p className="text-sm text-gray-700">{target.goal}</p>
+                    </div>
+                  )}
+                  {target.bcba_notes && (
+                    <div className="bg-yellow-50 rounded-lg p-3">
+                      <p className="text-xs font-bold text-yellow-600 uppercase mb-1">BCBA Notes</p>
+                      <p className="text-sm text-yellow-800">{target.bcba_notes}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Trial buttons */}
+              <div className="grid grid-cols-4 gap-2 p-4 border-t border-gray-50">
+                {[
+                  { label: "✓ Correct", result: "correct" as const, color: "bg-green-600 hover:bg-green-700" },
+                  { label: "P Prompted", result: "prompted" as const, color: "bg-yellow-500 hover:bg-yellow-600" },
+                  { label: "✗ Error", result: "incorrect" as const, color: "bg-red-600 hover:bg-red-700" },
+                  { label: "— NR", result: "no_response" as const, color: "bg-gray-500 hover:bg-gray-600" },
+                ].map(({ label, result, color }) => (
+                  <button key={result} type="button"
+                    onClick={() => target.prompt_levels?.length > 0 && result !== "incorrect" && result !== "no_response"
+                      ? setPromptModal({ target, result })
+                      : recordTrial(target, null, null, result)}
+                    className={`${color} text-white text-xs font-bold py-2.5 rounded-xl transition-colors`}>
+                    {label}
+                  </button>
                 ))}
               </div>
+
+              {/* Trial dots */}
+              {trialEntries.filter(t => t.targetId === target.id).length > 0 && (
+                <div className="flex flex-wrap gap-1.5 px-4 pb-4 items-center">
+                  {trialEntries.filter(t => t.targetId === target.id).map((t, i) => (
+                    <div key={i} className={`w-3 h-3 rounded-full ${t.result === "correct" ? "bg-green-500" : t.result === "prompted" ? "bg-yellow-500" : t.result === "no_response" ? "bg-gray-400" : "bg-red-500"}`} />
+                  ))}
+                  <span className="text-xs text-gray-400 ml-1">
+                    {trialEntries.filter(t => t.targetId === target.id && t.result === "correct").length}/
+                    {trialEntries.filter(t => t.targetId === target.id).length} correct
+                  </span>
+                </div>
+              )}
             </div>
-            <div className="border border-purple-100 rounded-xl p-4 bg-purple-50">
-              <p className="font-bold text-purple-800 mb-3">Discontinuous / Interval Recording</p>
-              <div className="space-y-2">
-                {discontinuous.map(m => (
-                  <div key={m.key}>
-                    <p className="font-medium text-gray-700">{m.icon} {m.label}</p>
-                    <p className="text-xs text-gray-500">{m.desc}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="border border-green-100 rounded-xl p-4 bg-green-50 md:col-span-2">
-              <p className="font-bold text-green-800 mb-3">Other Methods</p>
-              <div className="grid grid-cols-2 gap-2">
-                {other.map(m => (
-                  <div key={m.key}>
-                    <p className="font-medium text-gray-700">{m.icon} {m.label}</p>
-                    <p className="text-xs text-gray-500">{m.desc}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+          ))}
+        </div>
+      )}
+
+      {/* DTT TAB */}
+      {activeTab === "dtt" && (
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">Program / Target</label>
+            <input type="text" value={trialProgram} onChange={e => setTrialProgram(e.target.value)}
+              placeholder="e.g. Mand Training — cup"
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
           </div>
-        </Section>
+
+          {trials.length > 0 && (
+            <div className="bg-blue-50 rounded-xl p-4">
+              <p className="text-sm text-gray-500 mb-2">{trials.length} trials · {dttPct}% correct</p>
+              <div className="h-2 bg-blue-200 rounded-full mb-3">
+                <div className="h-2 bg-blue-600 rounded-full transition-all" style={{ width: `${dttPct}%` }} />
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {trials.map((t, i) => (
+                  <div key={i} className={`w-3 h-3 rounded-full ${t.result === "correct" ? "bg-green-500" : t.result === "prompted" ? "bg-yellow-500" : "bg-red-500"}`} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-3 gap-3">
+            <button type="button" onClick={() => setTrials(p => [...p, { result: "correct" }])}
+              className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl text-sm transition-colors">✓ Correct</button>
+            <button type="button" onClick={() => setTrials(p => [...p, { result: "prompted" }])}
+              className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-4 rounded-xl text-sm transition-colors">P Prompted</button>
+            <button type="button" onClick={() => setTrials(p => [...p, { result: "incorrect" }])}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl text-sm transition-colors">✗ Error</button>
+          </div>
+
+          {trials.length > 0 && (
+            <button type="button" onClick={() => setTrials([])} className="text-sm text-gray-400 hover:text-gray-600 underline">Reset trials</button>
+          )}
+        </div>
+      )}
+
+      {/* Session Notes */}
+      <div>
+        <label className="text-sm font-medium text-gray-700 mb-1 block">Session Notes</label>
+        <textarea value={sessionNotes} onChange={e => setSessionNotes(e.target.value)}
+          placeholder="Overall session summary, follow-up items, anything notable..."
+          rows={3} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+      </div>
+
+      <Button onClick={handleSave} loading={saving}>✓ Save Session Data</Button>
+      <p className="text-xs text-gray-400 text-center">Saves to session record and links back to EVV visit</p>
+
+      {/* SEVERITY MODAL */}
+      {severityModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+          <div className="bg-white rounded-t-3xl w-full max-w-lg p-6 pb-10">
+            <h3 className="text-lg font-bold text-gray-900 mb-1">{severityModal.name}</h3>
+            <p className="text-sm text-gray-500 mb-4">Select severity level</p>
+            <div className="space-y-2">
+              {severityModal.severity_levels.sort((a, b) => a.level_number - b.level_number).map(level => (
+                <button key={level.id} type="button"
+                  onClick={() => recordBehavior(severityModal, level.id, level.label, level.color)}
+                  className="w-full text-left border-l-4 rounded-lg p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  style={{ borderLeftColor: level.color }}>
+                  <p className="font-bold text-sm" style={{ color: level.color }}>{level.label}</p>
+                  {level.description && <p className="text-xs text-gray-500 mt-0.5">{level.description}</p>}
+                </button>
+              ))}
+              <button type="button" onClick={() => recordBehavior(severityModal, null, "No Severity", "#6b7280")}
+                className="w-full text-center text-sm text-gray-400 hover:text-gray-600 underline py-2">
+                Record without severity
+              </button>
+            </div>
+            <button type="button" onClick={() => setSeverityModal(null)}
+              className="w-full mt-4 py-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* PROMPT MODAL */}
+      {promptModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+          <div className="bg-white rounded-t-3xl w-full max-w-lg p-6 pb-10">
+            <h3 className="text-lg font-bold text-gray-900 mb-1">{promptModal.target.target_name}</h3>
+            <p className="text-sm text-gray-500 mb-4">Select prompt level</p>
+            <div className="space-y-2">
+              {promptModal.target.prompt_levels.sort((a, b) => a.level_number - b.level_number).map(level => (
+                <button key={level.id} type="button"
+                  onClick={() => recordTrial(promptModal.target, level.id, level.label, promptModal.result)}
+                  className="w-full flex items-center gap-3 p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                  {level.abbreviation && (
+                    <div className="w-9 h-9 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                      {level.abbreviation}
+                    </div>
+                  )}
+                  <span className="text-sm font-semibold text-gray-700">{level.label}</span>
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={() => setPromptModal(null)}
+              className="w-full mt-4 py-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50">
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
