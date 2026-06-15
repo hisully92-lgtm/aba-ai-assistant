@@ -239,17 +239,17 @@ export default function TimeEntriesPage() {
 
   // New entry flow functions
   async function selectClientForEntry(client: Client) {
-    setSelectedClient(client);
-    // Load authorizations for this client
-    const { data } = await supabase
-      .from("authorizations")
-      .select("*")
-      .eq("client_id", client.id)
-      .eq("status", "approved")
-      .order("end_date", { ascending: false });
-    setAuthorizations(data ?? []);
-    setNewEntryStep("select_auth");
-  }
+  setSelectedClient(client);
+  const { data, error } = await supabase
+    .from("authorizations")
+    .select("*")
+    .eq("client_id", client.id)
+    .eq("status", "approved")
+    .order("end_date", { ascending: false });
+  console.log("AUTHS:", data, "ERROR:", error); // ADD THIS
+  setAuthorizations(data ?? []);
+  setNewEntryStep("select_auth");
+}
 
   async function selectAuth(auth: Authorization) {
     setSelectedAuth(auth);
