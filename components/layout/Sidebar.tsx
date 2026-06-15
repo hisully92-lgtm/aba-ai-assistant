@@ -179,6 +179,18 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       ]),
     },
     {
+      label: "Time Entries & EVV",
+      href: "/dashboard/time-entries",
+      icon: "⏱️",
+      children: [],
+    },
+    {
+      label: "Time Entries & EVV",
+      href: "/dashboard/time-entries",
+      icon: "⏱️",
+      children: [],
+    },
+    {
       label: "Insurance & Billing",
       href: "/dashboard/insurance",
       icon: "🏦",
