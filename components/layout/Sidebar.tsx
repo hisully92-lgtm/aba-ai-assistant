@@ -165,7 +165,6 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       href: "/dashboard/schedule",
       icon: "📅",
       children: sortChildren([
-        
         { label: "Calendar View", href: "/dashboard/schedule" },
         { label: "Geofence", href: "/dashboard/geofence" },
         { label: "Reminders", href: "/dashboard/reminders" },
@@ -178,12 +177,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
         { label: "Waiting Room", href: "/dashboard/telehealth/waiting-room" },
       ]),
     },
-    {
-      label: "Time Entries & EVV",
-      href: "/dashboard/time-entries",
-      icon: "⏱️",
-      children: [],
-    },
+   
     {
       label: "Time Entries & EVV",
       href: "/dashboard/time-entries",
