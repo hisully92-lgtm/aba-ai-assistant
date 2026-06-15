@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import PageHeader from "@/components/layout/PageHeader";
 import Section from "@/components/ui/Section";
 import Button from "@/components/ui/Button";
+
 
 type Client = { id: string; full_name: string };
 type Authorization = {
@@ -458,21 +460,37 @@ export default function TimeEntriesPage() {
         </Button>
       </PageHeader>
 
-      {/* STATS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "EVV Complete", val: evvRecords.length, sub: unbilledEVV.length > 0 ? `${unbilledEVV.length} need entry` : undefined, color: "bg-purple-50 border-purple-100 text-purple-700" },
-          { label: "Pending Review", val: pendingCount, color: "bg-yellow-50 border-yellow-100 text-yellow-700" },
-          { label: "Approved", val: entries.filter(e => e.status === "approved").length, color: "bg-green-50 border-green-100 text-green-700" },
-          { label: "Billed", val: entries.filter(e => e.status === "billed").length, color: "bg-blue-50 border-blue-100 text-blue-700" },
-        ].map(s => (
-          <div key={s.label} className={`border rounded-xl p-4 ${s.color}`}>
-            <p className="text-xs font-semibold uppercase">{s.label}</p>
-            <p className="text-3xl font-bold mt-1">{s.val}</p>
-            {s.sub && <p className="text-xs mt-1">{s.sub}</p>}
-          </div>
-        ))}
-      </div>
+      import Link from "next/link";
+
+{/* STATS — make cards clickable */}
+<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+  <div className={`border rounded-xl p-4 bg-purple-50 border-purple-100 text-purple-700`}>
+    <p className="text-xs font-semibold uppercase">EVV Complete</p>
+    <p className="text-3xl font-bold mt-1">{evvRecords.length}</p>
+    {unbilledEVV.length > 0 && <p className="text-xs mt-1">{unbilledEVV.length} need entry</p>}
+  </div>
+  <Link href="/dashboard/session-review">
+    <div className={`border rounded-xl p-4 bg-yellow-50 border-yellow-100 text-yellow-700 cursor-pointer hover:shadow-md transition-all`}>
+      <p className="text-xs font-semibold uppercase">Pending Review</p>
+      <p className="text-3xl font-bold mt-1">{pendingCount}</p>
+      {pendingCount > 0 && <p className="text-xs mt-1">Tap to review →</p>}
+    </div>
+  </Link>
+  <Link href="/dashboard/billing/approved">
+    <div className={`border rounded-xl p-4 bg-green-50 border-green-100 text-green-700 cursor-pointer hover:shadow-md transition-all`}>
+      <p className="text-xs font-semibold uppercase">Approved</p>
+      <p className="text-3xl font-bold mt-1">{entries.filter(e => e.status === "approved").length}</p>
+      <p className="text-xs mt-1">Ready to bill →</p>
+    </div>
+  </Link>
+  <Link href="/dashboard/billing/approved?tab=billed">
+    <div className={`border rounded-xl p-4 bg-blue-50 border-blue-100 text-blue-700 cursor-pointer hover:shadow-md transition-all`}>
+      <p className="text-xs font-semibold uppercase">Billed</p>
+      <p className="text-3xl font-bold mt-1">{entries.filter(e => e.status === "billed").length}</p>
+      <p className="text-xs mt-1">View history →</p>
+    </div>
+  </Link>
+</div>
 
       {/* ── NEW TIME ENTRY FLOW ────────────────────────────── */}
       {showNewEntry && (

@@ -3,52 +3,43 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import PageHeader from "@/components/layout/PageHeader";
-import Section from "@/components/ui/Section";
 import Button from "@/components/ui/Button";
+import Link from "next/link";
 
-type Session = {
-  id: string;
-  client_id: string;
-  client_name?: string;
-  date: string;
-  status: string;
-  behaviors_observed: string | null;
-  interventions_used: string | null;
-  programs_targeted: string | null;
-  client_response: string | null;
-  notes: string | null;
-  staff_member: string | null;
-  cpt_code: string | null;
-  soap_subjective: string | null;
-  soap_objective: string | null;
-  soap_assessment: string | null;
-  soap_plan: string | null;
-  start_time: string | null;
-  end_time: string | null;
-  reviewed_by: string | null;
-  reviewed_at: string | null;
-  review_notes: string | null;
-  insurance_submitted: boolean;
-  insurance_submitted_at: string | null;
-  created_at: string;
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-700",
-  completed: "bg-green-100 text-green-700",
-  cancelled: "bg-gray-100 text-gray-500",
-  changes_requested: "bg-red-100 text-red-700",
+type TimeEntry = {
+  id: string; user_id: string; client_id: string; date: string;
+  start_time: string; end_time: string; duration_minutes: number;
+  session_type: string; cpt_code: string | null;
+  drive_time_minutes: number; drive_time_billable: boolean;
+  notes: string | null; status: string;
+  submitted_at: string | null; reviewer_notes: string | null;
+  location_name: string | null; geofence_verified: boolean;
+  evv_record_id: string | null;
+  session_location: string | null; session_participants: string | null;
+  who_was_present: string[] | null; client_readiness: string | null;
+  evidence_of_readiness: string | null; antecedents: string | null;
+  behaviors_worked_on: string[] | null; maladaptive_behaviors: string[] | null;
+  progress_ratings: Record<string, string> | null;
+  intervention_techniques: string[] | null;
+  client_response_to_interventions: string | null;
+  evidence_of_response: string | null; reinforcements_used: string | null;
+  reinforcements_worked: boolean | null; reinforcement_timing: string | null;
+  effect_of_reinforcement: string | null; treatment_progress: string | null;
+  goal_mastery_status: string | null; skill_generalization: string | null;
+  client_disposition: string | null; additional_information: string | null;
+  clients?: { full_name: string };
+  profiles?: { full_name: string; role: string };
 };
 
 export default function SessionReviewPage() {
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState("");
-  const [userName, setUserName] = useState("");
+  const [companyId, setCompanyId] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState("pending");
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
-  const [reviewNotes, setReviewNotes] = useState("");
-  const [saving, setSaving] = useState("");
 
   useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -58,244 +49,285 @@ export default function SessionReviewPage() {
     if (!user) return;
     setUserId(user.id);
 
-    const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user.id).single();
-    setUserName(profile?.full_name ?? "");
+    const { data: companyUser } = await supabase
+      .from("company_users").select("company_id")
+      .eq("user_id", user.id).eq("status", "active").limit(1).maybeSingle();
+    setCompanyId(companyUser?.company_id ?? "");
 
-    const { data: sessionData } = await supabase
-      .from("sessions")
-      .select("*")
-      .order("created_at", { ascending: false })
+    await loadEntries(companyUser?.company_id);
+  }
+
+  async function loadEntries(cId?: string) {
+    const { data } = await supabase
+      .from("time_entry_logs")
+      .select("*, clients(full_name), profiles(full_name, role)")
+      .eq("company_id", cId ?? companyId)
+      .in("status", ["pending", "needs_correction", "approved", "billed"])
+      .order("submitted_at", { ascending: false })
       .limit(100);
-
-    // Get client names
-    const clientIds = [...new Set((sessionData ?? []).map((s: Session) => s.client_id))];
-    let clientNames: Record<string, string> = {};
-    if (clientIds.length > 0) {
-      const { data: clients } = await supabase.from("clients").select("id, full_name").in("id", clientIds);
-      clientNames = Object.fromEntries((clients ?? []).map((c: any) => [c.id, c.full_name]));
-    }
-
-    setSessions((sessionData ?? []).map((s: Session) => ({ ...s, client_name: clientNames[s.client_id] })));
+    setEntries(data ?? []);
     setLoading(false);
   }
 
-  async function approveSession(id: string) {
+  async function approveEntry(id: string) {
     setSaving(id);
-    await supabase.from("sessions").update({
-      status: "completed",
+    await supabase.from("time_entry_logs").update({
+      status: "approved",
       reviewed_by: userId,
       reviewed_at: new Date().toISOString(),
-      review_notes: reviewNotes.trim() || null,
+      reviewer_notes: reviewNotes[id] || null,
     }).eq("id", id);
-    setSessions(prev => prev.map(s => s.id === id ? { ...s, status: "completed", reviewed_by: userId, reviewed_at: new Date().toISOString() } : s));
-    setSelectedSession(null);
-    setReviewNotes("");
-    setSaving("");
+    await loadEntries();
+    setSaving(null);
   }
 
-  async function requestChanges(id: string) {
-    if (!reviewNotes.trim()) { alert("Please add notes explaining what changes are needed."); return; }
+  async function rejectEntry(id: string) {
+    if (!reviewNotes[id]?.trim()) { alert("Please add correction notes before rejecting."); return; }
     setSaving(id);
-    await supabase.from("sessions").update({
-      status: "changes_requested",
+    await supabase.from("time_entry_logs").update({
+      status: "needs_correction",
       reviewed_by: userId,
       reviewed_at: new Date().toISOString(),
-      review_notes: reviewNotes.trim(),
+      reviewer_notes: reviewNotes[id],
     }).eq("id", id);
-    setSessions(prev => prev.map(s => s.id === id ? { ...s, status: "changes_requested" } : s));
-    setSelectedSession(null);
-    setReviewNotes("");
-    setSaving("");
+    await loadEntries();
+    setSaving(null);
   }
 
-  async function submitToInsurance(id: string) {
-    setSaving(id + "_insurance");
-    await supabase.from("sessions").update({
-      insurance_submitted: true,
-      insurance_submitted_at: new Date().toISOString(),
+  async function markBilled(id: string) {
+    setSaving(id);
+    await supabase.from("time_entry_logs").update({
+      status: "billed",
+      billed_at: new Date().toISOString(),
     }).eq("id", id);
-    setSessions(prev => prev.map(s => s.id === id ? { ...s, insurance_submitted: true, insurance_submitted_at: new Date().toISOString() } : s));
-    setSaving("");
-    alert("Session marked as submitted to insurance. Make sure to also submit through your clearinghouse (Availity).");
+    await loadEntries();
+    setSaving(null);
   }
 
-  const filtered = sessions.filter(s => filterStatus ? s.status === filterStatus : true);
-  const pendingCount = sessions.filter(s => s.status === "pending").length;
-  const changesCount = sessions.filter(s => s.status === "changes_requested").length;
+  const fmt = (m: number) => { const h = Math.floor(m / 60); const min = m % 60; return h > 0 ? `${h}h ${min}m` : `${min}m`; };
+  const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
 
-  if (loading) return <div className="p-8 text-gray-400">Loading sessions...</div>;
+  const STATUS_COLORS: Record<string, string> = {
+    pending: "bg-yellow-100 text-yellow-700",
+    needs_correction: "bg-red-100 text-red-700",
+    approved: "bg-green-100 text-green-700",
+    billed: "bg-blue-100 text-blue-700",
+  };
+  const STATUS_LABELS: Record<string, string> = {
+    pending: "Pending Review", needs_correction: "Needs Correction",
+    approved: "Approved", billed: "Billed",
+  };
+
+  const filtered = filterStatus === "all" ? entries : entries.filter(e => e.status === filterStatus);
+  const pendingCount = entries.filter(e => e.status === "pending").length;
+  const approvedCount = entries.filter(e => e.status === "approved").length;
+  const correctionCount = entries.filter(e => e.status === "needs_correction").length;
+  const billedCount = entries.filter(e => e.status === "billed").length;
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Session Note Review">
-        <p className="text-sm text-gray-500">Review, approve, and submit session notes to insurance</p>
+      <PageHeader title="Session Review Queue">
+        <Link href="/dashboard/time-entries">
+          <Button variant="outline">‹ Time Entries</Button>
+        </Link>
       </PageHeader>
 
       {/* STATS */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Pending Review", value: pendingCount, color: "text-yellow-600", icon: "⏳" },
-          { label: "Changes Requested", value: changesCount, color: "text-red-500", icon: "✏️" },
-          { label: "Completed", value: sessions.filter(s => s.status === "completed").length, color: "text-green-600", icon: "✅" },
-          { label: "Submitted to Insurance", value: sessions.filter(s => s.insurance_submitted).length, color: "text-blue-600", icon: "🏦" },
-        ].map(stat => (
-          <div key={stat.label} className="border rounded-xl p-4 text-center bg-white">
-            <div className="text-xl mb-1">{stat.icon}</div>
-            <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
-            <p className="text-xs text-gray-500 mt-1">{stat.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {pendingCount > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-sm text-yellow-800">
-          ⏳ <strong>{pendingCount}</strong> session note{pendingCount > 1 ? "s" : ""} waiting for your review.
-        </div>
-      )}
-
-      {/* FILTER */}
-      <div className="flex gap-2 flex-wrap">
-        {[
-          { value: "pending", label: `Pending (${pendingCount})` },
-          { value: "completed", label: "Completed" },
-          { value: "changes_requested", label: `Changes Requested (${changesCount})` },
-          { value: "", label: "All" },
-        ].map(f => (
-          <button key={f.value} onClick={() => setFilterStatus(f.value)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${filterStatus === f.value ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-            {f.label}
+          { label: "Pending Review", val: pendingCount, color: "bg-yellow-50 border-yellow-100 text-yellow-700", key: "pending" },
+          { label: "Needs Correction", val: correctionCount, color: "bg-red-50 border-red-100 text-red-700", key: "needs_correction" },
+          { label: "Approved", val: approvedCount, color: "bg-green-50 border-green-100 text-green-700", key: "approved" },
+          { label: "Billed", val: billedCount, color: "bg-blue-50 border-blue-100 text-blue-700", key: "billed" },
+        ].map(s => (
+          <button key={s.key} onClick={() => setFilterStatus(s.key)}
+            className={`border rounded-xl p-4 text-left transition-all ${s.color} ${filterStatus === s.key ? "ring-2 ring-offset-1 ring-blue-400" : ""}`}>
+            <p className="text-xs font-semibold uppercase">{s.label}</p>
+            <p className="text-3xl font-bold mt-1">{s.val}</p>
           </button>
         ))}
       </div>
 
-      {/* SESSION DETAIL VIEW */}
-      {selectedSession && (
-        <Section title={`Reviewing: ${selectedSession.client_name ?? "Unknown Client"} — ${selectedSession.date}`}>
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-              {selectedSession.staff_member && (
-                <div><p className="text-xs text-gray-400">Staff</p><p className="font-medium">{selectedSession.staff_member}</p></div>
-              )}
-              {selectedSession.cpt_code && (
-                <div><p className="text-xs text-gray-400">CPT Code</p><p className="font-medium">{selectedSession.cpt_code}</p></div>
-              )}
-              {selectedSession.client_response && (
-                <div><p className="text-xs text-gray-400">Client Response</p><p className="font-medium">{selectedSession.client_response}</p></div>
-              )}
-              {selectedSession.start_time && (
-                <div>
-                  <p className="text-xs text-gray-400">Session Time</p>
-                  <p className="font-medium">
-                    {new Date(selectedSession.start_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    {selectedSession.end_time && ` → ${new Date(selectedSession.end_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
-                  </p>
-                </div>
-              )}
-            </div>
+      {/* FILTER TABS */}
+      <div className="flex gap-2 flex-wrap">
+        {["all", "pending", "needs_correction", "approved", "billed"].map(s => (
+          <button key={s} onClick={() => setFilterStatus(s)}
+            className={`text-xs px-3 py-1.5 rounded-full border capitalize transition-all ${filterStatus === s ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300 hover:border-blue-300"}`}>
+            {s === "all" ? "All" : STATUS_LABELS[s]}
+          </button>
+        ))}
+      </div>
 
-            {selectedSession.behaviors_observed && (
-              <div><p className="text-xs text-gray-400 mb-1">Behaviors Observed</p>
-              <p className="text-sm text-gray-700 bg-red-50 rounded-lg p-2">{selectedSession.behaviors_observed}</p></div>
-            )}
-            {selectedSession.interventions_used && (
-              <div><p className="text-xs text-gray-400 mb-1">Interventions Used</p>
-              <p className="text-sm text-gray-700 bg-blue-50 rounded-lg p-2">{selectedSession.interventions_used}</p></div>
-            )}
-            {selectedSession.programs_targeted && (
-              <div><p className="text-xs text-gray-400 mb-1">Programs Targeted</p>
-              <p className="text-sm text-gray-700 bg-purple-50 rounded-lg p-2">{selectedSession.programs_targeted}</p></div>
-            )}
-            {selectedSession.notes && (
-              <div><p className="text-xs text-gray-400 mb-1">Notes</p>
-              <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-2">{selectedSession.notes}</p></div>
-            )}
-
-            {(selectedSession.soap_subjective || selectedSession.soap_objective) && (
-              <div className="border border-blue-100 rounded-xl p-4 bg-blue-50 space-y-2">
-                <p className="text-xs font-bold text-blue-700 uppercase">SOAP Notes</p>
-                {selectedSession.soap_subjective && <div><p className="text-xs text-blue-600 font-medium">S — Subjective</p><p className="text-sm text-gray-700">{selectedSession.soap_subjective}</p></div>}
-                {selectedSession.soap_objective && <div><p className="text-xs text-blue-600 font-medium">O — Objective</p><p className="text-sm text-gray-700">{selectedSession.soap_objective}</p></div>}
-                {selectedSession.soap_assessment && <div><p className="text-xs text-blue-600 font-medium">A — Assessment</p><p className="text-sm text-gray-700">{selectedSession.soap_assessment}</p></div>}
-                {selectedSession.soap_plan && <div><p className="text-xs text-blue-600 font-medium">P — Plan</p><p className="text-sm text-gray-700">{selectedSession.soap_plan}</p></div>}
-              </div>
-            )}
-
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Review Notes</label>
-              <textarea value={reviewNotes} onChange={e => setReviewNotes(e.target.value)}
-                placeholder="Add approval notes or explain what changes are needed..."
-                rows={3}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-            </div>
-
-            <div className="flex gap-2 flex-wrap">
-              <Button onClick={() => approveSession(selectedSession.id)} loading={saving === selectedSession.id}>
-                ✅ Approve Note
-              </Button>
-              <button onClick={() => requestChanges(selectedSession.id)}
-                className="px-4 py-2 border border-red-200 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50 transition-colors">
-                ✏️ Request Changes
-              </button>
-              {selectedSession.status === "completed" && !selectedSession.insurance_submitted && (
-                <button onClick={() => submitToInsurance(selectedSession.id)}
-                  disabled={saving === selectedSession.id + "_insurance"}
-                  className="px-4 py-2 border border-blue-200 text-blue-600 rounded-xl text-sm font-medium hover:bg-blue-50 transition-colors disabled:opacity-50">
-                  🏦 Submit to Insurance
-                </button>
-              )}
-              {selectedSession.insurance_submitted && (
-                <span className="px-4 py-2 bg-green-50 text-green-700 rounded-xl text-sm font-medium border border-green-200">
-                  ✓ Submitted to Insurance {selectedSession.insurance_submitted_at ? new Date(selectedSession.insurance_submitted_at).toLocaleDateString() : ""}
-                </span>
-              )}
-              <button onClick={() => { setSelectedSession(null); setReviewNotes(""); }}
-                className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">
-                ← Back
-              </button>
-            </div>
-          </div>
-        </Section>
-      )}
-
-      {/* SESSION LIST */}
-      {!selectedSession && (
-        <div className="space-y-3">
-          {filtered.length === 0 && (
-            <div className="text-center py-12 text-gray-400">
-              <p className="text-4xl mb-3">✅</p>
-              <p className="text-sm">No sessions in this category.</p>
-            </div>
-          )}
-          {filtered.map(session => (
-            <div key={session.id}
-              onClick={() => setSelectedSession(session)}
-              className="border border-gray-100 rounded-xl p-4 bg-white hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer">
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="font-semibold text-gray-800">{session.client_name ?? "Unknown Client"}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[session.status] ?? "bg-gray-100 text-gray-600"}`}>
-                      {session.status.replace("_", " ")}
-                    </span>
-                    {session.insurance_submitted && (
-                      <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">🏦 Insurance</span>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-400">{session.date} {session.staff_member ? `· ${session.staff_member}` : ""}</p>
-                  {session.cpt_code && <p className="text-xs text-blue-600 mt-0.5">CPT: {session.cpt_code}</p>}
-                  {session.behaviors_observed && (
-                    <p className="text-xs text-gray-500 mt-1 truncate max-w-md">Behaviors: {session.behaviors_observed}</p>
-                  )}
-                  {session.review_notes && (
-                    <p className="text-xs text-orange-600 mt-1">📝 {session.review_notes}</p>
-                  )}
-                </div>
-                <span className="text-gray-300 text-sm">→</span>
-              </div>
-            </div>
-          ))}
+      {loading && <p className="text-gray-400 text-sm">Loading...</p>}
+      {!loading && filtered.length === 0 && (
+        <div className="text-center py-16 border border-dashed border-gray-200 rounded-2xl">
+          <p className="text-4xl mb-3">✅</p>
+          <p className="font-semibold text-gray-700">No entries in this category</p>
+          <p className="text-sm text-gray-400 mt-1">All caught up!</p>
         </div>
       )}
+
+      <div className="space-y-4">
+        {filtered.map(entry => (
+          <div key={entry.id} className={`border rounded-2xl bg-white overflow-hidden ${entry.status === "pending" ? "border-yellow-200" : entry.status === "needs_correction" ? "border-red-200" : entry.status === "approved" ? "border-green-200" : "border-gray-100"}`}>
+            {/* HEADER */}
+            <button type="button" className="w-full text-left p-5" onClick={() => setExpandedId(expandedId === entry.id ? null : entry.id)}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <p className="font-bold text-gray-900">{entry.clients?.full_name ?? "Unknown Client"}</p>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${STATUS_COLORS[entry.status]}`}>
+                      {STATUS_LABELS[entry.status]}
+                    </span>
+                    {entry.evv_record_id && <span className="text-xs bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded font-medium">EVV</span>}
+                  </div>
+                  {entry.profiles && <p className="text-sm text-gray-500">RBT: {entry.profiles.full_name}</p>}
+                  <div className="flex flex-wrap gap-3 mt-1 text-xs text-gray-500">
+                    <span>📅 {entry.date}</span>
+                    <span>⏱️ {fmt(entry.duration_minutes)}</span>
+                    <span>{entry.session_type}</span>
+                    {entry.cpt_code && <span className="font-mono font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">{entry.cpt_code}</span>}
+                    {entry.location_name && <span>📍 {entry.location_name}</span>}
+                    {entry.submitted_at && <span className="text-gray-400">Submitted {fmtDate(entry.submitted_at)}</span>}
+                  </div>
+                </div>
+                <span className="text-gray-400 text-sm">{expandedId === entry.id ? "▼" : "▶"}</span>
+              </div>
+            </button>
+
+            {/* EXPANDED CLINICAL NOTE */}
+            {expandedId === entry.id && (
+              <div className="border-t border-gray-100 p-5 space-y-4">
+
+                {/* Full clinical note display */}
+                <div className="bg-gray-50 rounded-xl p-5 space-y-3">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">Clinical Note</p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {[
+                      { label: "Session Location", value: entry.session_location },
+                      { label: "Session Participants", value: entry.session_participants },
+                      { label: "Who Was Present", value: entry.who_was_present?.join(", ") },
+                      { label: "Client Readiness", value: entry.client_readiness },
+                      { label: "Evidence of Readiness", value: entry.evidence_of_readiness },
+                      { label: "Antecedents / Barriers", value: entry.antecedents },
+                      { label: "Client Response", value: entry.client_response_to_interventions },
+                      { label: "Evidence of Response", value: entry.evidence_of_response },
+                      { label: "Reinforcement Timing", value: entry.reinforcement_timing },
+                      { label: "Effect of Reinforcement", value: entry.effect_of_reinforcement },
+                      { label: "Reinforcements Used", value: entry.reinforcements_used },
+                      { label: "Treatment Progress", value: entry.treatment_progress },
+                      { label: "Goal Mastery Status", value: entry.goal_mastery_status },
+                      { label: "Skill Generalization", value: entry.skill_generalization },
+                      { label: "Client Transition", value: entry.client_disposition },
+                      { label: "Additional Information", value: entry.additional_information },
+                    ].filter(f => f.value).map(field => (
+                      <div key={field.label} className="bg-white rounded-lg p-3">
+                        <p className="text-xs font-bold text-gray-400 uppercase mb-1">{field.label}</p>
+                        <p className="text-sm text-gray-700">{field.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Skill targets */}
+                  {entry.behaviors_worked_on && entry.behaviors_worked_on.length > 0 && (
+                    <div className="bg-green-50 rounded-lg p-3">
+                      <p className="text-xs font-bold text-green-700 uppercase mb-2">Skill Targets</p>
+                      {entry.behaviors_worked_on.map(b => (
+                        <div key={b} className="flex items-center justify-between text-sm py-1 border-b border-green-100 last:border-0">
+                          <span className="text-gray-700">{b}</span>
+                          {entry.progress_ratings?.[b] && (
+                            <span className={`text-xs px-2 py-0.5 rounded font-semibold ${entry.progress_ratings[b] === "Progress" ? "bg-green-100 text-green-700" : entry.progress_ratings[b] === "Regression" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
+                              {entry.progress_ratings[b]}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Maladaptive behaviors */}
+                  {entry.maladaptive_behaviors && entry.maladaptive_behaviors.length > 0 && (
+                    <div className="bg-red-50 rounded-lg p-3">
+                      <p className="text-xs font-bold text-red-700 uppercase mb-1">Maladaptive Behaviors</p>
+                      <p className="text-sm text-red-800">{entry.maladaptive_behaviors.join(", ")}</p>
+                    </div>
+                  )}
+
+                  {/* Intervention techniques */}
+                  {entry.intervention_techniques && entry.intervention_techniques.length > 0 && (
+                    <div className="bg-blue-50 rounded-lg p-3">
+                      <p className="text-xs font-bold text-blue-700 uppercase mb-1">Intervention Techniques</p>
+                      <p className="text-sm text-blue-800">{entry.intervention_techniques.join(", ")}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Previous correction notes */}
+                {entry.status === "needs_correction" && entry.reviewer_notes && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                    <p className="text-xs font-bold text-red-600 uppercase mb-1">⚠️ Previous Correction Request</p>
+                    <p className="text-sm text-red-800">{entry.reviewer_notes}</p>
+                  </div>
+                )}
+
+                {/* REVIEW ACTIONS */}
+                {entry.status === "pending" && (
+                  <div className="space-y-3 border-t border-gray-100 pt-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-1 block">Review Notes</label>
+                      <textarea
+                        value={reviewNotes[entry.id] ?? ""}
+                        onChange={e => setReviewNotes(prev => ({ ...prev, [entry.id]: e.target.value }))}
+                        placeholder="Add notes for the RBT (required for rejection, optional for approval)..."
+                        rows={2}
+                        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                    </div>
+                    <div className="flex gap-3">
+                      <Button onClick={() => approveEntry(entry.id)} loading={saving === entry.id}>
+                        ✓ Approve
+                      </Button>
+                      <Button variant="danger" onClick={() => rejectEntry(entry.id)} loading={saving === entry.id}>
+                        ✗ Request Correction
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {entry.status === "needs_correction" && (
+                  <div className="space-y-3 border-t border-gray-100 pt-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-1 block">Updated Review Notes</label>
+                      <textarea
+                        value={reviewNotes[entry.id] ?? ""}
+                        onChange={e => setReviewNotes(prev => ({ ...prev, [entry.id]: e.target.value }))}
+                        placeholder="Add updated notes..."
+                        rows={2}
+                        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                    </div>
+                    <div className="flex gap-3">
+                      <Button onClick={() => approveEntry(entry.id)} loading={saving === entry.id}>✓ Approve Resubmission</Button>
+                      <Button variant="danger" onClick={() => rejectEntry(entry.id)} loading={saving === entry.id}>✗ Reject Again</Button>
+                    </div>
+                  </div>
+                )}
+
+                {entry.status === "approved" && (
+                  <div className="flex gap-3 border-t border-gray-100 pt-4">
+                    <Button onClick={() => markBilled(entry.id)} loading={saving === entry.id}>
+                      💰 Mark as Billed
+                    </Button>
+                    <Link href={`/dashboard/billing/approved`}>
+                      <Button variant="outline">View in Billing →</Button>
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
