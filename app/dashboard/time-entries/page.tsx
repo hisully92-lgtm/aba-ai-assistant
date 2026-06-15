@@ -6,70 +6,64 @@ import PageHeader from "@/components/layout/PageHeader";
 import Section from "@/components/ui/Section";
 import Button from "@/components/ui/Button";
 
+type Client = { id: string; full_name: string };
+type Authorization = {
+  id: string; client_id: string; insurance_provider: string;
+  cpt_code: string; start_date: string; end_date: string;
+  total_units: number; used_units: number; status: string;
+};
+type EVVRecord = {
+  id: string; client_id: string; date: string;
+  actual_start: string; actual_end: string;
+  session_duration_minutes: number; location_name: string | null;
+  start_geofence_verified: boolean; rbt_signature: string | null;
+  guardian_signature: string | null; guardian_unavailable: boolean;
+  guardian_unavailable_reason: string | null;
+  behaviors_recorded: number; trials_recorded: number;
+  evv_status: string; time_entry_id: string | null;
+  clients?: { full_name: string };
+};
+type SessionData = {
+  id: string; behaviors_observed: string | null;
+  interventions_used: string | null; programs_targeted: string | null;
+  notes: string | null; cpt_code: string | null;
+};
 type TimeEntry = {
-  id: string;
-  user_id: string;
-  client_id: string;
-  date: string;
-  start_time: string;
-  end_time: string;
-  duration_minutes: number;
-  session_type: string;
-  cpt_code: string | null;
-  drive_time_minutes: number;
-  drive_time_billable: boolean;
-  notes: string | null;
-  clinical_notes: string | null;
-  status: string;
-  submitted_at: string | null;
-  reviewer_notes: string | null;
-  reviewed_at: string | null;
-  location_name: string | null;
-  geofence_verified: boolean;
-  start_time_adjusted: boolean;
-  start_adjustment_reason: string | null;
-  end_time_adjusted: boolean;
-  end_adjustment_reason: string | null;
-  created_at: string;
+  id: string; user_id: string; client_id: string; date: string;
+  start_time: string; end_time: string; duration_minutes: number;
+  session_type: string; cpt_code: string | null;
+  drive_time_minutes: number; drive_time_billable: boolean;
+  notes: string | null; clinical_notes: string | null;
+  status: string; submitted_at: string | null;
+  reviewer_notes: string | null; reviewed_at: string | null;
+  location_name: string | null; geofence_verified: boolean;
   evv_record_id?: string | null;
   behaviors_worked_on: string[] | null;
   maladaptive_behaviors: string[] | null;
   progress_ratings: Record<string, string> | null;
-  reinforcements_used: string | null;
-  reinforcements_worked: boolean | null;
-  reinforcements_timing: string | null;
-  antecedents: string | null;
-  who_was_present: string[] | null;
-  client_readiness: string | null;
+  reinforcements_used: string | null; reinforcements_worked: boolean | null;
+  reinforcements_timing: string | null; antecedents: string | null;
+  who_was_present: string[] | null; client_readiness: string | null;
   client_disposition: string | null;
+  session_location: string | null; session_participants: string | null;
+  evidence_of_readiness: string | null;
+  intervention_techniques: string | null;
+  client_response_to_interventions: string | null;
+  evidence_of_response: string | null;
+  reinforcement_timing: string | null;
+  effect_of_reinforcement: string | null;
+  treatment_progress: string | null;
+  goal_mastery_status: string | null;
+  skill_generalization: string | null;
+  client_transition: string | null;
+  additional_information: string | null;
   clients?: { full_name: string };
   profiles?: { full_name: string; role: string };
 };
-
-type EVVRecord = {
-  id: string;
-  client_id: string;
-  date: string;
-  actual_start: string;
-  actual_end: string;
-  session_duration_minutes: number;
-  location_name: string | null;
-  start_geofence_verified: boolean;
-  end_geofence_verified: boolean;
-  rbt_signature: string | null;
-  guardian_signature: string | null;
-  guardian_unavailable: boolean;
-  guardian_unavailable_reason: string | null;
-  behaviors_recorded: number;
-  trials_recorded: number;
-  evv_status: string;
-  time_entry_id: string | null;
-  clients?: { full_name: string };
+type DriveLocation = {
+  id: string; name: string; address: string; city: string;
+  latitude: number; longitude: number;
 };
-
-type Behavior = { id: string; name: string; category: string };
-type SkillTarget = { id: string; program_name: string; target_name: string };
-type DriveLocation = { id: string; name: string; address: string; city: string; latitude: number; longitude: number };
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-gray-100 text-gray-600",
@@ -78,15 +72,10 @@ const STATUS_COLORS: Record<string, string> = {
   approved: "bg-green-100 text-green-700",
   billed: "bg-blue-100 text-blue-700",
 };
-
 const STATUS_LABELS: Record<string, string> = {
-  draft: "Draft",
-  pending: "Pending Review",
-  needs_correction: "Needs Correction",
-  approved: "Approved",
-  billed: "Billed",
+  draft: "Draft", pending: "Pending Review",
+  needs_correction: "Needs Correction", approved: "Approved", billed: "Billed",
 };
-
 const CPT_CODES = [
   { code: "97153", label: "97153 — Adaptive Behavior Treatment (RBT)" },
   { code: "97155", label: "97155 — Protocol Modification (BCBA)" },
@@ -95,13 +84,20 @@ const CPT_CODES = [
   { code: "97152", label: "97152 — Behavior Identification Supporting Assessment" },
   { code: "T1016", label: "T1016 — Drive Time" },
 ];
-
 const SESSION_TYPES = ["Direct Therapy", "Supervision", "Parent Training", "Assessment", "Team Meeting", "Telehealth"];
 const PRESENT_OPTIONS = ["RBT", "Client", "BCBA", "Parent", "Caregiver", "Sibling"];
 const READINESS_OPTIONS = ["Ready and engaged", "Took time to warm up", "Not ready / refused initially", "Came in escalated"];
 const DISPOSITION_OPTIONS = ["Calm and regulated", "Neutral", "Slightly elevated", "Escalated"];
 const PROGRESS_OPTIONS = ["Progress", "Same", "Regression"];
 const REINFORCEMENT_TIMING = ["In the moment", "After task completion", "On a schedule", "Introduced later in session"];
+const INTERVENTION_OPTIONS = ["Redirection", "Planned ignoring", "Differential reinforcement", "Response blocking", "NCR", "Token economy", "Visual supports", "Prompting hierarchy"];
+const CLIENT_RESPONSE_OPTIONS = ["Responded well", "Minimal response", "No response", "Negative response"];
+const TREATMENT_PROGRESS_OPTIONS = ["Making progress", "Maintaining", "Regression noted", "Inconsistent"];
+const MASTERY_OPTIONS = ["No goals mastered", "Partial mastery", "Goal mastered", "Multiple goals mastered"];
+const GENERALIZATION_OPTIONS = ["Observed", "Not observed", "Partially observed"];
+const TRANSITION_OPTIONS = ["Calm and regulated", "Slightly elevated", "Escalated", "Required additional support"];
+
+type NewEntryStep = "select_client" | "select_auth" | "select_evv" | "clinical_notes" | "preview";
 
 export default function TimeEntriesPage() {
   const [entries, setEntries] = useState<TimeEntry[]>([]);
@@ -118,10 +114,51 @@ export default function TimeEntriesPage() {
   const [expandedEVV, setExpandedEVV] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
-  const [clients, setClients] = useState<{ id: string; full_name: string }[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [activeTab, setActiveTab] = useState<"evv" | "entries" | "drive">("evv");
 
-  // Drive time state
+  // New entry flow
+  const [showNewEntry, setShowNewEntry] = useState(false);
+  const [newEntryStep, setNewEntryStep] = useState<NewEntryStep>("select_client");
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [authorizations, setAuthorizations] = useState<Authorization[]>([]);
+  const [selectedAuth, setSelectedAuth] = useState<Authorization | null>(null);
+  const [clientEVVs, setClientEVVs] = useState<EVVRecord[]>([]);
+  const [selectedEVV, setSelectedEVV] = useState<EVVRecord | null>(null);
+  const [sessionData, setSessionData] = useState<SessionData | null>(null);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+
+  // Clinical notes form
+  const [clinicalForm, setClinicalForm] = useState({
+    session_type: "Direct Therapy",
+    cpt_code: "97153",
+    session_location: "",
+    session_participants: "",
+    client_readiness: "",
+    evidence_of_readiness: "",
+    antecedents: "",
+    behaviors_worked_on: [] as string[],
+    maladaptive_behaviors: [] as string[],
+    progress_ratings: {} as Record<string, string>,
+    intervention_techniques: [] as string[],
+    client_response_to_interventions: "",
+    evidence_of_response: "",
+    reinforcements_used: "",
+    reinforcement_timing: "",
+    effect_of_reinforcement: "",
+    reinforcements_worked: null as boolean | null,
+    treatment_progress: "",
+    goal_mastery_status: "",
+    skill_generalization: "",
+    client_disposition: "",
+    additional_information: "",
+    who_was_present: [] as string[],
+    drive_time_minutes: 0,
+    drive_time_billable: false,
+    notes: "",
+  });
+
+  // Drive time
   const [driveClient1Id, setDriveClient1Id] = useState("");
   const [driveClient2Id, setDriveClient2Id] = useState("");
   const [driveLocations1, setDriveLocations1] = useState<DriveLocation[]>([]);
@@ -133,31 +170,6 @@ export default function TimeEntriesPage() {
   const [driveReason, setDriveReason] = useState("");
   const [driveStep, setDriveStep] = useState<"select" | "confirm">("select");
   const [driveSaving, setDriveSaving] = useState(false);
-
-  // Clinical data for convert form
-  const [clientBehaviors, setClientBehaviors] = useState<Behavior[]>([]);
-  const [clientSkills, setClientSkills] = useState<SkillTarget[]>([]);
-
-  // EVV → Time Entry conversion form
-  const [convertingEVV, setConvertingEVV] = useState<EVVRecord | null>(null);
-  const [convertStep, setConvertStep] = useState<"billing" | "clinical">("billing");
-  const [convertForm, setConvertForm] = useState({
-    cpt_code: "97153", session_type: "Direct Therapy",
-    drive_time_minutes: 0, drive_time_billable: false, notes: "",
-    behaviors_worked_on: [] as string[], maladaptive_behaviors: [] as string[],
-    progress_ratings: {} as Record<string, string>,
-    reinforcements_used: "", reinforcements_worked: null as boolean | null,
-    reinforcements_timing: "", antecedents: "", who_was_present: [] as string[],
-    client_readiness: "", client_disposition: "", clinical_notes: "",
-  });
-
-  // Manual entry form
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    client_id: "", date: new Date().toISOString().split("T")[0],
-    start_time: "", end_time: "", session_type: "Direct Therapy",
-    cpt_code: "97153", drive_time_minutes: 0, drive_time_billable: false, notes: "",
-  });
 
   useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -218,20 +230,128 @@ export default function TimeEntriesPage() {
     setEvvLoading(false);
   }
 
-  async function loadClientData(clientId: string) {
-    const [{ data: behaviors }, { data: skills }] = await Promise.all([
-      supabase.from("custom_behaviors").select("id, name, category").eq("client_id", clientId).eq("is_active", true).order("display_order"),
-      supabase.from("skill_targets").select("id, program_name, target_name").eq("client_id", clientId).eq("is_active", true).order("display_order"),
-    ]);
-    setClientBehaviors(behaviors ?? []);
-    setClientSkills(skills ?? []);
-  }
-
   async function loadDriveLocations(clientId: string, which: 1 | 2) {
     const { data } = await supabase.from("client_locations").select("*")
       .eq("client_id", clientId).order("is_primary", { ascending: false });
     if (which === 1) { setDriveLocations1(data ?? []); setDriveLocation1Id(""); }
     else { setDriveLocations2(data ?? []); setDriveLocation2Id(""); }
+  }
+
+  // New entry flow functions
+  async function selectClientForEntry(client: Client) {
+    setSelectedClient(client);
+    // Load authorizations for this client
+    const { data } = await supabase
+      .from("authorizations")
+      .select("*")
+      .eq("client_id", client.id)
+      .eq("status", "approved")
+      .order("end_date", { ascending: false });
+    setAuthorizations(data ?? []);
+    setNewEntryStep("select_auth");
+  }
+
+  async function selectAuth(auth: Authorization) {
+    setSelectedAuth(auth);
+    // Load EVV records for this client filtered to auth period
+    const { data } = await supabase
+      .from("evv_records")
+      .select("*, clients(full_name)")
+      .eq("client_id", auth.client_id)
+      .eq("evv_status", "complete")
+      .gte("date", auth.start_date)
+      .lte("date", auth.end_date)
+      .is("time_entry_id", null)
+      .order("actual_start", { ascending: false });
+    setClientEVVs(data ?? []);
+    setNewEntryStep("select_evv");
+  }
+
+  async function selectEVV(evv: EVVRecord) {
+    setSelectedEVV(evv);
+    // Try to load existing session data for this EVV
+    const { data: session } = await supabase
+      .from("sessions")
+      .select("id, behaviors_observed, interventions_used, programs_targeted, notes, cpt_code")
+      .eq("evv_record_id", evv.id)
+      .maybeSingle();
+    setSessionData(session);
+
+    // Pre-populate clinical form from session data
+    setClinicalForm(prev => ({
+      ...prev,
+      cpt_code: selectedAuth?.cpt_code ?? "97153",
+      session_location: evv.location_name ?? "",
+      behaviors_worked_on: session?.programs_targeted
+        ? session.programs_targeted.split(", ").filter(Boolean)
+        : [],
+      intervention_techniques: session?.interventions_used
+        ? session.interventions_used.split(", ").filter(Boolean)
+        : [],
+      notes: session?.notes ?? "",
+    }));
+
+    setNewEntryStep("clinical_notes");
+  }
+
+  async function saveTimeEntry() {
+    if (!selectedEVV || !selectedClient || !selectedAuth) return;
+    setSaving("new");
+
+    await supabase.from("time_entry_logs").insert({
+      company_id: companyId, user_id: userId,
+      client_id: selectedClient.id,
+      date: selectedEVV.date,
+      start_time: selectedEVV.actual_start,
+      end_time: selectedEVV.actual_end,
+      duration_minutes: selectedEVV.session_duration_minutes,
+      session_type: clinicalForm.session_type,
+      cpt_code: clinicalForm.cpt_code,
+      drive_time_minutes: clinicalForm.drive_time_minutes,
+      drive_time_billable: clinicalForm.drive_time_billable,
+      notes: clinicalForm.notes || null,
+      status: "pending",
+      submitted_at: new Date().toISOString(),
+      location_name: selectedEVV.location_name,
+      geofence_verified: selectedEVV.start_geofence_verified,
+      evv_record_id: selectedEVV.id,
+      session_location: clinicalForm.session_location || null,
+      session_participants: clinicalForm.session_participants || null,
+      who_was_present: clinicalForm.who_was_present.length ? clinicalForm.who_was_present : null,
+      client_readiness: clinicalForm.client_readiness || null,
+      evidence_of_readiness: clinicalForm.evidence_of_readiness || null,
+      antecedents: clinicalForm.antecedents || null,
+      behaviors_worked_on: clinicalForm.behaviors_worked_on.length ? clinicalForm.behaviors_worked_on : null,
+      maladaptive_behaviors: clinicalForm.maladaptive_behaviors.length ? clinicalForm.maladaptive_behaviors : null,
+      progress_ratings: Object.keys(clinicalForm.progress_ratings).length ? clinicalForm.progress_ratings : null,
+      intervention_techniques: clinicalForm.intervention_techniques.length ? clinicalForm.intervention_techniques : null,
+      client_response_to_interventions: clinicalForm.client_response_to_interventions || null,
+      evidence_of_response: clinicalForm.evidence_of_response || null,
+      reinforcements_used: clinicalForm.reinforcements_used || null,
+      reinforcements_worked: clinicalForm.reinforcements_worked,
+      reinforcement_timing: clinicalForm.reinforcement_timing || null,
+      effect_of_reinforcement: clinicalForm.effect_of_reinforcement || null,
+      treatment_progress: clinicalForm.treatment_progress || null,
+      goal_mastery_status: clinicalForm.goal_mastery_status || null,
+      skill_generalization: clinicalForm.skill_generalization || null,
+      client_disposition: clinicalForm.client_disposition || null,
+      additional_information: clinicalForm.additional_information || null,
+    });
+
+    // Mark EVV as having a time entry
+    await supabase.from("evv_records").update({ time_entry_id: "pending" }).eq("id", selectedEVV.id);
+
+    // Reset flow
+    setShowNewEntry(false);
+    setNewEntryStep("select_client");
+    setSelectedClient(null);
+    setSelectedAuth(null);
+    setSelectedEVV(null);
+    setSessionData(null);
+    setAgreedToTerms(false);
+    setSaving(null);
+    await Promise.all([loadEntries(), loadEVVRecords()]);
+    setActiveTab("entries");
   }
 
   function calculateDriveEstimate() {
@@ -243,8 +363,7 @@ export default function TimeEntriesPage() {
     const dLon = (loc2.longitude - loc1.longitude) * Math.PI / 180;
     const a = Math.sin(dLat / 2) ** 2 + Math.cos(loc1.latitude * Math.PI / 180) * Math.cos(loc2.latitude * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
     const distKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distMiles = distKm * 0.621371;
-    const mins = Math.round((distMiles / 30) * 60);
+    const mins = Math.round((distKm * 0.621371 / 30) * 60);
     setDriveEstimated(mins);
     setDriveActual(String(mins));
     setDriveStep("confirm");
@@ -279,63 +398,6 @@ export default function TimeEntriesPage() {
     setActiveTab("entries");
   }
 
-  const isAdmin = ["bcba", "supervisor", "admin", "clinical_director"].includes(role);
-
-  async function openConvertForm(evv: EVVRecord) {
-    setConvertingEVV(evv);
-    setConvertStep("billing");
-    setConvertForm({
-      cpt_code: "97153", session_type: "Direct Therapy",
-      drive_time_minutes: 0, drive_time_billable: false, notes: "",
-      behaviors_worked_on: [], maladaptive_behaviors: [], progress_ratings: {},
-      reinforcements_used: "", reinforcements_worked: null, reinforcements_timing: "",
-      antecedents: "", who_was_present: [], client_readiness: "",
-      client_disposition: "", clinical_notes: "",
-    });
-    await loadClientData(evv.client_id);
-  }
-
-  function toggleArray(arr: string[], val: string): string[] {
-    return arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val];
-  }
-
-  async function createEntryFromEVV() {
-    if (!convertingEVV) return;
-    setSaving("convert");
-
-    const { data, error } = await supabase.from("time_entry_logs").insert({
-      company_id: companyId, user_id: userId,
-      client_id: convertingEVV.client_id, date: convertingEVV.date,
-      start_time: convertingEVV.actual_start, end_time: convertingEVV.actual_end,
-      duration_minutes: convertingEVV.session_duration_minutes,
-      session_type: convertForm.session_type, cpt_code: convertForm.cpt_code,
-      drive_time_minutes: convertForm.drive_time_minutes,
-      drive_time_billable: convertForm.drive_time_billable,
-      notes: convertForm.notes || null, status: "draft",
-      location_name: convertingEVV.location_name,
-      geofence_verified: convertingEVV.start_geofence_verified,
-      evv_record_id: convertingEVV.id,
-      behaviors_worked_on: convertForm.behaviors_worked_on.length ? convertForm.behaviors_worked_on : null,
-      maladaptive_behaviors: convertForm.maladaptive_behaviors.length ? convertForm.maladaptive_behaviors : null,
-      progress_ratings: Object.keys(convertForm.progress_ratings).length ? convertForm.progress_ratings : null,
-      reinforcements_used: convertForm.reinforcements_used || null,
-      reinforcements_worked: convertForm.reinforcements_worked,
-      reinforcements_timing: convertForm.reinforcements_timing || null,
-      antecedents: convertForm.antecedents || null,
-      who_was_present: convertForm.who_was_present.length ? convertForm.who_was_present : null,
-      client_readiness: convertForm.client_readiness || null,
-      client_disposition: convertForm.client_disposition || null,
-      clinical_notes: convertForm.clinical_notes || null,
-    }).select().single();
-
-    if (error) { alert("Error: " + error.message); setSaving(null); return; }
-    await supabase.from("evv_records").update({ time_entry_id: data.id }).eq("id", convertingEVV.id);
-    setConvertingEVV(null);
-    setSaving(null);
-    setActiveTab("entries");
-    await Promise.all([loadEntries(), loadEVVRecords()]);
-  }
-
   async function submitEntry(id: string) {
     setSaving(id);
     await supabase.from("time_entry_logs").update({ status: "pending", submitted_at: new Date().toISOString() }).eq("id", id);
@@ -365,25 +427,6 @@ export default function TimeEntriesPage() {
     setSaving(null);
   }
 
-  async function saveEntry() {
-    if (!form.client_id || !form.start_time || !form.end_time) return;
-    setSaving("new");
-    const start = new Date(`${form.date}T${form.start_time}`);
-    const end = new Date(`${form.date}T${form.end_time}`);
-    const duration = Math.floor((end.getTime() - start.getTime()) / 60000);
-    await supabase.from("time_entry_logs").insert({
-      company_id: companyId, user_id: userId, client_id: form.client_id,
-      date: form.date, start_time: start.toISOString(), end_time: end.toISOString(),
-      duration_minutes: duration, session_type: form.session_type, cpt_code: form.cpt_code,
-      drive_time_minutes: form.drive_time_minutes, drive_time_billable: form.drive_time_billable,
-      notes: form.notes || null, status: "draft",
-    });
-    setShowForm(false);
-    setForm({ client_id: "", date: new Date().toISOString().split("T")[0], start_time: "", end_time: "", session_type: "Direct Therapy", cpt_code: "97153", drive_time_minutes: 0, drive_time_billable: false, notes: "" });
-    await loadEntries();
-    setSaving(null);
-  }
-
   const fmt = (minutes: number) => { const h = Math.floor(minutes / 60); const m = minutes % 60; return h > 0 ? `${h}h ${m}m` : `${m}m`; };
   const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const fmtDate = (iso: string) => new Date(iso).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
@@ -392,19 +435,24 @@ export default function TimeEntriesPage() {
   const pendingCount = entries.filter(e => e.status === "pending").length;
   const correctionCount = entries.filter(e => e.status === "needs_correction").length;
   const unbilledEVV = evvRecords.filter(e => !e.time_entry_id);
+  const isAdmin = ["bcba", "supervisor", "admin", "clinical_director"].includes(role);
 
-  const chip = (label: string, active: boolean, onClick: () => void) => (
+  const chip = (label: string, active: boolean, onClick: () => void, activeClass = "bg-blue-600 text-white border-blue-600") => (
     <button key={label} type="button" onClick={onClick}
-      className={`text-xs px-3 py-1.5 rounded-full border transition-all ${active ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-300 hover:border-blue-300"}`}>
+      className={`text-xs px-3 py-1.5 rounded-full border transition-all ${active ? activeClass : "bg-white text-gray-600 border-gray-300 hover:border-blue-300"}`}>
       {label}
     </button>
   );
 
+  const inputClass = "w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300";
+  const labelClass = "text-sm font-medium text-gray-700 mb-1 block";
+  const fieldClass = "space-y-1";
+
   return (
     <div className="space-y-6">
       <PageHeader title="Time Entries & EVV">
-        <Button variant="outline" onClick={() => { setShowForm(s => !s); setActiveTab("entries"); }}>
-          {showForm ? "Cancel" : "+ Manual Entry"}
+        <Button onClick={() => { setShowNewEntry(s => !s); setNewEntryStep("select_client"); setSelectedClient(null); setSelectedAuth(null); setSelectedEVV(null); }}>
+          {showNewEntry ? "Cancel" : "+ New Time Entry"}
         </Button>
       </PageHeader>
 
@@ -424,6 +472,505 @@ export default function TimeEntriesPage() {
         ))}
       </div>
 
+      {/* ── NEW TIME ENTRY FLOW ────────────────────────────── */}
+      {showNewEntry && (
+        <div className="border border-blue-200 rounded-2xl bg-blue-50 overflow-hidden">
+          {/* Step indicator */}
+          <div className="flex bg-white border-b border-blue-100">
+            {[
+              { key: "select_client", label: "1 Client" },
+              { key: "select_auth", label: "2 Service" },
+              { key: "select_evv", label: "3 Session" },
+              { key: "clinical_notes", label: "4 Notes" },
+              { key: "preview", label: "5 Submit" },
+            ].map((step, i) => {
+              const steps = ["select_client", "select_auth", "select_evv", "clinical_notes", "preview"];
+              const currentIdx = steps.indexOf(newEntryStep);
+              const stepIdx = steps.indexOf(step.key);
+              const isDone = stepIdx < currentIdx;
+              const isCurrent = step.key === newEntryStep;
+              return (
+                <div key={step.key} className={`flex-1 py-3 text-center text-xs font-semibold border-b-2 transition-colors ${isCurrent ? "border-blue-600 text-blue-600" : isDone ? "border-green-500 text-green-600" : "border-transparent text-gray-400"}`}>
+                  {isDone ? "✓" : i + 1} {step.label}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="p-6">
+
+            {/* STEP 1 — SELECT CLIENT */}
+            {newEntryStep === "select_client" && (
+              <div>
+                <h3 className="font-bold text-gray-800 mb-1">Select Client</h3>
+                <p className="text-sm text-gray-500 mb-4">Who is this time entry for?</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {clients.map(client => (
+                    <button key={client.id} type="button" onClick={() => selectClientForEntry(client)}
+                      className="bg-white border border-gray-200 hover:border-blue-400 rounded-xl p-4 text-left transition-all flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                        {client.full_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                      </div>
+                      <span className="font-semibold text-gray-800">{client.full_name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2 — SELECT AUTHORIZATION / SERVICE */}
+            {newEntryStep === "select_auth" && selectedClient && (
+              <div>
+                <button onClick={() => setNewEntryStep("select_client")} className="text-xs text-blue-500 hover:underline mb-3 block">‹ Back</button>
+                <h3 className="font-bold text-gray-800 mb-1">Select Service Authorization</h3>
+                <p className="text-sm text-gray-500 mb-4">Choose the insurance authorization for <strong>{selectedClient.full_name}</strong></p>
+                {authorizations.length === 0 ? (
+                  <div className="text-center py-10 border border-dashed border-gray-200 rounded-xl bg-white">
+                    <p className="text-2xl mb-2">🏦</p>
+                    <p className="font-semibold text-gray-700">No active authorizations</p>
+                    <p className="text-sm text-gray-400 mt-1">Add an authorization for this client first.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {authorizations.map(auth => (
+                      <button key={auth.id} type="button" onClick={() => selectAuth(auth)}
+                        className="w-full bg-white border border-gray-200 hover:border-blue-400 rounded-xl p-4 text-left transition-all">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-mono font-bold text-blue-700 text-sm">{auth.cpt_code}</span>
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">Active</span>
+                            </div>
+                            <p className="text-sm text-gray-700">{auth.insurance_provider}</p>
+                            <p className="text-xs text-gray-400">{auth.start_date} → {auth.end_date}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-gray-500">Units</p>
+                            <p className="font-bold text-gray-800">{auth.used_units} / {auth.total_units}</p>
+                            <p className="text-xs text-gray-400">{auth.total_units - auth.used_units} remaining</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 3 — SELECT EVV SESSION */}
+            {newEntryStep === "select_evv" && selectedAuth && (
+              <div>
+                <button onClick={() => setNewEntryStep("select_auth")} className="text-xs text-blue-500 hover:underline mb-3 block">‹ Back</button>
+                <h3 className="font-bold text-gray-800 mb-1">Select EVV Session</h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Sessions within auth period <strong>{selectedAuth.start_date} → {selectedAuth.end_date}</strong> · Code: <span className="font-mono font-bold text-blue-700">{selectedAuth.cpt_code}</span>
+                </p>
+                {clientEVVs.length === 0 ? (
+                  <div className="text-center py-10 border border-dashed border-gray-200 rounded-xl bg-white">
+                    <p className="text-2xl mb-2">📋</p>
+                    <p className="font-semibold text-gray-700">No EVV sessions available</p>
+                    <p className="text-sm text-gray-400 mt-1">All sessions within this auth period already have time entries, or none exist yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {clientEVVs.map(evv => (
+                      <button key={evv.id} type="button" onClick={() => selectEVV(evv)}
+                        className="w-full bg-white border border-gray-200 hover:border-blue-400 rounded-xl p-4 text-left transition-all flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold text-gray-800">{fmtDate(evv.actual_start)}</p>
+                          <p className="text-sm text-gray-500">{fmtTime(evv.actual_start)} – {fmtTime(evv.actual_end)} · {fmt(evv.session_duration_minutes)}</p>
+                          {evv.location_name && <p className="text-xs text-gray-400 mt-0.5">📍 {evv.location_name}</p>}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded-lg">{selectedAuth.cpt_code}</span>
+                          <span className="text-gray-300 text-xl">›</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 4 — CLINICAL NOTES */}
+            {newEntryStep === "clinical_notes" && selectedEVV && (
+              <div>
+                <button onClick={() => setNewEntryStep("select_evv")} className="text-xs text-blue-500 hover:underline mb-3 block">‹ Back</button>
+                <h3 className="font-bold text-gray-800 mb-1">Clinical Documentation</h3>
+
+                {/* EVV Summary */}
+                <div className="bg-white rounded-xl p-4 mb-5 border border-gray-100">
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">Session Details (from EVV)</p>
+                  <div className="grid grid-cols-3 gap-3 text-sm">
+                    <div><span className="text-gray-400">Date:</span> <span className="font-semibold">{fmtDate(selectedEVV.actual_start)}</span></div>
+                    <div><span className="text-gray-400">Start:</span> <span className="font-semibold">{fmtTime(selectedEVV.actual_start)}</span></div>
+                    <div><span className="text-gray-400">End:</span> <span className="font-semibold">{fmtTime(selectedEVV.actual_end)}</span></div>
+                    <div><span className="text-gray-400">Duration:</span> <span className="font-semibold">{fmt(selectedEVV.session_duration_minutes)}</span></div>
+                    <div><span className="text-gray-400">Location:</span> <span className="font-semibold">{selectedEVV.location_name ?? "—"}</span></div>
+                    <div><span className="text-gray-400">Code:</span> <span className="font-mono font-bold text-blue-700">{selectedAuth?.cpt_code}</span></div>
+                  </div>
+                </div>
+
+                {sessionData && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 text-xs text-green-700">
+                    ✓ Session data found — some fields pre-populated from your data collection
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+                  {/* Session Type + CPT */}
+                  <div className={fieldClass}>
+                    <label className={labelClass}>Session Type</label>
+                    <select value={clinicalForm.session_type}
+                      onChange={e => setClinicalForm(p => ({ ...p, session_type: e.target.value }))}
+                      className={inputClass}>
+                      {SESSION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div className={fieldClass}>
+                    <label className={labelClass}>CPT / Billing Code</label>
+                    <select value={clinicalForm.cpt_code}
+                      onChange={e => setClinicalForm(p => ({ ...p, cpt_code: e.target.value }))}
+                      className={inputClass}>
+                      {CPT_CODES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Session Location */}
+                  <div className={fieldClass}>
+                    <label className={labelClass}>Session Location *</label>
+                    <input type="text" value={clinicalForm.session_location}
+                      onChange={e => setClinicalForm(p => ({ ...p, session_location: e.target.value }))}
+                      placeholder="e.g. Home in the living room, bedroom"
+                      className={inputClass} />
+                  </div>
+
+                  {/* Session Participants */}
+                  <div className={fieldClass}>
+                    <label className={labelClass}>Session Participants *</label>
+                    <input type="text" value={clinicalForm.session_participants}
+                      onChange={e => setClinicalForm(p => ({ ...p, session_participants: e.target.value }))}
+                      placeholder="List participants and their relationships"
+                      className={inputClass} />
+                  </div>
+
+                  {/* Who Was Present */}
+                  <div className="md:col-span-2">
+                    <label className={labelClass}>Who Was Present</label>
+                    <div className="flex flex-wrap gap-2">
+                      {PRESENT_OPTIONS.map(p => chip(p, clinicalForm.who_was_present.includes(p),
+                        () => setClinicalForm(f => ({ ...f, who_was_present: f.who_was_present.includes(p) ? f.who_was_present.filter(x => x !== p) : [...f.who_was_present, p] }))))}
+                    </div>
+                  </div>
+
+                  {/* Client Readiness */}
+                  <div className={fieldClass}>
+                    <label className={labelClass}>Client Readiness *</label>
+                    <select value={clinicalForm.client_readiness}
+                      onChange={e => setClinicalForm(p => ({ ...p, client_readiness: e.target.value }))}
+                      className={inputClass}>
+                      <option value="">Was the client ready for the session?</option>
+                      {READINESS_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Evidence of Readiness */}
+                  <div className={fieldClass}>
+                    <label className={labelClass}>Evidence of Readiness *</label>
+                    <input type="text" value={clinicalForm.evidence_of_readiness}
+                      onChange={e => setClinicalForm(p => ({ ...p, evidence_of_readiness: e.target.value }))}
+                      placeholder="e.g. smiling, crying, calm"
+                      className={inputClass} />
+                  </div>
+
+                  {/* Antecedents */}
+                  <div className="md:col-span-2">
+                    <label className={labelClass}>Antecedents / Barriers Observed *</label>
+                    <select value={clinicalForm.antecedents}
+                      onChange={e => setClinicalForm(p => ({ ...p, antecedents: e.target.value }))}
+                      className={inputClass}>
+                      <option value="">Observations related to antecedents or barriers</option>
+                      <option value="None observed">None observed</option>
+                      <option value="Environmental distractions">Environmental distractions</option>
+                      <option value="Task demands">Task demands</option>
+                      <option value="Transitions">Transitions</option>
+                      <option value="Peer interactions">Peer interactions</option>
+                      <option value="Physical discomfort">Physical discomfort</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  {/* Skill Targets */}
+                  <div className="md:col-span-2">
+                    <label className={labelClass}>Skill Target *</label>
+                    <input type="text" value={clinicalForm.behaviors_worked_on.join(", ")}
+                      onChange={e => setClinicalForm(p => ({ ...p, behaviors_worked_on: e.target.value.split(", ").filter(Boolean) }))}
+                      placeholder="Skill that was the focus of today's session"
+                      className={inputClass} />
+                    {clinicalForm.behaviors_worked_on.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        <p className="text-xs font-semibold text-gray-500 uppercase">Progress Per Target</p>
+                        {clinicalForm.behaviors_worked_on.map(target => (
+                          <div key={target} className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 border border-gray-100">
+                            <span className="text-sm text-gray-700 flex-1">{target}</span>
+                            <div className="flex gap-1">
+                              {PROGRESS_OPTIONS.map(p => (
+                                <button key={p} type="button"
+                                  onClick={() => setClinicalForm(f => ({ ...f, progress_ratings: { ...f.progress_ratings, [target]: p } }))}
+                                  className={`text-xs px-2 py-1 rounded border transition-all ${clinicalForm.progress_ratings[target] === p ? (p === "Progress" ? "bg-green-500 text-white border-green-500" : p === "Regression" ? "bg-red-500 text-white border-red-500" : "bg-yellow-500 text-white border-yellow-500") : "bg-white text-gray-600 border-gray-300"}`}>
+                                  {p}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Maladaptive Behaviors */}
+                  <div className="md:col-span-2">
+                    <label className={labelClass}>Maladaptive Behavior Observed *</label>
+                    <select value=""
+                      onChange={e => { if (e.target.value) setClinicalForm(p => ({ ...p, maladaptive_behaviors: [...p.maladaptive_behaviors, e.target.value] })); }}
+                      className={inputClass}>
+                      <option value="">Whether maladaptive behavior was observed</option>
+                      <option value="None observed">None observed</option>
+                      <option value="Aggression">Aggression</option>
+                      <option value="Self-injurious behavior">Self-injurious behavior</option>
+                      <option value="Elopement">Elopement</option>
+                      <option value="Vocal disruption">Vocal disruption</option>
+                      <option value="Property destruction">Property destruction</option>
+                      <option value="Stereotypy">Stereotypy</option>
+                      <option value="Non-compliance">Non-compliance</option>
+                      <option value="Other">Other</option>
+                    </select>
+                    {clinicalForm.maladaptive_behaviors.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {clinicalForm.maladaptive_behaviors.map(b => (
+                          <span key={b} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full flex items-center gap-1">
+                            {b}
+                            <button onClick={() => setClinicalForm(p => ({ ...p, maladaptive_behaviors: p.maladaptive_behaviors.filter(x => x !== b) }))}>✕</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Intervention Techniques */}
+                  <div className="md:col-span-2">
+                    <label className={labelClass}>Intervention Techniques Used *</label>
+                    <div className="flex flex-wrap gap-2">
+                      {INTERVENTION_OPTIONS.map(i => chip(i, clinicalForm.intervention_techniques.includes(i),
+                        () => setClinicalForm(f => ({ ...f, intervention_techniques: f.intervention_techniques.includes(i) ? f.intervention_techniques.filter(x => x !== i) : [...f.intervention_techniques, i] }))))}
+                    </div>
+                  </div>
+
+                  {/* Client Response */}
+                  <div className={fieldClass}>
+                    <label className={labelClass}>Client Response to Interventions *</label>
+                    <select value={clinicalForm.client_response_to_interventions}
+                      onChange={e => setClinicalForm(p => ({ ...p, client_response_to_interventions: e.target.value }))}
+                      className={inputClass}>
+                      <option value="">Client's response to interventions</option>
+                      {CLIENT_RESPONSE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Evidence of Response */}
+                  <div className={fieldClass}>
+                    <label className={labelClass}>Evidence of Response *</label>
+                    <input type="text" value={clinicalForm.evidence_of_response}
+                      onChange={e => setClinicalForm(p => ({ ...p, evidence_of_response: e.target.value }))}
+                      placeholder="e.g. engaging in task, refusal"
+                      className={inputClass} />
+                  </div>
+
+                  {/* Reinforcement Timing */}
+                  <div className={fieldClass}>
+                    <label className={labelClass}>Reinforcement Timing *</label>
+                    <select value={clinicalForm.reinforcement_timing}
+                      onChange={e => setClinicalForm(p => ({ ...p, reinforcement_timing: e.target.value }))}
+                      className={inputClass}>
+                      <option value="">Timing of reinforcement delivery</option>
+                      {REINFORCEMENT_TIMING.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Effect of Reinforcement */}
+                  <div className={fieldClass}>
+                    <label className={labelClass}>Effect of Reinforcement *</label>
+                    <input type="text" value={clinicalForm.effect_of_reinforcement}
+                      onChange={e => setClinicalForm(p => ({ ...p, effect_of_reinforcement: e.target.value }))}
+                      placeholder="Describe client behavior following reinforcement"
+                      className={inputClass} />
+                  </div>
+
+                  {/* Reinforcements Used */}
+                  <div className={fieldClass}>
+                    <label className={labelClass}>Reinforcements Used</label>
+                    <input type="text" value={clinicalForm.reinforcements_used}
+                      onChange={e => setClinicalForm(p => ({ ...p, reinforcements_used: e.target.value }))}
+                      placeholder="e.g. iPad time, verbal praise, token board"
+                      className={inputClass} />
+                  </div>
+
+                  {/* Did reinforcements work */}
+                  <div className={fieldClass}>
+                    <label className={labelClass}>Did Reinforcements Work?</label>
+                    <div className="flex gap-2 mt-1">
+                      {["Yes", "No", "Partially"].map(opt => chip(opt,
+                        clinicalForm.reinforcements_worked === (opt === "Yes" ? true : opt === "No" ? false : null),
+                        () => setClinicalForm(p => ({ ...p, reinforcements_worked: opt === "Yes" ? true : opt === "No" ? false : null }))))}
+                    </div>
+                  </div>
+
+                  {/* Treatment Progress */}
+                  <div className={fieldClass}>
+                    <label className={labelClass}>Treatment Progress *</label>
+                    <select value={clinicalForm.treatment_progress}
+                      onChange={e => setClinicalForm(p => ({ ...p, treatment_progress: e.target.value }))}
+                      className={inputClass}>
+                      <option value="">Client's progress status</option>
+                      {TREATMENT_PROGRESS_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Goal Mastery */}
+                  <div className={fieldClass}>
+                    <label className={labelClass}>Goal Mastery Status *</label>
+                    <select value={clinicalForm.goal_mastery_status}
+                      onChange={e => setClinicalForm(p => ({ ...p, goal_mastery_status: e.target.value }))}
+                      className={inputClass}>
+                      <option value="">Whether any goals were mastered</option>
+                      {MASTERY_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Skill Generalization */}
+                  <div className={fieldClass}>
+                    <label className={labelClass}>Skill Generalization Observed *</label>
+                    <select value={clinicalForm.skill_generalization}
+                      onChange={e => setClinicalForm(p => ({ ...p, skill_generalization: e.target.value }))}
+                      className={inputClass}>
+                      <option value="">Whether generalization was observed</option>
+                      {GENERALIZATION_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Client Transition */}
+                  <div className={fieldClass}>
+                    <label className={labelClass}>Client Transition from Session *</label>
+                    <select value={clinicalForm.client_disposition}
+                      onChange={e => setClinicalForm(p => ({ ...p, client_disposition: e.target.value }))}
+                      className={inputClass}>
+                      <option value="">Client behavior transitioning away from session</option>
+                      {TRANSITION_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Drive time */}
+                  {driveTimeEnabled && (
+                    <>
+                      <div className={fieldClass}>
+                        <label className={labelClass}>Drive Time (min, max {driveTimeMax})</label>
+                        <input type="number" min={0} max={driveTimeMax} value={clinicalForm.drive_time_minutes}
+                          onChange={e => setClinicalForm(p => ({ ...p, drive_time_minutes: Math.min(parseInt(e.target.value) || 0, driveTimeMax) }))}
+                          className={inputClass} />
+                      </div>
+                      <div className="flex items-center gap-3 pt-6">
+                        <input type="checkbox" id="drive_billable" checked={clinicalForm.drive_time_billable}
+                          onChange={e => setClinicalForm(p => ({ ...p, drive_time_billable: e.target.checked }))}
+                          className="rounded border-gray-300" />
+                        <label htmlFor="drive_billable" className="text-sm text-gray-700">Drive time is billable</label>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Additional Information */}
+                  <div className="md:col-span-2">
+                    <label className={labelClass}>Additional Information</label>
+                    <textarea value={clinicalForm.additional_information}
+                      onChange={e => setClinicalForm(p => ({ ...p, additional_information: e.target.value }))}
+                      placeholder="New behaviors observed, incidents, relevant events..."
+                      rows={3} className={inputClass} />
+                  </div>
+                </div>
+
+                <div className="flex justify-end mt-6">
+                  <Button onClick={() => setNewEntryStep("preview")}>Preview Note →</Button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 5 — PREVIEW + SIGN + SUBMIT */}
+            {newEntryStep === "preview" && selectedEVV && selectedClient && (
+              <div>
+                <button onClick={() => setNewEntryStep("clinical_notes")} className="text-xs text-blue-500 hover:underline mb-3 block">‹ Back to Edit</button>
+                <h3 className="font-bold text-gray-800 mb-4">Preview & Submit</h3>
+
+                {/* Note preview */}
+                <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4 mb-6 text-sm">
+                  <div className="border-b border-gray-100 pb-3">
+                    <p className="font-bold text-gray-800 text-base">{selectedClient.full_name}</p>
+                    <p className="text-gray-500">{fmtDate(selectedEVV.actual_start)} · {fmtTime(selectedEVV.actual_start)} – {fmtTime(selectedEVV.actual_end)} · {fmt(selectedEVV.session_duration_minutes)}</p>
+                    <p className="text-gray-500">{clinicalForm.session_type} · <span className="font-mono font-bold text-blue-700">{clinicalForm.cpt_code}</span></p>
+                  </div>
+
+                  {[
+                    { label: "Session Location", value: clinicalForm.session_location },
+                    { label: "Session Participants", value: clinicalForm.session_participants },
+                    { label: "Who Was Present", value: clinicalForm.who_was_present.join(", ") },
+                    { label: "Client Readiness", value: clinicalForm.client_readiness },
+                    { label: "Evidence of Readiness", value: clinicalForm.evidence_of_readiness },
+                    { label: "Antecedents / Barriers", value: clinicalForm.antecedents },
+                    { label: "Skill Targets", value: clinicalForm.behaviors_worked_on.join(", ") },
+                    { label: "Maladaptive Behaviors", value: clinicalForm.maladaptive_behaviors.join(", ") },
+                    { label: "Intervention Techniques", value: clinicalForm.intervention_techniques.join(", ") },
+                    { label: "Client Response", value: clinicalForm.client_response_to_interventions },
+                    { label: "Evidence of Response", value: clinicalForm.evidence_of_response },
+                    { label: "Reinforcement Timing", value: clinicalForm.reinforcement_timing },
+                    { label: "Effect of Reinforcement", value: clinicalForm.effect_of_reinforcement },
+                    { label: "Reinforcements Used", value: clinicalForm.reinforcements_used },
+                    { label: "Treatment Progress", value: clinicalForm.treatment_progress },
+                    { label: "Goal Mastery Status", value: clinicalForm.goal_mastery_status },
+                    { label: "Skill Generalization", value: clinicalForm.skill_generalization },
+                    { label: "Client Transition", value: clinicalForm.client_disposition },
+                    { label: "Additional Information", value: clinicalForm.additional_information },
+                  ].filter(f => f.value).map(field => (
+                    <div key={field.label} className="grid grid-cols-3 gap-2">
+                      <p className="text-xs font-semibold text-gray-400 uppercase col-span-1">{field.label}</p>
+                      <p className="text-gray-700 col-span-2">{field.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Electronic signature */}
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-4">
+                  <p className="text-sm text-gray-700 mb-4 leading-relaxed">
+                    By checking this box I am electronically signing this time entry and attest that I am the service provider for the above client. I have reviewed the time entry details above and performed the services as described for the entire duration from start to end time. I understand that deliberately submitting information that is not accurate constitutes fraud and will result in employment termination and may be punishable by state and federal laws.
+                  </p>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" checked={agreedToTerms}
+                      onChange={e => setAgreedToTerms(e.target.checked)}
+                      className="w-5 h-5 rounded border-gray-300" />
+                    <span className="text-sm font-semibold text-gray-700">I agree to the terms</span>
+                  </label>
+                </div>
+
+                <div className="flex gap-3">
+                  <Button onClick={saveTimeEntry} loading={saving === "new"} disabled={!agreedToTerms}>
+                    Submit Time Entry
+                  </Button>
+                  <Button variant="outline" onClick={() => setNewEntryStep("clinical_notes")}>Back to Edit</Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* TABS */}
       <div className="flex border-b border-gray-200">
         {[
@@ -438,198 +985,6 @@ export default function TimeEntriesPage() {
           </button>
         ))}
       </div>
-
-      {/* EVV → TIME ENTRY MODAL */}
-      {convertingEVV && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col">
-            <div className="p-6 border-b border-gray-100 shrink-0">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">Create Time Entry from EVV</h2>
-                  <p className="text-sm text-gray-500 mt-0.5">{convertingEVV.clients?.full_name} — {fmtDate(convertingEVV.actual_start)}</p>
-                </div>
-                <button onClick={() => setConvertingEVV(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
-              </div>
-              <div className="flex gap-2 mt-4">
-                {["billing", "clinical"].map((s, i) => (
-                  <button key={s} type="button" onClick={() => setConvertStep(s as any)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${convertStep === s ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
-                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${convertStep === s ? "bg-white text-blue-600" : "bg-gray-300 text-gray-600"}`}>{i + 1}</span>
-                    {s === "billing" ? "Billing Info" : "Clinical Notes"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="overflow-y-auto flex-1 p-6 space-y-5">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-xs font-bold text-gray-500 uppercase mb-2">From EVV Record</p>
-                <div className="grid grid-cols-3 gap-3 text-sm">
-                  <div><span className="text-gray-500">Date:</span> <span className="font-semibold">{fmtDate(convertingEVV.actual_start)}</span></div>
-                  <div><span className="text-gray-500">Start:</span> <span className="font-semibold">{fmtTime(convertingEVV.actual_start)}</span></div>
-                  <div><span className="text-gray-500">End:</span> <span className="font-semibold">{fmtTime(convertingEVV.actual_end)}</span></div>
-                  <div><span className="text-gray-500">Duration:</span> <span className="font-semibold">{fmt(convertingEVV.session_duration_minutes)}</span></div>
-                  <div><span className="text-gray-500">Location:</span> <span className="font-semibold">{convertingEVV.location_name ?? "—"}</span></div>
-                  <div><span className="text-gray-500">Geofence:</span> <span className={convertingEVV.start_geofence_verified ? "text-green-600 font-semibold" : "text-orange-500 font-semibold"}>{convertingEVV.start_geofence_verified ? "✓ Verified" : "⚠️ Not verified"}</span></div>
-                </div>
-              </div>
-
-              {convertStep === "billing" && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mb-1 block">CPT / Billing Code *</label>
-                      <select value={convertForm.cpt_code} onChange={e => setConvertForm(p => ({ ...p, cpt_code: e.target.value }))}
-                        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-                        {CPT_CODES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mb-1 block">Session Type</label>
-                      <select value={convertForm.session_type} onChange={e => setConvertForm(p => ({ ...p, session_type: e.target.value }))}
-                        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-                        {SESSION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  {driveTimeEnabled && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 mb-1 block">Drive Time (min, max {driveTimeMax})</label>
-                        <input type="number" min={0} max={driveTimeMax} value={convertForm.drive_time_minutes}
-                          onChange={e => setConvertForm(p => ({ ...p, drive_time_minutes: Math.min(parseInt(e.target.value) || 0, driveTimeMax) }))}
-                          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                      </div>
-                      <div className="flex items-end pb-2">
-                        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                          <input type="checkbox" checked={convertForm.drive_time_billable}
-                            onChange={e => setConvertForm(p => ({ ...p, drive_time_billable: e.target.checked }))}
-                            className="rounded border-gray-300" />
-                          Drive time is billable
-                        </label>
-                      </div>
-                    </div>
-                  )}
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">Billing Notes</label>
-                    <textarea value={convertForm.notes} onChange={e => setConvertForm(p => ({ ...p, notes: e.target.value }))}
-                      placeholder="Notes for billing review..." rows={2}
-                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">Who Was Present</label>
-                    <div className="flex flex-wrap gap-2">
-                      {PRESENT_OPTIONS.map(p => chip(p, convertForm.who_was_present.includes(p), () => setConvertForm(f => ({ ...f, who_was_present: toggleArray(f.who_was_present, p) }))))}
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <Button onClick={() => setConvertStep("clinical")}>Next: Clinical Notes →</Button>
-                  </div>
-                </div>
-              )}
-
-              {convertStep === "clinical" && (
-                <div className="space-y-5">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">Client Readiness at Start of Session</label>
-                    <div className="flex flex-wrap gap-2">
-                      {READINESS_OPTIONS.map(r => chip(r, convertForm.client_readiness === r, () => setConvertForm(f => ({ ...f, client_readiness: f.client_readiness === r ? "" : r }))))}
-                    </div>
-                  </div>
-                  {clientSkills.length > 0 && (
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mb-2 block">Skill Targets Worked On</label>
-                      <div className="flex flex-wrap gap-2">
-                        {clientSkills.map(s => {
-                          const key = `${s.program_name}: ${s.target_name}`;
-                          return chip(key, convertForm.behaviors_worked_on.includes(key), () => setConvertForm(f => ({ ...f, behaviors_worked_on: toggleArray(f.behaviors_worked_on, key) })));
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  {convertForm.behaviors_worked_on.length > 0 && (
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mb-2 block">Progress Per Target</label>
-                      <div className="space-y-2">
-                        {convertForm.behaviors_worked_on.map(target => (
-                          <div key={target} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2">
-                            <span className="text-sm text-gray-700 flex-1">{target}</span>
-                            <div className="flex gap-1">
-                              {PROGRESS_OPTIONS.map(p => (
-                                <button key={p} type="button"
-                                  onClick={() => setConvertForm(f => ({ ...f, progress_ratings: { ...f.progress_ratings, [target]: p } }))}
-                                  className={`text-xs px-2 py-1 rounded border transition-all ${convertForm.progress_ratings[target] === p ? (p === "Progress" ? "bg-green-500 text-white border-green-500" : p === "Regression" ? "bg-red-500 text-white border-red-500" : "bg-yellow-500 text-white border-yellow-500") : "bg-white text-gray-600 border-gray-300"}`}>
-                                  {p}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {clientBehaviors.length > 0 && (
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mb-2 block">Maladaptive Behaviors Observed</label>
-                      <div className="flex flex-wrap gap-2">
-                        {clientBehaviors.map(b => chip(b.name, convertForm.maladaptive_behaviors.includes(b.name), () => setConvertForm(f => ({ ...f, maladaptive_behaviors: toggleArray(f.maladaptive_behaviors, b.name) }))))}
-                      </div>
-                    </div>
-                  )}
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">Antecedents Noted</label>
-                    <textarea value={convertForm.antecedents} onChange={e => setConvertForm(p => ({ ...p, antecedents: e.target.value }))}
-                      placeholder="What happened before any behaviors? Environmental triggers, demands, transitions..." rows={2}
-                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mb-1 block">Reinforcements Used</label>
-                      <input type="text" value={convertForm.reinforcements_used}
-                        onChange={e => setConvertForm(p => ({ ...p, reinforcements_used: e.target.value }))}
-                        placeholder="e.g. iPad time, verbal praise, token board, preferred snack..."
-                        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 mb-2 block">Did They Work?</label>
-                        <div className="flex gap-2">
-                          {["Yes", "No", "Partially"].map(opt => chip(opt, convertForm.reinforcements_worked === (opt === "Yes") && !(opt === "Partially" && convertForm.reinforcements_worked !== null), () => setConvertForm(p => ({ ...p, reinforcements_worked: opt === "Yes" ? true : opt === "No" ? false : null }))))}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 mb-2 block">When Introduced</label>
-                        <select value={convertForm.reinforcements_timing} onChange={e => setConvertForm(p => ({ ...p, reinforcements_timing: e.target.value }))}
-                          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-                          <option value="">Select...</option>
-                          {REINFORCEMENT_TIMING.map(t => <option key={t} value={t}>{t}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">Client Disposition When Leaving Session</label>
-                    <div className="flex flex-wrap gap-2">
-                      {DISPOSITION_OPTIONS.map(d => chip(d, convertForm.client_disposition === d, () => setConvertForm(f => ({ ...f, client_disposition: f.client_disposition === d ? "" : d }))))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">Clinical Session Notes</label>
-                    <textarea value={convertForm.clinical_notes} onChange={e => setConvertForm(p => ({ ...p, clinical_notes: e.target.value }))}
-                      placeholder="Overall session summary, anything notable, follow-up items for BCBA..." rows={4}
-                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                  </div>
-                  <div className="flex gap-3 pt-2">
-                    <Button variant="outline" onClick={() => setConvertStep("billing")}>← Back</Button>
-                    <Button onClick={createEntryFromEVV} loading={saving === "convert"}>✓ Create Time Entry</Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* EVV RECORDS TAB */}
       {activeTab === "evv" && (
@@ -681,24 +1036,12 @@ export default function TimeEntriesPage() {
                         </div>
                       ))}
                     </div>
-                    {evv.rbt_signature && (
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500 mb-2 font-semibold">RBT Signature</p>
-                        <img src={evv.rbt_signature} alt="RBT Signature" className="max-h-16 border border-gray-200 rounded bg-white p-1" />
-                      </div>
-                    )}
-                    {evv.guardian_signature && (
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500 mb-2 font-semibold">Guardian Signature</p>
-                        <img src={evv.guardian_signature} alt="Guardian Signature" className="max-h-16 border border-gray-200 rounded bg-white p-1" />
-                      </div>
-                    )}
-                    {!hasEntry ? (
+                    {!hasEntry && (
                       <div className="pt-2 border-t border-gray-100">
-                        <Button onClick={() => openConvertForm(evv)}>+ Create Time Entry from this Visit</Button>
+                        <Button onClick={() => { setShowNewEntry(true); setNewEntryStep("select_client"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+                          + Create Time Entry from this Visit
+                        </Button>
                       </div>
-                    ) : (
-                      <p className="text-xs text-green-600 font-semibold pt-2 border-t border-gray-100">✓ Time entry created and linked to this EVV record</p>
                     )}
                   </div>
                 )}
@@ -711,76 +1054,6 @@ export default function TimeEntriesPage() {
       {/* TIME ENTRIES TAB */}
       {activeTab === "entries" && (
         <div className="space-y-4">
-          {showForm && (
-            <Section title="Manual Time Entry">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Client *</label>
-                  <select value={form.client_id} onChange={e => setForm(p => ({ ...p, client_id: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-                    <option value="">Select client...</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Date *</label>
-                  <input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Start Time *</label>
-                  <input type="time" value={form.start_time} onChange={e => setForm(p => ({ ...p, start_time: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">End Time *</label>
-                  <input type="time" value={form.end_time} onChange={e => setForm(p => ({ ...p, end_time: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Session Type</label>
-                  <select value={form.session_type} onChange={e => setForm(p => ({ ...p, session_type: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-                    {SESSION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">CPT Code</label>
-                  <select value={form.cpt_code} onChange={e => setForm(p => ({ ...p, cpt_code: e.target.value }))}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-                    {CPT_CODES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
-                  </select>
-                </div>
-                {driveTimeEnabled && (
-                  <>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mb-1 block">Drive Time (min, max {driveTimeMax})</label>
-                      <input type="number" min={0} max={driveTimeMax} value={form.drive_time_minutes}
-                        onChange={e => setForm(p => ({ ...p, drive_time_minutes: Math.min(parseInt(e.target.value) || 0, driveTimeMax) }))}
-                        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                    </div>
-                    <div className="flex items-center gap-3 pt-6">
-                      <input type="checkbox" id="drive_billable" checked={form.drive_time_billable}
-                        onChange={e => setForm(p => ({ ...p, drive_time_billable: e.target.checked }))}
-                        className="rounded border-gray-300" />
-                      <label htmlFor="drive_billable" className="text-sm text-gray-700">Drive time is billable</label>
-                    </div>
-                  </>
-                )}
-                <div className="md:col-span-2">
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Session Notes</label>
-                  <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
-                    placeholder="Session summary, behaviors observed, programs targeted..."
-                    rows={3} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                </div>
-              </div>
-              <div className="mt-4 flex gap-2">
-                <Button onClick={saveEntry} loading={saving === "new"}>Save Entry</Button>
-                <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-              </div>
-            </Section>
-          )}
-
           <div className="flex flex-wrap gap-2">
             {["all", "draft", "pending", "needs_correction", "approved", "billed"].map(s => (
               <button key={s} onClick={() => setFilterStatus(s)}
@@ -797,7 +1070,7 @@ export default function TimeEntriesPage() {
             <div className="text-center py-12 border border-dashed border-gray-200 rounded-2xl">
               <p className="text-3xl mb-3">⏱️</p>
               <p className="text-gray-600 font-medium">No time entries found</p>
-              <p className="text-gray-400 text-sm mt-1">Create one from an EVV record above, or use Manual Entry</p>
+              <p className="text-gray-400 text-sm mt-1">Click "+ New Time Entry" to create one</p>
             </div>
           )}
 
@@ -816,7 +1089,7 @@ export default function TimeEntriesPage() {
                         <span>📅 {entry.date}</span>
                         <span>⏱️ {fmt(entry.duration_minutes)}</span>
                         <span>{entry.session_type}</span>
-                        {entry.cpt_code && <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded font-medium">{entry.cpt_code}</span>}
+                        {entry.cpt_code && <span className="font-mono font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">{entry.cpt_code}</span>}
                         {entry.drive_time_minutes > 0 && <span>🚗 {entry.drive_time_minutes}min{entry.drive_time_billable ? " (billable)" : ""}</span>}
                         {entry.geofence_verified && <span className="text-green-600">✓ Geofenced</span>}
                       </div>
@@ -829,96 +1102,66 @@ export default function TimeEntriesPage() {
                     </div>
                   </div>
                 </button>
+
                 {expandedEntry === entry.id && (
                   <div className="px-4 pb-4 border-t border-gray-50 pt-3 space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500 mb-1">Start Time</p>
-                        <p className="font-semibold text-gray-800">{fmtTime(entry.start_time)}</p>
+                    {/* Clinical fields */}
+                    {[
+                      { label: "Session Location", value: (entry as any).session_location },
+                      { label: "Session Participants", value: (entry as any).session_participants },
+                      { label: "Who Was Present", value: entry.who_was_present?.join(", ") },
+                      { label: "Client Readiness", value: entry.client_readiness },
+                      { label: "Evidence of Readiness", value: (entry as any).evidence_of_readiness },
+                      { label: "Antecedents / Barriers", value: entry.antecedents },
+                      { label: "Intervention Techniques", value: (entry as any).intervention_techniques?.join?.(", ") },
+                      { label: "Client Response", value: (entry as any).client_response_to_interventions },
+                      { label: "Evidence of Response", value: (entry as any).evidence_of_response },
+                      { label: "Reinforcements Used", value: entry.reinforcements_used },
+                      { label: "Reinforcement Timing", value: (entry as any).reinforcement_timing },
+                      { label: "Effect of Reinforcement", value: (entry as any).effect_of_reinforcement },
+                      { label: "Treatment Progress", value: (entry as any).treatment_progress },
+                      { label: "Goal Mastery Status", value: (entry as any).goal_mastery_status },
+                      { label: "Skill Generalization", value: (entry as any).skill_generalization },
+                      { label: "Client Transition", value: entry.client_disposition },
+                      { label: "Additional Information", value: (entry as any).additional_information },
+                    ].filter(f => f.value).map(field => (
+                      <div key={field.label} className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-xs text-gray-400 font-semibold uppercase mb-1">{field.label}</p>
+                        <p className="text-sm text-gray-700">{field.value}</p>
                       </div>
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500 mb-1">End Time</p>
-                        <p className="font-semibold text-gray-800">{fmtTime(entry.end_time)}</p>
-                      </div>
-                    </div>
-                    {entry.location_name && (
-                      <div className="bg-blue-50 rounded-lg p-3">
-                        <p className="text-xs text-blue-600 font-semibold mb-1">📍 Location</p>
-                        <p className="text-sm text-blue-800">{entry.location_name} {entry.geofence_verified ? "✓" : "⚠️"}</p>
-                      </div>
-                    )}
-                    {entry.who_was_present && entry.who_was_present.length > 0 && (
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500 font-semibold mb-1">Who Was Present</p>
-                        <p className="text-sm text-gray-700">{entry.who_was_present.join(", ")}</p>
-                      </div>
-                    )}
-                    {entry.client_readiness && (
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500 font-semibold mb-1">Client Readiness</p>
-                        <p className="text-sm text-gray-700">{entry.client_readiness}</p>
-                      </div>
-                    )}
+                    ))}
+
+                    {/* Skill targets with progress */}
                     {entry.behaviors_worked_on && entry.behaviors_worked_on.length > 0 && (
                       <div className="bg-green-50 rounded-lg p-3">
-                        <p className="text-xs text-green-700 font-semibold mb-2">Skill Targets Worked On</p>
-                        <div className="space-y-1">
-                          {entry.behaviors_worked_on.map(b => (
-                            <div key={b} className="flex items-center justify-between text-sm">
-                              <span className="text-gray-700">{b}</span>
-                              {entry.progress_ratings?.[b] && (
-                                <span className={`text-xs px-2 py-0.5 rounded font-semibold ${entry.progress_ratings[b] === "Progress" ? "bg-green-100 text-green-700" : entry.progress_ratings[b] === "Regression" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
-                                  {entry.progress_ratings[b]}
-                                </span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
+                        <p className="text-xs text-green-700 font-semibold mb-2 uppercase">Skill Targets</p>
+                        {entry.behaviors_worked_on.map(b => (
+                          <div key={b} className="flex items-center justify-between text-sm">
+                            <span className="text-gray-700">{b}</span>
+                            {entry.progress_ratings?.[b] && (
+                              <span className={`text-xs px-2 py-0.5 rounded font-semibold ${entry.progress_ratings[b] === "Progress" ? "bg-green-100 text-green-700" : entry.progress_ratings[b] === "Regression" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
+                                {entry.progress_ratings[b]}
+                              </span>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     )}
+
                     {entry.maladaptive_behaviors && entry.maladaptive_behaviors.length > 0 && (
                       <div className="bg-red-50 rounded-lg p-3">
-                        <p className="text-xs text-red-700 font-semibold mb-1">Maladaptive Behaviors Observed</p>
+                        <p className="text-xs text-red-700 font-semibold mb-1 uppercase">Maladaptive Behaviors</p>
                         <p className="text-sm text-red-800">{entry.maladaptive_behaviors.join(", ")}</p>
                       </div>
                     )}
-                    {entry.antecedents && (
-                      <div className="bg-orange-50 rounded-lg p-3">
-                        <p className="text-xs text-orange-700 font-semibold mb-1">Antecedents</p>
-                        <p className="text-sm text-orange-800">{entry.antecedents}</p>
-                      </div>
-                    )}
-                    {entry.reinforcements_used && (
-                      <div className="bg-purple-50 rounded-lg p-3">
-                        <p className="text-xs text-purple-700 font-semibold mb-1">Reinforcements</p>
-                        <p className="text-sm text-purple-800">{entry.reinforcements_used}</p>
-                        {entry.reinforcements_worked !== null && <p className="text-xs text-purple-600 mt-1">Worked: {entry.reinforcements_worked ? "Yes" : "No"} {entry.reinforcements_timing ? `— ${entry.reinforcements_timing}` : ""}</p>}
-                      </div>
-                    )}
-                    {entry.client_disposition && (
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500 font-semibold mb-1">Client Disposition at End</p>
-                        <p className="text-sm text-gray-700">{entry.client_disposition}</p>
-                      </div>
-                    )}
-                    {entry.clinical_notes && (
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500 font-semibold mb-1">Clinical Notes</p>
-                        <p className="text-sm text-gray-700">{entry.clinical_notes}</p>
-                      </div>
-                    )}
-                    {entry.notes && (
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500 font-semibold mb-1">Billing Notes</p>
-                        <p className="text-sm text-gray-700">{entry.notes}</p>
-                      </div>
-                    )}
+
                     {entry.status === "needs_correction" && entry.reviewer_notes && (
                       <div className="bg-red-50 border border-red-100 rounded-lg p-3">
                         <p className="text-xs text-red-600 font-semibold mb-1">⚠️ Correction Required</p>
                         <p className="text-sm text-red-800">{entry.reviewer_notes}</p>
                       </div>
                     )}
+
                     <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
                       {!isAdmin && entry.status === "draft" && <Button onClick={() => submitEntry(entry.id)} loading={saving === entry.id}>Submit for Review</Button>}
                       {!isAdmin && entry.status === "needs_correction" && <Button onClick={() => submitEntry(entry.id)} loading={saving === entry.id}>Resubmit</Button>}
@@ -927,7 +1170,7 @@ export default function TimeEntriesPage() {
                           <div className="w-full mb-2">
                             <textarea value={reviewNotes[entry.id] ?? ""} onChange={e => setReviewNotes(prev => ({ ...prev, [entry.id]: e.target.value }))}
                               placeholder="Add review notes (required for rejection)..." rows={2}
-                              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                              className={inputClass} />
                           </div>
                           <Button onClick={() => approveEntry(entry.id)} loading={saving === entry.id}>✓ Approve</Button>
                           <Button variant="danger" onClick={() => rejectEntry(entry.id)} loading={saving === entry.id}>✗ Request Correction</Button>
@@ -948,53 +1191,51 @@ export default function TimeEntriesPage() {
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
             <p className="text-sm font-semibold text-blue-800 mb-1">🚗 Drive Time Entry</p>
-            <p className="text-sm text-blue-700">Select your starting client location and ending client location. We'll estimate drive time and create a T1016 billing entry.</p>
+            <p className="text-sm text-blue-700">Calculate drive time between clients. Saves as a <span className="font-mono font-bold">T1016</span> billing entry.</p>
           </div>
 
           {driveStep === "select" && (
             <div className="bg-white border border-gray-100 rounded-xl p-6 space-y-5">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">From: First Client</label>
+                  <label className={labelClass}>From: First Client</label>
                   <select value={driveClient1Id}
                     onChange={e => { setDriveClient1Id(e.target.value); if (e.target.value) loadDriveLocations(e.target.value, 1); }}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    className={inputClass}>
                     <option value="">Select client...</option>
                     {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">From: Location</label>
+                  <label className={labelClass}>From: Location</label>
                   <select value={driveLocation1Id} onChange={e => setDriveLocation1Id(e.target.value)}
                     disabled={!driveClient1Id || driveLocations1.length === 0}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-50">
+                    className={`${inputClass} disabled:opacity-50`}>
                     <option value="">Select location...</option>
                     {driveLocations1.map(l => <option key={l.id} value={l.id}>{l.name} — {l.address}, {l.city}</option>)}
                   </select>
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">To: Second Client</label>
+                  <label className={labelClass}>To: Second Client</label>
                   <select value={driveClient2Id}
                     onChange={e => { setDriveClient2Id(e.target.value); if (e.target.value) loadDriveLocations(e.target.value, 2); }}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    className={inputClass}>
                     <option value="">Select client...</option>
                     {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">To: Location</label>
+                  <label className={labelClass}>To: Location</label>
                   <select value={driveLocation2Id} onChange={e => setDriveLocation2Id(e.target.value)}
                     disabled={!driveClient2Id || driveLocations2.length === 0}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-50">
+                    className={`${inputClass} disabled:opacity-50`}>
                     <option value="">Select location...</option>
                     {driveLocations2.map(l => <option key={l.id} value={l.id}>{l.name} — {l.address}, {l.city}</option>)}
                   </select>
                 </div>
               </div>
-
               <Button onClick={calculateDriveEstimate} disabled={!driveLocation1Id || !driveLocation2Id}>
                 📍 Calculate Drive Time
               </Button>
@@ -1010,27 +1251,28 @@ export default function TimeEntriesPage() {
                 <p className="text-sm text-gray-800">📍 {driveLocations2.find(l => l.id === driveLocation2Id)?.name} ({clients.find(c => c.id === driveClient2Id)?.full_name})</p>
                 <p className="text-2xl font-bold text-blue-600 mt-3">~{driveEstimated} min estimated</p>
                 <p className="text-xs text-gray-400">Based on straight-line distance at 30mph average</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="font-mono font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded text-xs">T1016</span>
+                  <span className="text-xs text-gray-500">Drive Time billing code</span>
+                </div>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Actual Drive Time (minutes)</label>
-                <input type="number" min={0} value={driveActual}
-                  onChange={e => setDriveActual(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                <label className={labelClass}>Actual Drive Time (minutes)</label>
+                <input type="number" min={0} value={driveActual} onChange={e => setDriveActual(e.target.value)} className={inputClass} />
               </div>
 
               {driveActual !== String(driveEstimated) && (
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Reason for Adjustment</label>
+                  <label className={labelClass}>Reason for Adjustment</label>
                   <textarea value={driveReason} onChange={e => setDriveReason(e.target.value)}
-                    placeholder="Traffic, detour, road closure, etc..."
-                    rows={2} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                    placeholder="Traffic, detour, road closure, etc..." rows={2} className={inputClass} />
                 </div>
               )}
 
               <div className="flex gap-3">
                 <Button variant="outline" onClick={() => setDriveStep("select")}>← Back</Button>
-                <Button onClick={saveDriveTime} loading={driveSaving}>✓ Save Drive Time Entry</Button>
+                <Button onClick={saveDriveTime} loading={driveSaving}>✓ Save Drive Time Entry (T1016)</Button>
               </div>
             </div>
           )}
