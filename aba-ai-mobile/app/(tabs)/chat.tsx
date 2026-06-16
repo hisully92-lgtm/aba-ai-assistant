@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, FlatList, TextInput,
-  TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator
+  TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Alert
 } from "react-native";
 import { supabase } from "../../lib/supabase";
 import AppHeader from "../../components/AppHeader";
@@ -67,14 +67,29 @@ export default function ChatScreen() {
   async function handleSend() {
     if (!messageText.trim() || !selectedClient) return;
     setSending(true);
-    await supabase.from("client_team_messages").insert({
+    const optimistic: Message = {
+      id: Date.now().toString(),
       client_id: selectedClient.id,
       user_id: userId,
       message: messageText.trim(),
       sender_name: userName,
       sender_role: userRole,
-    });
+      created_at: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, optimistic]);
     setMessageText("");
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    const { error } = await supabase.from("client_team_messages").insert({
+      client_id: selectedClient.id,
+      user_id: userId,
+      message: optimistic.message,
+      sender_name: userName,
+      sender_role: userRole,
+    });
+    if (error) {
+      setMessages(prev => prev.filter(m => m.id !== optimistic.id));
+      Alert.alert("Error", error.message);
+    }
     setSending(false);
   }
 
