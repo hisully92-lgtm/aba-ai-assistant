@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
@@ -10,43 +11,26 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 type Profile = { id: string; full_name: string | null; role: string | null };
 type Client = { id: string; full_name: string };
 type HourEntry = {
-  id: string;
-  student_id: string;
-  supervisor_id: string | null;
-  hour_type: string;
-  bacb_category: string;
-  activity_type: string;
-  client_id: string | null;
-  client_specific: boolean;
-  counts_toward_fieldwork: boolean;
-  hours: number;
-  session_date: string;
-  notes: string | null;
-  push_to_session: boolean;
-  student_signed: boolean;
-  student_signed_at: string | null;
-  supervisor_signed: boolean;
-  supervisor_signed_at: string | null;
-  approved: boolean;
+  id: string; student_id: string; supervisor_id: string | null;
+  hour_type: string; bacb_category: string; activity_type: string;
+  client_id: string | null; client_specific: boolean;
+  counts_toward_fieldwork: boolean; hours: number;
+  session_date: string; notes: string | null;
+  push_to_session: boolean; student_signed: boolean;
+  student_signed_at: string | null; supervisor_signed: boolean;
+  supervisor_signed_at: string | null; approved: boolean;
+  status: string; submitted_at: string | null;
+  approved_at: string | null; billed_at: string | null;
+  reviewer_notes: string | null; billing_code: string | null;
   created_at: string;
 };
-
 type MVF = {
-  id: string;
-  month: number;
-  year: number;
-  total_hours: number;
-  supervised_hours: number;
-  independent_hours: number;
-  experience_type: string | null;
-  tasks_completed: string[] | null;
-  student_signature: string | null;
-  student_signed_at: string | null;
-  supervisor_signature: string | null;
-  supervisor_signed_at: string | null;
-  supervisor_user_id: string | null;
-  status: string;
-  notes: string | null;
+  id: string; month: number; year: number;
+  total_hours: number; supervised_hours: number; independent_hours: number;
+  experience_type: string | null; tasks_completed: string[] | null;
+  student_signature: string | null; student_signed_at: string | null;
+  supervisor_signature: string | null; supervisor_signed_at: string | null;
+  supervisor_user_id: string | null; status: string; notes: string | null;
 };
 
 const RESTRICTED_ACTIVITIES = [
@@ -100,9 +84,27 @@ const BACB_TASKS = [
 ];
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-
 const BCBA_REQUIREMENTS = { total: 2000, unrestricted_min_pct: 60, restricted_max_pct: 40 };
 const BCABA_REQUIREMENTS = { total: 1000, unrestricted_min_pct: 40, restricted_max_pct: 60 };
+
+const STATUS_COLORS: Record<string, string> = {
+  draft: "bg-gray-100 text-gray-600",
+  pending: "bg-yellow-100 text-yellow-700",
+  needs_correction: "bg-red-100 text-red-700",
+  approved: "bg-green-100 text-green-700",
+  billed: "bg-blue-100 text-blue-700",
+};
+const STATUS_LABELS: Record<string, string> = {
+  draft: "Draft", pending: "Pending Review",
+  needs_correction: "Needs Correction", approved: "Approved", billed: "Billed",
+};
+
+const MVF_STATUS_COLORS: Record<string, string> = {
+  draft: "bg-gray-100 text-gray-600",
+  student_signed: "bg-blue-100 text-blue-700",
+  approved: "bg-green-100 text-green-700",
+  rejected: "bg-red-100 text-red-700",
+};
 
 const emptyForm = {
   hour_type: "unrestricted",
@@ -126,9 +128,10 @@ export default function StudentHubPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
   const [certGoal, setCertGoal] = useState<"bcba" | "bcaba">("bcba");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -156,12 +159,8 @@ export default function StudentHubPage() {
     setUserId(user.id);
 
     const { data: companyUser } = await supabase
-      .from("company_users")
-      .select("company_id")
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .limit(1)
-      .maybeSingle();
+      .from("company_users").select("company_id")
+      .eq("user_id", user.id).eq("status", "active").limit(1).maybeSingle();
     setCompanyId(companyUser?.company_id ?? "");
 
     const [{ data: profileData }, { data: clientData }, { data: entryData }, { data: mvfData }] = await Promise.all([
@@ -185,7 +184,7 @@ export default function StudentHubPage() {
   async function handleSave() {
     if (!form.activity_type || !form.hours) { setError("Activity type and hours are required."); return; }
     if (!form.client_id && form.counts_toward_fieldwork) { setError("All fieldwork hours must be tied to a specific client."); return; }
-    setSaving(true);
+    setSaving("new");
     setError(null);
 
     const { data: auth } = await supabase.auth.getUser();
@@ -199,18 +198,16 @@ export default function StudentHubPage() {
       client_id: form.client_id || null,
       student_signed: !!form.student_signature.trim(),
       student_signed_at: form.student_signature.trim() ? new Date().toISOString() : null,
+      status: "draft",
       created_by: user.id,
     }]).select().single();
 
-    if (saveError) { setError(saveError.message); setSaving(false); return; }
+    if (saveError) { setError(saveError.message); setSaving(null); return; }
 
-    // Push notes to session if requested
     if (form.push_to_session && form.notes.trim() && form.client_id) {
       await supabase.from("sessions").insert({
-        client_id: form.client_id,
-        created_by: user.id,
-        date: form.session_date,
-        status: "pending",
+        client_id: form.client_id, created_by: user.id,
+        date: form.session_date, status: "pending",
         behaviors_observed: form.notes.trim(),
       });
     }
@@ -220,7 +217,17 @@ export default function StudentHubPage() {
     setShowForm(false);
     setSuccess(true);
     setTimeout(() => setSuccess(false), 3000);
-    setSaving(false);
+    setSaving(null);
+  }
+
+  async function submitForReview(id: string) {
+    setSaving(id);
+    await supabase.from("student_analyst_hours").update({
+      status: "pending",
+      submitted_at: new Date().toISOString(),
+    }).eq("id", id);
+    setEntries(prev => prev.map(e => e.id === id ? { ...e, status: "pending", submitted_at: new Date().toISOString() } : e));
+    setSaving(null);
   }
 
   async function handleDelete(id: string) {
@@ -232,8 +239,7 @@ export default function StudentHubPage() {
     const sig = prompt("Enter your full name as electronic signature:");
     if (!sig) return;
     await supabase.from("student_analyst_hours").update({
-      student_signed: true,
-      student_signed_at: new Date().toISOString(),
+      student_signed: true, student_signed_at: new Date().toISOString(),
     }).eq("id", id);
     await init();
   }
@@ -251,13 +257,10 @@ export default function StudentHubPage() {
     const supervisedHours = monthHours.filter(h => h.hour_type === "restricted").reduce((sum, h) => sum + h.hours, 0);
 
     await supabase.from("student_mvf").insert({
-      student_user_id: userId,
-      company_id: companyId,
+      student_user_id: userId, company_id: companyId,
       supervisor_user_id: mvfSupervisorId || null,
-      month: mvfMonth,
-      year: mvfYear,
-      total_hours: totalHours,
-      supervised_hours: supervisedHours,
+      month: mvfMonth, year: mvfYear,
+      total_hours: totalHours, supervised_hours: supervisedHours,
       independent_hours: totalHours - supervisedHours,
       experience_type: expType,
       tasks_completed: selectedTasks.length > 0 ? selectedTasks : null,
@@ -288,7 +291,6 @@ export default function StudentHubPage() {
     setSelectedTasks(prev => prev.includes(task) ? prev.filter(t => t !== task) : [...prev, task]);
   }
 
-  const filtered = filterType ? entries.filter((e) => e.hour_type === filterType) : entries;
   const clientMap = new Map(clients.map((c) => [c.id, c.full_name]));
   const profileMap = new Map(profiles.map((p) => [p.id, p.full_name ?? "Unknown"]));
   const req = certGoal === "bcba" ? BCBA_REQUIREMENTS : BCABA_REQUIREMENTS;
@@ -297,7 +299,11 @@ export default function StudentHubPage() {
   const totalHours = fieldworkEntries.reduce((a, b) => a + b.hours, 0);
   const unrestrictedHours = fieldworkEntries.filter((e) => e.hour_type === "unrestricted").reduce((a, b) => a + b.hours, 0);
   const restrictedHours = fieldworkEntries.filter((e) => e.hour_type === "restricted").reduce((a, b) => a + b.hours, 0);
-  const approvedHours = fieldworkEntries.filter((e) => e.approved).reduce((a, b) => a + b.hours, 0);
+  const approvedHours = fieldworkEntries.filter((e) => e.approved || e.status === "approved").reduce((a, b) => a + b.hours, 0);
+  const pendingCount = entries.filter(e => e.status === "pending").length;
+  const needsCorrectionCount = entries.filter(e => e.status === "needs_correction").length;
+  const approvedCount = entries.filter(e => e.status === "approved").length;
+  const billedCount = entries.filter(e => e.status === "billed").length;
   const pendingSignature = entries.filter(h => !h.student_signed).length;
 
   const totalPct = Math.min(100, Math.round((totalHours / req.total) * 100));
@@ -328,12 +334,11 @@ export default function StudentHubPage() {
     { name: "Remaining", value: Math.max(0, req.total - totalHours), color: "#e5e7eb" },
   ];
 
-  const STATUS_COLORS: Record<string, string> = {
-    draft: "bg-gray-100 text-gray-600",
-    student_signed: "bg-blue-100 text-blue-700",
-    approved: "bg-green-100 text-green-700",
-    rejected: "bg-red-100 text-red-700",
-  };
+  const filteredEntries = entries.filter(e => {
+    if (filterStatus !== "all" && e.status !== filterStatus) return false;
+    if (filterType && e.hour_type !== filterType) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -360,6 +365,37 @@ export default function StudentHubPage() {
           ✍️ You have <strong>{pendingSignature}</strong> hour entr{pendingSignature > 1 ? "ies" : "y"} waiting for your signature.
         </div>
       )}
+
+      {needsCorrectionCount > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-800">
+          ⚠️ <strong>{needsCorrectionCount}</strong> entr{needsCorrectionCount > 1 ? "ies" : "y"} need correction — review your supervisor's notes below.
+        </div>
+      )}
+
+      {/* STAT CARDS */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="border rounded-xl p-4 bg-gray-50 border-gray-100 text-gray-700">
+          <p className="text-xs font-semibold uppercase">Total Hours</p>
+          <p className="text-3xl font-bold mt-1">{totalHours.toFixed(1)}h</p>
+          <p className="text-xs mt-1">{totalPct}% of {req.total}h goal</p>
+        </div>
+        <Link href="/dashboard/supervisor-hours?filter=pending">
+          <div className={`border rounded-xl p-4 cursor-pointer hover:shadow-md transition-all ${pendingCount > 0 ? "bg-yellow-50 border-yellow-100 text-yellow-700" : "bg-gray-50 border-gray-100 text-gray-500"}`}>
+            <p className="text-xs font-semibold uppercase">Pending Review</p>
+            <p className="text-3xl font-bold mt-1">{pendingCount}</p>
+            {pendingCount > 0 && <p className="text-xs mt-1">Awaiting supervisor →</p>}
+          </div>
+        </Link>
+        <div className={`border rounded-xl p-4 ${approvedCount > 0 ? "bg-green-50 border-green-100 text-green-700" : "bg-gray-50 border-gray-100 text-gray-500"}`}>
+          <p className="text-xs font-semibold uppercase">Approved</p>
+          <p className="text-3xl font-bold mt-1">{approvedCount}</p>
+          <p className="text-xs mt-1">{approvedHours.toFixed(1)}h approved</p>
+        </div>
+        <div className={`border rounded-xl p-4 ${billedCount > 0 ? "bg-blue-50 border-blue-100 text-blue-700" : "bg-gray-50 border-gray-100 text-gray-500"}`}>
+          <p className="text-xs font-semibold uppercase">Billed</p>
+          <p className="text-3xl font-bold mt-1">{billedCount}</p>
+        </div>
+      </div>
 
       {/* TABS */}
       <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
@@ -545,9 +581,7 @@ export default function StudentHubPage() {
               </div>
 
               <div className="mt-3">
-                <label className="text-sm font-medium text-gray-700 mb-1 block">
-                  Your Signature (electronic)
-                </label>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Your Signature (electronic)</label>
                 <input type="text" value={form.student_signature}
                   onChange={(e) => setForm({ ...form, student_signature: e.target.value })}
                   placeholder="Type your full legal name to sign"
@@ -557,67 +591,98 @@ export default function StudentHubPage() {
                 </p>
               </div>
 
-              {DOES_NOT_COUNT.some((d) => form.activity_type?.toLowerCase().includes(d.toLowerCase().slice(0, 10))) && (
-                <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700">
-                  ⚠️ This activity type may not count toward BACB fieldwork hours.
-                </div>
-              )}
-
               <div className="mt-4 flex gap-2">
-                <Button onClick={handleSave} loading={saving}>Log Hours</Button>
+                <Button onClick={handleSave} loading={saving === "new"}>Log Hours</Button>
                 <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
               </div>
             </Section>
           )}
 
+          {/* FILTERS */}
           {!loading && entries.length > 0 && (
-            <div className="flex gap-3 items-center">
+            <div className="flex flex-wrap gap-2 items-center">
+              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
+                className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                <option value="all">All Statuses</option>
+                <option value="draft">Draft</option>
+                <option value="pending">Pending Review</option>
+                <option value="needs_correction">Needs Correction</option>
+                <option value="approved">Approved</option>
+                <option value="billed">Billed</option>
+              </select>
               <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
                 className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-                <option value="">All Hours</option>
+                <option value="">All Types</option>
                 <option value="unrestricted">Unrestricted Only</option>
                 <option value="restricted">Restricted Only</option>
               </select>
               <p className="text-sm text-gray-400">
-                {filtered.length} entries · {filtered.reduce((a, b) => a + b.hours, 0).toFixed(1)}h
+                {filteredEntries.length} entries · {filteredEntries.reduce((a, b) => a + b.hours, 0).toFixed(1)}h
               </p>
             </div>
           )}
 
           {loading && <p className="text-gray-400 text-sm">Loading...</p>}
-          {!loading && filtered.length === 0 && (
+          {!loading && filteredEntries.length === 0 && (
             <Section title="Hour Log">
-              <p className="text-gray-400 text-sm">No hours logged yet. Click &quot;+ Log Hours&quot; to get started.</p>
+              <p className="text-gray-400 text-sm">No hours found. Click &quot;+ Log Hours&quot; to get started.</p>
             </Section>
           )}
 
           <div className="space-y-2">
-            {filtered.map((entry) => (
-              <div key={entry.id} className={`border rounded-xl p-4 bg-white flex justify-between items-start ${entry.approved ? "border-green-200" : entry.hour_type === "unrestricted" ? "border-green-100" : "border-blue-100"}`}>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${entry.hour_type === "unrestricted" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>
-                      {entry.hour_type === "unrestricted" ? "Unrestricted" : "Restricted"}
-                    </span>
-                    <p className="text-sm font-medium text-gray-800">{entry.activity_type}</p>
-                    {entry.approved && <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">✓ Approved</span>}
-                    {entry.student_signed && <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">✓ Signed</span>}
+            {filteredEntries.map((entry) => (
+              <div key={entry.id} className={`border rounded-xl p-4 bg-white ${entry.status === "needs_correction" ? "border-red-200" : entry.status === "approved" ? "border-green-200" : entry.status === "pending" ? "border-yellow-200" : entry.status === "billed" ? "border-blue-200" : entry.hour_type === "unrestricted" ? "border-green-100" : "border-blue-100"}`}>
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${entry.hour_type === "unrestricted" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>
+                        {entry.hour_type === "unrestricted" ? "Unrestricted" : "Restricted"}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[entry.status] ?? "bg-gray-100 text-gray-600"}`}>
+                        {STATUS_LABELS[entry.status] ?? entry.status}
+                      </span>
+                      <p className="text-sm font-medium text-gray-800">{entry.activity_type}</p>
+                    </div>
+                    <p className="text-xs text-gray-400">
+                      {entry.session_date}
+                      {entry.supervisor_id && ` · ${profileMap.get(entry.supervisor_id)}`}
+                      {entry.client_id && ` · ${clientMap.get(entry.client_id)}`}
+                    </p>
+                    {entry.notes && <p className="text-xs text-gray-500 mt-1">{entry.notes}</p>}
+
+                    {/* Correction notes from supervisor */}
+                    {entry.status === "needs_correction" && entry.reviewer_notes && (
+                      <div className="mt-2 bg-red-50 border border-red-100 rounded-lg p-2">
+                        <p className="text-xs font-semibold text-red-600">⚠️ Supervisor notes:</p>
+                        <p className="text-xs text-red-700">{entry.reviewer_notes}</p>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      {!entry.student_signed && (
+                        <button onClick={() => studentSignEntry(entry.id)}
+                          className="text-xs text-orange-600 hover:underline">
+                          ✍️ Sign this entry
+                        </button>
+                      )}
+                      {entry.status === "draft" && entry.student_signed && (
+                        <Button onClick={() => submitForReview(entry.id)} loading={saving === entry.id}>
+                          Submit for Review
+                        </Button>
+                      )}
+                      {entry.status === "needs_correction" && (
+                        <Button onClick={() => submitForReview(entry.id)} loading={saving === entry.id}>
+                          Resubmit
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">
-                    {entry.session_date}
-                    {entry.supervisor_id && ` · ${profileMap.get(entry.supervisor_id)}`}
-                    {entry.client_id && ` · ${clientMap.get(entry.client_id)}`}
-                  </p>
-                  {entry.notes && <p className="text-xs text-gray-500 mt-1">{entry.notes}</p>}
-                  {!entry.student_signed && (
-                    <button onClick={() => studentSignEntry(entry.id)} className="text-xs text-orange-600 hover:underline mt-1">
-                      ✍️ Sign this entry
-                    </button>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-lg font-bold text-blue-600">{entry.hours}h</span>
-                  <button onClick={() => handleDelete(entry.id)} className="text-gray-300 hover:text-red-400 text-xs">✕</button>
+                  <div className="flex items-center gap-3 ml-4">
+                    <span className="text-lg font-bold text-blue-600">{entry.hours}h</span>
+                    {entry.status === "draft" && (
+                      <button onClick={() => handleDelete(entry.id)} className="text-gray-300 hover:text-red-400 text-xs">✕</button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -714,8 +779,7 @@ export default function StudentHubPage() {
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1 block">Notes</label>
                   <textarea value={mvfNotes} onChange={e => setMvfNotes(e.target.value)}
-                    placeholder="Additional notes for this month..."
-                    rows={2}
+                    placeholder="Additional notes for this month..." rows={2}
                     className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
                 </div>
 
@@ -750,7 +814,7 @@ export default function StudentHubPage() {
                       <p className="font-bold text-gray-900">{MONTHS[mvf.month - 1]} {mvf.year}</p>
                       <p className="text-xs text-gray-400">{mvf.experience_type} experience</p>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[mvf.status] ?? "bg-gray-100 text-gray-600"}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${MVF_STATUS_COLORS[mvf.status] ?? "bg-gray-100 text-gray-600"}`}>
                       {mvf.status.replace("_", " ")}
                     </span>
                   </div>

@@ -270,6 +270,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       href: "/dashboard/student-hub",
       icon: "🎓",
       children: sortChildren([
+        { label: "Supervisor Hours Review", href: "/dashboard/supervisor-hours" },
         { label: "Hour Tracker", href: "/dashboard/student-hub" },
         { label: "MVF Tracker", href: "/dashboard/student-hub" },
         { label: "My Credentials", href: "/dashboard/credentials" },
@@ -282,6 +283,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       href: "/dashboard/supervisor",
       icon: "📊",
       children: sortChildren([
+        { label: "Student Hours Review", href: "/dashboard/supervisor-hours" },
         { label: "Locations", href: "/dashboard/locations" },
         { label: "EDI Claims", href: "/dashboard/clearinghouse" },
         { label: "Referral Codes", href: "/dashboard/admin/referral-codes" },

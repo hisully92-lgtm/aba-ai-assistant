@@ -994,7 +994,7 @@ export default function TimeEntriesPage() {
         {[
           { key: "evv", label: "EVV Records", badge: unbilledEVV.length > 0 ? unbilledEVV.length : null, badgeColor: "bg-purple-500" },
           { key: "entries", label: "Time Entries", badge: pendingCount > 0 ? pendingCount : null, badgeColor: "bg-yellow-500" },
-          { key: "drive", label: "ðŸš— Drive Time", badge: null, badgeColor: "" },
+          { key: "drive", label: "🚗 Drive Time", badge: null, badgeColor: "" },
         ].map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key as any)}
             className={`px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${activeTab === t.key ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
@@ -1108,7 +1108,7 @@ export default function TimeEntriesPage() {
                         <span>â±ï¸ {fmt(entry.duration_minutes)}</span>
                         <span>{entry.session_type}</span>
                         {entry.cpt_code && <span className="font-mono font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">{entry.cpt_code}</span>}
-                        {entry.drive_time_minutes > 0 && <span>ðŸš— {entry.drive_time_minutes}min{entry.drive_time_billable ? " (billable)" : ""}</span>}
+                        {entry.drive_time_minutes > 0 && <span>🚗 {entry.drive_time_minutes}min{entry.drive_time_billable ? " (billable)" : ""}</span>}
                         {entry.geofence_verified && <span className="text-green-600">âœ“ Geofenced</span>}
                       </div>
                     </div>
@@ -1208,7 +1208,7 @@ export default function TimeEntriesPage() {
       {activeTab === "drive" && (
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-            <p className="text-sm font-semibold text-blue-800 mb-1">ðŸš— Drive Time Entry</p>
+            <p className="text-sm font-semibold text-blue-800 mb-1">🚗 Drive Time Entry</p>
             <p className="text-sm text-blue-700">Calculate drive time between clients. Saves as a <span className="font-mono font-bold">T1016</span> billing entry.</p>
           </div>
 
@@ -1299,4 +1299,5 @@ export default function TimeEntriesPage() {
     </div>
   );
 }
+
 
