@@ -332,7 +332,9 @@ if (insertError) {
   return;
 }
 
-    await supabase.from("evv_records").update({ time_entry_id: insertedEntry.id }).eq("id", selectedEVV.id);
+    if (insertedEntry?.id) {
+  await supabase.from("evv_records").update({ time_entry_id: insertedEntry.id }).eq("id", selectedEVV.id);
+}
     setShowNewEntry(false);
     setNewEntryStep("select_client");
     setSelectedClient(null); setSelectedAuth(null); setSelectedEVV(null);
