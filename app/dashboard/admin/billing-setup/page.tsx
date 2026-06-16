@@ -10,6 +10,7 @@ type Client = { id: string; full_name: string };
 type Staff = { id: string; full_name: string; role: string };
 type Authorization = {
   id: string; client_id: string; cpt_code: string;
+  insurance_provider: string | null;
   start_date: string; end_date: string;
   total_units: number; used_units: number; status: string;
   clients?: { full_name: string };
@@ -37,6 +38,11 @@ const CPT_OPTIONS = [
   "97153", "97154", "97155", "97156", "97157", "97158", "T1016",
 ];
 
+const emptyAuthForm = {
+  client_id: "", cpt_code: "97153", insurance_provider: "",
+  start_date: "", end_date: "", total_units: 96, status: "approved",
+};
+
 export default function BillingSetupPage() {
   const [companyId, setCompanyId] = useState("");
   const [userId, setUserId] = useState("");
@@ -47,15 +53,8 @@ export default function BillingSetupPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"authorizations" | "dropdowns" | "assignments">("authorizations");
-
-  // Auth form
-  const [authForm, setAuthForm] = useState({
-    client_id: "", cpt_code: "97153",
-    start_date: "", end_date: "", total_units: 96, status: "approved",
-  });
+  const [authForm, setAuthForm] = useState(emptyAuthForm);
   const [showAuthForm, setShowAuthForm] = useState(false);
-
-  // Dropdown editing
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [newOption, setNewOption] = useState("");
 
@@ -74,7 +73,9 @@ export default function BillingSetupPage() {
     const [{ data: clientData }, { data: staffData }, { data: authData }, { data: optionsData }] = await Promise.all([
       supabase.from("clients").select("id, full_name").eq("company_id", cu?.company_id).order("full_name"),
       supabase.from("profiles").select("id, full_name, role").eq("company_id", cu?.company_id).order("full_name"),
-      supabase.from("authorizations").select("*, clients(full_name)").eq("created_by", user.id).order("created_at", { ascending: false }),
+      supabase.from("authorizations").select("*, clients(full_name)")
+        .in("client_id", (await supabase.from("clients").select("id").eq("company_id", cu?.company_id)).data?.map((c: { id: string }) => c.id) ?? [])
+        .order("created_at", { ascending: false }),
       supabase.from("clinical_note_options").select("*").eq("company_id", cu?.company_id).eq("is_active", true).order("display_order"),
     ]);
 
@@ -91,6 +92,7 @@ export default function BillingSetupPage() {
     await supabase.from("authorizations").insert({
       client_id: authForm.client_id,
       cpt_code: authForm.cpt_code,
+      insurance_provider: authForm.insurance_provider || null,
       start_date: authForm.start_date,
       end_date: authForm.end_date,
       total_units: authForm.total_units,
@@ -98,7 +100,7 @@ export default function BillingSetupPage() {
       status: authForm.status,
       created_by: userId,
     });
-    setAuthForm({ client_id: "", cpt_code: "97153", start_date: "", end_date: "", total_units: 96, status: "approved" });
+    setAuthForm(emptyAuthForm);
     setShowAuthForm(false);
     setSaving(false);
     await init();
@@ -113,11 +115,9 @@ export default function BillingSetupPage() {
     if (!newOption.trim()) return;
     const maxOrder = noteOptions.filter(o => o.category === category).length + 1;
     await supabase.from("clinical_note_options").insert({
-      company_id: companyId,
-      category,
+      company_id: companyId, category,
       option_value: newOption.trim(),
-      display_order: maxOrder,
-      created_by: userId,
+      display_order: maxOrder, created_by: userId,
     });
     setNewOption("");
     await init();
@@ -177,6 +177,20 @@ export default function BillingSetupPage() {
                   </select>
                 </div>
                 <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Insurance Provider</label>
+                  <input type="text" value={authForm.insurance_provider}
+                    onChange={e => setAuthForm(p => ({ ...p, insurance_provider: e.target.value }))}
+                    placeholder="e.g. Medicaid, Blue Cross, Aetna"
+                    className={inputClass} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Status</label>
+                  <select value={authForm.status} onChange={e => setAuthForm(p => ({ ...p, status: e.target.value }))} className={inputClass}>
+                    <option value="approved">Approved</option>
+                    <option value="pending">Pending</option>
+                  </select>
+                </div>
+                <div>
                   <label className="text-sm font-medium text-gray-700 mb-1 block">Start Date *</label>
                   <input type="date" value={authForm.start_date} onChange={e => setAuthForm(p => ({ ...p, start_date: e.target.value }))} className={inputClass} />
                 </div>
@@ -187,13 +201,6 @@ export default function BillingSetupPage() {
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1 block">Total Units</label>
                   <input type="number" value={authForm.total_units} onChange={e => setAuthForm(p => ({ ...p, total_units: parseInt(e.target.value) || 0 }))} className={inputClass} />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Status</label>
-                  <select value={authForm.status} onChange={e => setAuthForm(p => ({ ...p, status: e.target.value }))} className={inputClass}>
-                    <option value="approved">Approved</option>
-                    <option value="pending">Pending</option>
-                  </select>
                 </div>
               </div>
               <div className="mt-4">
@@ -214,6 +221,9 @@ export default function BillingSetupPage() {
                       {auth.status}
                     </span>
                   </div>
+                  {auth.insurance_provider && (
+                    <p className="text-sm text-gray-600 mb-0.5">{auth.insurance_provider}</p>
+                  )}
                   <p className="text-xs text-gray-500">{auth.start_date} → {auth.end_date} · {auth.used_units}/{auth.total_units} units used</p>
                 </div>
                 <button onClick={() => deleteAuth(auth.id)} className="text-gray-300 hover:text-red-400 text-sm transition-colors">✕</button>
@@ -273,7 +283,7 @@ export default function BillingSetupPage() {
       {/* ASSIGNMENTS TAB */}
       {activeTab === "assignments" && (
         <div className="space-y-4">
-          <p className="text-sm text-gray-500">View and manage which staff members are assigned to which clients. Full assignment management is in the <a href="/dashboard/admin" className="text-blue-500 hover:underline">Admin Panel</a>.</p>
+          <p className="text-sm text-gray-500">View and manage which staff members are assigned to which clients.</p>
           <div className="space-y-3">
             {clients.map(client => (
               <div key={client.id} className="bg-white border border-gray-100 rounded-xl p-4">

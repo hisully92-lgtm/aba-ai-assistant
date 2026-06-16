@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import PageHeader from "@/components/layout/PageHeader";
-import Section from "@/components/ui/Section";
+
 import Button from "@/components/ui/Button";
 
 type Client = { id: string; full_name: string };
 type Authorization = {
-  id: string; client_id: string; insurance_provider: string;
+  id: string; client_id: string; insurance_provider: string | null;
   cpt_code: string; start_date: string; end_date: string;
   total_units: number; used_units: number; status: string;
 };
@@ -1128,4 +1128,5 @@ if (insertError) {
     </div>
   );
 }
+
 
