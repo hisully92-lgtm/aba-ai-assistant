@@ -155,6 +155,7 @@ export default function TimeEntryScreen() {
   const [driveReason, setDriveReason] = useState("");
   const [driveStep, setDriveStep] = useState<"select" | "confirm">("select");
   const [driveSaving, setDriveSaving] = useState(false);
+  const [noteOptions, setNoteOptions] = useState<Record<string, string[]>>({});
 
   useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -168,6 +169,7 @@ export default function TimeEntryScreen() {
       .from("company_users").select("company_id")
       .eq("user_id", user.id).eq("status", "active").limit(1).maybeSingle();
     setCompanyId(companyUser?.company_id ?? "");
+    await loadNoteOptions(companyUser?.company_id);
 
     try {
       const [{ data: clientData }, { data: evvData }, { data: entryData }, { data: company }] = await Promise.all([
@@ -189,6 +191,23 @@ export default function TimeEntryScreen() {
     setLoading(false);
   }
 
+  async function loadNoteOptions(cId?: string) {
+    try {
+      const { data } = await supabase
+        .from("clinical_note_options")
+        .select("category, option_value, display_order")
+        .eq("company_id", cId ?? companyId)
+        .eq("is_active", true)
+        .order("display_order");
+      if (!data) return;
+      const grouped = data.reduce((acc: Record<string, string[]>, row: { category: string; option_value: string; display_order: number }) => {
+        if (!acc[row.category]) acc[row.category] = [];
+        acc[row.category].push(row.option_value);
+        return acc;
+      }, {} as Record<string, string[]>);
+      setNoteOptions(grouped);
+    } catch (e) { console.log("loadNoteOptions error:", e); }
+  }
   // ── NEW ENTRY FLOW ──────────────────────────────────────
 
   async function selectClientForEntry(client: Client) {
@@ -560,7 +579,7 @@ export default function TimeEntryScreen() {
                 {/* Client Readiness */}
                 <Text style={s.fieldLabel}>Client Readiness *</Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-                  {READINESS_OPTIONS.map(r => (
+                  {(noteOptions.client_readiness ?? READINESS_OPTIONS).map(r => (
                     <TouchableOpacity key={r} style={[s.chip, clinicalForm.client_readiness === r && s.chipActive]}
                       onPress={() => setClinicalForm(f => ({ ...f, client_readiness: f.client_readiness === r ? "" : r }))}>
                       <Text style={[s.chipText, clinicalForm.client_readiness === r && s.chipTextActive]}>{r}</Text>
@@ -577,7 +596,7 @@ export default function TimeEntryScreen() {
                 {/* Antecedents */}
                 <Text style={s.fieldLabel}>Antecedents / Barriers *</Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-                  {ANTECEDENT_OPTIONS.map(a => (
+                  {(noteOptions.antecedents ?? ANTECEDENT_OPTIONS).map(a => (
                     <TouchableOpacity key={a} style={[s.chip, clinicalForm.antecedents === a && s.chipActive]}
                       onPress={() => setClinicalForm(f => ({ ...f, antecedents: f.antecedents === a ? "" : a }))}>
                       <Text style={[s.chipText, clinicalForm.antecedents === a && s.chipTextActive]}>{a}</Text>
@@ -627,7 +646,7 @@ export default function TimeEntryScreen() {
                 {/* Intervention Techniques */}
                 <Text style={s.fieldLabel}>Intervention Techniques Used *</Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-                  {INTERVENTION_OPTIONS.map(i => (
+                  {(noteOptions.intervention_techniques ?? INTERVENTION_OPTIONS).map(i => (
                     <TouchableOpacity key={i} style={[s.chip, clinicalForm.intervention_techniques.includes(i) && s.chipActive]}
                       onPress={() => setClinicalForm(f => ({ ...f, intervention_techniques: toggleArr(f.intervention_techniques, i) }))}>
                       <Text style={[s.chipText, clinicalForm.intervention_techniques.includes(i) && s.chipTextActive]}>{i}</Text>
@@ -638,7 +657,7 @@ export default function TimeEntryScreen() {
                 {/* Client Response */}
                 <Text style={s.fieldLabel}>Client Response to Interventions *</Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-                  {CLIENT_RESPONSE_OPTIONS.map(r => (
+                  {(noteOptions.client_response ?? CLIENT_RESPONSE_OPTIONS).map(r => (
                     <TouchableOpacity key={r} style={[s.chip, clinicalForm.client_response_to_interventions === r && s.chipActive]}
                       onPress={() => setClinicalForm(f => ({ ...f, client_response_to_interventions: f.client_response_to_interventions === r ? "" : r }))}>
                       <Text style={[s.chipText, clinicalForm.client_response_to_interventions === r && s.chipTextActive]}>{r}</Text>
@@ -655,7 +674,7 @@ export default function TimeEntryScreen() {
                 {/* Reinforcement Timing */}
                 <Text style={s.fieldLabel}>Reinforcement Timing *</Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-                  {REINFORCEMENT_TIMING.map(rt => (
+                  {(noteOptions.reinforcement_timing ?? REINFORCEMENT_TIMING).map(rt => (
                     <TouchableOpacity key={rt} style={[s.chip, clinicalForm.reinforcement_timing === rt && s.chipActive]}
                       onPress={() => setClinicalForm(f => ({ ...f, reinforcement_timing: f.reinforcement_timing === rt ? "" : rt }))}>
                       <Text style={[s.chipText, clinicalForm.reinforcement_timing === rt && s.chipTextActive]}>{rt}</Text>
@@ -690,7 +709,7 @@ export default function TimeEntryScreen() {
                 {/* Treatment Progress */}
                 <Text style={s.fieldLabel}>Treatment Progress *</Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-                  {TREATMENT_PROGRESS_OPTIONS.map(t => (
+                  {(noteOptions.treatment_progress ?? TREATMENT_PROGRESS_OPTIONS).map(t => (
                     <TouchableOpacity key={t} style={[s.chip, clinicalForm.treatment_progress === t && s.chipActive]}
                       onPress={() => setClinicalForm(f => ({ ...f, treatment_progress: f.treatment_progress === t ? "" : t }))}>
                       <Text style={[s.chipText, clinicalForm.treatment_progress === t && s.chipTextActive]}>{t}</Text>
@@ -701,7 +720,7 @@ export default function TimeEntryScreen() {
                 {/* Goal Mastery */}
                 <Text style={s.fieldLabel}>Goal Mastery Status *</Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-                  {MASTERY_OPTIONS.map(m => (
+                  {(noteOptions.goal_mastery ?? MASTERY_OPTIONS).map(m => (
                     <TouchableOpacity key={m} style={[s.chip, clinicalForm.goal_mastery_status === m && s.chipActive]}
                       onPress={() => setClinicalForm(f => ({ ...f, goal_mastery_status: f.goal_mastery_status === m ? "" : m }))}>
                       <Text style={[s.chipText, clinicalForm.goal_mastery_status === m && s.chipTextActive]}>{m}</Text>
@@ -712,7 +731,7 @@ export default function TimeEntryScreen() {
                 {/* Skill Generalization */}
                 <Text style={s.fieldLabel}>Skill Generalization *</Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-                  {GENERALIZATION_OPTIONS.map(g => (
+                  {(noteOptions.skill_generalization ?? GENERALIZATION_OPTIONS).map(g => (
                     <TouchableOpacity key={g} style={[s.chip, clinicalForm.skill_generalization === g && s.chipActive]}
                       onPress={() => setClinicalForm(f => ({ ...f, skill_generalization: f.skill_generalization === g ? "" : g }))}>
                       <Text style={[s.chipText, clinicalForm.skill_generalization === g && s.chipTextActive]}>{g}</Text>
@@ -723,7 +742,7 @@ export default function TimeEntryScreen() {
                 {/* Client Transition */}
                 <Text style={s.fieldLabel}>Client Transition from Session *</Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-                  {TRANSITION_OPTIONS.map(t => (
+                  {(noteOptions.client_transition ?? TRANSITION_OPTIONS).map(t => (
                     <TouchableOpacity key={t} style={[s.chip, clinicalForm.client_disposition === t && s.chipActive]}
                       onPress={() => setClinicalForm(f => ({ ...f, client_disposition: f.client_disposition === t ? "" : t }))}>
                       <Text style={[s.chipText, clinicalForm.client_disposition === t && s.chipTextActive]}>{t}</Text>
@@ -1208,3 +1227,4 @@ const s = StyleSheet.create({
   locationName: { fontSize: 14, fontWeight: "600", color: "#111827" },
   locationAddr: { fontSize: 12, color: "#9ca3af", marginTop: 2 },
 });
+
