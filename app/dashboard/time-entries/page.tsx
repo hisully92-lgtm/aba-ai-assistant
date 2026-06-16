@@ -203,7 +203,7 @@ export default function TimeEntriesPage() {
       .eq("is_active", true)
       .order("display_order");
     if (!data) return;
-    const grouped = data.reduce((acc, row) => {
+    const grouped = data.reduce((acc: Record<string, string[]>, row: { category: string; option_value: string; display_order: number }) => {
       if (!acc[row.category]) acc[row.category] = [];
       acc[row.category].push(row.option_value);
       return acc;
