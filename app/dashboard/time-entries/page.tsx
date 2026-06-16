@@ -215,7 +215,7 @@ export default function TimeEntriesPage() {
     const isAdmin = ["bcba", "supervisor", "admin", "clinical_director"].includes(r ?? role);
     let query = supabase
       .from("time_entry_logs")
-      .select("*, clients(full_name), profiles(full_name, role)")
+      .select("*, clients(full_name)")
       .eq("company_id", cId ?? companyId)
       .order("created_at", { ascending: false })
       .limit(100);
@@ -949,7 +949,7 @@ if (insertError) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-gray-800">{entry.clients?.full_name ?? "Unknown Client"}</p>
-                        {isAdmin && entry.profiles && <span className="text-xs text-gray-400">— {entry.profiles.full_name}</span>}
+                        {isAdmin && (entry as any).profiles && <span className="text-xs text-gray-400">— {(entry as any).profiles.full_name}</span>}
                         {entry.evv_record_id && <span className="text-xs bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded font-medium">EVV</span>}
                       </div>
                       <div className="flex flex-wrap gap-3 mt-1 text-xs text-gray-500">
