@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -101,7 +101,7 @@ export default function TrainingAdminPage() {
   const [loadingAssets, setLoadingAssets] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generationStatus, setGenerationStatus] = useState<string | null>(null);
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [pollingInterval, setPollingInterval] = useState<ReturnType<typeof setInterval> | null>(null);
   const [voiceFilter, setVoiceFilter] = useState("English");
 
   useEffect(() => { init(); }, []);
