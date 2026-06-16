@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -69,7 +69,7 @@ export default function SupervisorHoursPage() {
 
     const [{ data: hourData }, { data: mvfData }] = await Promise.all([
       supabase.from("student_analyst_hours")
-        .select("*, clients(full_name), profiles(full_name)")
+        .select("*, clients(full_name)")
         .eq("supervisor_id", user.id)
         .in("status", ["pending", "approved", "needs_correction", "billed"])
         .order("submitted_at", { ascending: false }),
