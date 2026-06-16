@@ -182,7 +182,11 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       label: "Time Entries & EVV",
       href: "/dashboard/time-entries",
       icon: "⏱️",
-      children: [],
+      children: sortChildren([
+        { label: "Time Entries & EVV", href: "/dashboard/time-entries" },
+        { label: "Session Review", href: "/dashboard/session-review" },
+        { label: "Approved Billing", href: "/dashboard/billing/approved" },
+      ]),
     },
     {
       label: "Insurance & Billing",
@@ -191,6 +195,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       children: sortChildren([
                { label: "AI Compliance Check", href: "/dashboard/insurance/ai-check" },
         { label: "Authorizations", href: "/dashboard/authorizations" },
+        { label: "Billing Setup", href: "/dashboard/admin/billing-setup" },
         { label: "Claims & Auth", href: "/dashboard/insurance" },
         { label: "CMS-1500 Claims", href: "/dashboard/billing/cms1500" },
         { label: "Co-pay Tracking", href: "/dashboard/copay" },

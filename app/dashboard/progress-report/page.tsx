@@ -1,6 +1,5 @@
-"use client";
-import { useEffect } from "react";
-export default function ProgressReportRedirect() {
-  useEffect(() => { window.location.href = "/dashboard/progress-reports"; }, []);
-  return null;
+﻿"use client";
+import { redirect } from "next/navigation";
+export default function ProgressReportPage() {
+  redirect("/dashboard/progress-reports");
 }

@@ -242,19 +242,15 @@ export default function TimeEntriesPage() {
   // New entry flow functions
   async function selectClientForEntry(client: Client) {
   setSelectedClient(client);
-  const { data: authUser } = await supabase.auth.getUser();
-  console.log("LOGGED IN AS:", authUser?.user?.id);
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from("authorizations")
     .select("*")
     .eq("client_id", client.id)
     .eq("status", "approved")
     .order("end_date", { ascending: false });
-  console.log("AUTHS:", JSON.stringify(data), "ERROR:", JSON.stringify(error));
   setAuthorizations(data ?? []);
   setNewEntryStep("select_auth");
 }
-
   async function selectAuth(auth: Authorization) {
     setSelectedAuth(auth);
     // Load EVV records for this client filtered to auth period
