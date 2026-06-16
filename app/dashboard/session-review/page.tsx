@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -60,7 +60,7 @@ export default function SessionReviewPage() {
   async function loadEntries(cId?: string) {
     const { data } = await supabase
       .from("time_entry_logs")
-      .select("*, clients(full_name), profiles(full_name, role)")
+      .select("*, clients(full_name)")
       .eq("company_id", cId ?? companyId)
       .in("status", ["pending", "needs_correction", "approved", "billed"])
       .order("submitted_at", { ascending: false })
