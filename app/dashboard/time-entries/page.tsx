@@ -290,7 +290,7 @@ export default function TimeEntriesPage() {
   async function saveTimeEntry() {
     if (!selectedEVV || !selectedClient || !selectedAuth) return;
     setSaving("new");
-    const { error: insertError } = await supabase.from("time_entry_logs").insert({
+    const { data: insertedEntry, error: insertError } = await supabase.from("time_entry_logs").insert({
       company_id: companyId, user_id: userId,
       client_id: selectedClient.id, date: selectedEVV.date,
       start_time: selectedEVV.actual_start, end_time: selectedEVV.actual_end,
@@ -324,7 +324,7 @@ export default function TimeEntriesPage() {
       skill_generalization: clinicalForm.skill_generalization || null,
       client_disposition: clinicalForm.client_disposition || null,
       additional_information: clinicalForm.additional_information || null,
-    });
+    }).select().single();
 
 if (insertError) {
   alert("Error saving time entry: " + insertError.message);
@@ -332,7 +332,7 @@ if (insertError) {
   return;
 }
 
-    await supabase.from("evv_records").update({ time_entry_id: "pending" }).eq("id", selectedEVV.id);
+    await supabase.from("evv_records").update({ time_entry_id: insertedEntry.id }).eq("id", selectedEVV.id);
     setShowNewEntry(false);
     setNewEntryStep("select_client");
     setSelectedClient(null); setSelectedAuth(null); setSelectedEVV(null);
