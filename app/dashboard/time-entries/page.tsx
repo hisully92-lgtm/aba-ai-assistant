@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -79,12 +79,12 @@ const STATUS_LABELS: Record<string, string> = {
   needs_correction: "Needs Correction", approved: "Approved", billed: "Billed",
 };
 const CPT_CODES = [
-  { code: "97153", label: "97153 — Adaptive Behavior Treatment (RBT)" },
-  { code: "97155", label: "97155 — Protocol Modification (BCBA)" },
-  { code: "97156", label: "97156 — Family Guidance" },
-  { code: "97151", label: "97151 — Behavior Identification Assessment" },
-  { code: "97152", label: "97152 — Behavior Identification Supporting Assessment" },
-  { code: "T1016", label: "T1016 — Drive Time" },
+  { code: "97153", label: "97153 â€” Adaptive Behavior Treatment (RBT)" },
+  { code: "97155", label: "97155 â€” Protocol Modification (BCBA)" },
+  { code: "97156", label: "97156 â€” Family Guidance" },
+  { code: "97151", label: "97151 â€” Behavior Identification Assessment" },
+  { code: "97152", label: "97152 â€” Behavior Identification Supporting Assessment" },
+  { code: "T1016", label: "T1016 â€” Drive Time" },
 ];
 const SESSION_TYPES = ["Direct Therapy", "Supervision", "Parent Training", "Assessment", "Team Meeting", "Telehealth"];
 const PRESENT_OPTIONS = ["RBT", "Client", "BCBA", "Parent", "Caregiver", "Sibling"];
@@ -460,7 +460,7 @@ export default function TimeEntriesPage() {
         </Button>
       </PageHeader>
 
-{/* STATS — make cards clickable */}
+{/* STATS â€” make cards clickable */}
 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
   <div className={`border rounded-xl p-4 bg-purple-50 border-purple-100 text-purple-700`}>
     <p className="text-xs font-semibold uppercase">EVV Complete</p>
@@ -471,26 +471,26 @@ export default function TimeEntriesPage() {
     <div className={`border rounded-xl p-4 bg-yellow-50 border-yellow-100 text-yellow-700 cursor-pointer hover:shadow-md transition-all`}>
       <p className="text-xs font-semibold uppercase">Pending Review</p>
       <p className="text-3xl font-bold mt-1">{pendingCount}</p>
-      {pendingCount > 0 && <p className="text-xs mt-1">Tap to review →</p>}
+      {pendingCount > 0 && <p className="text-xs mt-1">Tap to review â†’</p>}
     </div>
   </Link>
   <Link href="/dashboard/billing/approved">
     <div className={`border rounded-xl p-4 bg-green-50 border-green-100 text-green-700 cursor-pointer hover:shadow-md transition-all`}>
       <p className="text-xs font-semibold uppercase">Approved</p>
       <p className="text-3xl font-bold mt-1">{entries.filter(e => e.status === "approved").length}</p>
-      <p className="text-xs mt-1">Ready to bill →</p>
+      <p className="text-xs mt-1">Ready to bill â†’</p>
     </div>
   </Link>
   <Link href="/dashboard/billing/approved?tab=billed">
     <div className={`border rounded-xl p-4 bg-blue-50 border-blue-100 text-blue-700 cursor-pointer hover:shadow-md transition-all`}>
       <p className="text-xs font-semibold uppercase">Billed</p>
       <p className="text-3xl font-bold mt-1">{entries.filter(e => e.status === "billed").length}</p>
-      <p className="text-xs mt-1">View history →</p>
+      <p className="text-xs mt-1">View history â†’</p>
     </div>
   </Link>
 </div>
 
-      {/* ── NEW TIME ENTRY FLOW ────────────────────────────── */}
+      {/* â”€â”€ NEW TIME ENTRY FLOW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {showNewEntry && (
         <div className="border border-blue-200 rounded-2xl bg-blue-50 overflow-hidden">
           {/* Step indicator */}
@@ -509,7 +509,7 @@ export default function TimeEntriesPage() {
               const isCurrent = step.key === newEntryStep;
               return (
                 <div key={step.key} className={`flex-1 py-3 text-center text-xs font-semibold border-b-2 transition-colors ${isCurrent ? "border-blue-600 text-blue-600" : isDone ? "border-green-500 text-green-600" : "border-transparent text-gray-400"}`}>
-                  {isDone ? "✓" : i + 1} {step.label}
+                  {isDone ? "âœ“" : i + 1} {step.label}
                 </div>
               );
             })}
@@ -517,7 +517,7 @@ export default function TimeEntriesPage() {
 
           <div className="p-6">
 
-            {/* STEP 1 — SELECT CLIENT */}
+            {/* STEP 1 â€” SELECT CLIENT */}
             {newEntryStep === "select_client" && (
               <div>
                 <h3 className="font-bold text-gray-800 mb-1">Select Client</h3>
@@ -536,15 +536,15 @@ export default function TimeEntriesPage() {
               </div>
             )}
 
-            {/* STEP 2 — SELECT AUTHORIZATION / SERVICE */}
+            {/* STEP 2 â€” SELECT AUTHORIZATION / SERVICE */}
             {newEntryStep === "select_auth" && selectedClient && (
               <div>
-                <button onClick={() => setNewEntryStep("select_client")} className="text-xs text-blue-500 hover:underline mb-3 block">‹ Back</button>
+                <button onClick={() => setNewEntryStep("select_client")} className="text-xs text-blue-500 hover:underline mb-3 block">â€¹ Back</button>
                 <h3 className="font-bold text-gray-800 mb-1">Select Service Authorization</h3>
                 <p className="text-sm text-gray-500 mb-4">Choose the insurance authorization for <strong>{selectedClient.full_name}</strong></p>
                 {authorizations.length === 0 ? (
                   <div className="text-center py-10 border border-dashed border-gray-200 rounded-xl bg-white">
-                    <p className="text-2xl mb-2">🏦</p>
+                    <p className="text-2xl mb-2">ðŸ¦</p>
                     <p className="font-semibold text-gray-700">No active authorizations</p>
                     <p className="text-sm text-gray-400 mt-1">Add an authorization for this client first.</p>
                   </div>
@@ -560,7 +560,7 @@ export default function TimeEntriesPage() {
                               <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">Active</span>
                             </div>
                             <p className="text-sm text-gray-700">{auth.insurance_provider}</p>
-                            <p className="text-xs text-gray-400">{auth.start_date} → {auth.end_date}</p>
+                            <p className="text-xs text-gray-400">{auth.start_date} â†’ {auth.end_date}</p>
                           </div>
                           <div className="text-right">
                             <p className="text-xs text-gray-500">Units</p>
@@ -575,17 +575,17 @@ export default function TimeEntriesPage() {
               </div>
             )}
 
-            {/* STEP 3 — SELECT EVV SESSION */}
+            {/* STEP 3 â€” SELECT EVV SESSION */}
             {newEntryStep === "select_evv" && selectedAuth && (
               <div>
-                <button onClick={() => setNewEntryStep("select_auth")} className="text-xs text-blue-500 hover:underline mb-3 block">‹ Back</button>
+                <button onClick={() => setNewEntryStep("select_auth")} className="text-xs text-blue-500 hover:underline mb-3 block">â€¹ Back</button>
                 <h3 className="font-bold text-gray-800 mb-1">Select EVV Session</h3>
                 <p className="text-sm text-gray-500 mb-4">
-                  Sessions within auth period <strong>{selectedAuth.start_date} → {selectedAuth.end_date}</strong> · Code: <span className="font-mono font-bold text-blue-700">{selectedAuth.cpt_code}</span>
+                  Sessions within auth period <strong>{selectedAuth.start_date} â†’ {selectedAuth.end_date}</strong> Â· Code: <span className="font-mono font-bold text-blue-700">{selectedAuth.cpt_code}</span>
                 </p>
                 {clientEVVs.length === 0 ? (
                   <div className="text-center py-10 border border-dashed border-gray-200 rounded-xl bg-white">
-                    <p className="text-2xl mb-2">📋</p>
+                    <p className="text-2xl mb-2">ðŸ“‹</p>
                     <p className="font-semibold text-gray-700">No EVV sessions available</p>
                     <p className="text-sm text-gray-400 mt-1">All sessions within this auth period already have time entries, or none exist yet.</p>
                   </div>
@@ -596,12 +596,12 @@ export default function TimeEntriesPage() {
                         className="w-full bg-white border border-gray-200 hover:border-blue-400 rounded-xl p-4 text-left transition-all flex items-center justify-between">
                         <div>
                           <p className="font-semibold text-gray-800">{fmtDate(evv.actual_start)}</p>
-                          <p className="text-sm text-gray-500">{fmtTime(evv.actual_start)} – {fmtTime(evv.actual_end)} · {fmt(evv.session_duration_minutes)}</p>
-                          {evv.location_name && <p className="text-xs text-gray-400 mt-0.5">📍 {evv.location_name}</p>}
+                          <p className="text-sm text-gray-500">{fmtTime(evv.actual_start)} â€“ {fmtTime(evv.actual_end)} Â· {fmt(evv.session_duration_minutes)}</p>
+                          {evv.location_name && <p className="text-xs text-gray-400 mt-0.5">ðŸ“ {evv.location_name}</p>}
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded-lg">{selectedAuth.cpt_code}</span>
-                          <span className="text-gray-300 text-xl">›</span>
+                          <span className="text-gray-300 text-xl">â€º</span>
                         </div>
                       </button>
                     ))}
@@ -610,10 +610,10 @@ export default function TimeEntriesPage() {
               </div>
             )}
 
-            {/* STEP 4 — CLINICAL NOTES */}
+            {/* STEP 4 â€” CLINICAL NOTES */}
             {newEntryStep === "clinical_notes" && selectedEVV && (
               <div>
-                <button onClick={() => setNewEntryStep("select_evv")} className="text-xs text-blue-500 hover:underline mb-3 block">‹ Back</button>
+                <button onClick={() => setNewEntryStep("select_evv")} className="text-xs text-blue-500 hover:underline mb-3 block">â€¹ Back</button>
                 <h3 className="font-bold text-gray-800 mb-1">Clinical Documentation</h3>
 
                 {/* EVV Summary */}
@@ -624,14 +624,14 @@ export default function TimeEntriesPage() {
                     <div><span className="text-gray-400">Start:</span> <span className="font-semibold">{fmtTime(selectedEVV.actual_start)}</span></div>
                     <div><span className="text-gray-400">End:</span> <span className="font-semibold">{fmtTime(selectedEVV.actual_end)}</span></div>
                     <div><span className="text-gray-400">Duration:</span> <span className="font-semibold">{fmt(selectedEVV.session_duration_minutes)}</span></div>
-                    <div><span className="text-gray-400">Location:</span> <span className="font-semibold">{selectedEVV.location_name ?? "—"}</span></div>
+                    <div><span className="text-gray-400">Location:</span> <span className="font-semibold">{selectedEVV.location_name ?? "â€”"}</span></div>
                     <div><span className="text-gray-400">Code:</span> <span className="font-mono font-bold text-blue-700">{selectedAuth?.cpt_code}</span></div>
                   </div>
                 </div>
 
                 {sessionData && (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 text-xs text-green-700">
-                    ✓ Session data found — some fields pre-populated from your data collection
+                    âœ“ Session data found â€” some fields pre-populated from your data collection
                   </div>
                 )}
 
@@ -769,7 +769,7 @@ export default function TimeEntriesPage() {
                         {clinicalForm.maladaptive_behaviors.map(b => (
                           <span key={b} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full flex items-center gap-1">
                             {b}
-                            <button onClick={() => setClinicalForm(p => ({ ...p, maladaptive_behaviors: p.maladaptive_behaviors.filter(x => x !== b) }))}>✕</button>
+                            <button onClick={() => setClinicalForm(p => ({ ...p, maladaptive_behaviors: p.maladaptive_behaviors.filter(x => x !== b) }))}>âœ•</button>
                           </span>
                         ))}
                       </div>
@@ -917,23 +917,23 @@ export default function TimeEntriesPage() {
                 </div>
 
                 <div className="flex justify-end mt-6">
-                  <Button onClick={() => setNewEntryStep("preview")}>Preview Note →</Button>
+                  <Button onClick={() => setNewEntryStep("preview")}>Preview Note â†’</Button>
                 </div>
               </div>
             )}
 
-            {/* STEP 5 — PREVIEW + SIGN + SUBMIT */}
+            {/* STEP 5 â€” PREVIEW + SIGN + SUBMIT */}
             {newEntryStep === "preview" && selectedEVV && selectedClient && (
               <div>
-                <button onClick={() => setNewEntryStep("clinical_notes")} className="text-xs text-blue-500 hover:underline mb-3 block">‹ Back to Edit</button>
+                <button onClick={() => setNewEntryStep("clinical_notes")} className="text-xs text-blue-500 hover:underline mb-3 block">â€¹ Back to Edit</button>
                 <h3 className="font-bold text-gray-800 mb-4">Preview & Submit</h3>
 
                 {/* Note preview */}
                 <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4 mb-6 text-sm">
                   <div className="border-b border-gray-100 pb-3">
                     <p className="font-bold text-gray-800 text-base">{selectedClient.full_name}</p>
-                    <p className="text-gray-500">{fmtDate(selectedEVV.actual_start)} · {fmtTime(selectedEVV.actual_start)} – {fmtTime(selectedEVV.actual_end)} · {fmt(selectedEVV.session_duration_minutes)}</p>
-                    <p className="text-gray-500">{clinicalForm.session_type} · <span className="font-mono font-bold text-blue-700">{clinicalForm.cpt_code}</span></p>
+                    <p className="text-gray-500">{fmtDate(selectedEVV.actual_start)} Â· {fmtTime(selectedEVV.actual_start)} â€“ {fmtTime(selectedEVV.actual_end)} Â· {fmt(selectedEVV.session_duration_minutes)}</p>
+                    <p className="text-gray-500">{clinicalForm.session_type} Â· <span className="font-mono font-bold text-blue-700">{clinicalForm.cpt_code}</span></p>
                   </div>
 
                   {[
@@ -994,7 +994,7 @@ export default function TimeEntriesPage() {
         {[
           { key: "evv", label: "EVV Records", badge: unbilledEVV.length > 0 ? unbilledEVV.length : null, badgeColor: "bg-purple-500" },
           { key: "entries", label: "Time Entries", badge: pendingCount > 0 ? pendingCount : null, badgeColor: "bg-yellow-500" },
-          { key: "drive", label: "🚗 Drive Time", badge: null, badgeColor: "" },
+          { key: "drive", label: "ðŸš— Drive Time", badge: null, badgeColor: "" },
         ].map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key as any)}
             className={`px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${activeTab === t.key ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
@@ -1010,7 +1010,7 @@ export default function TimeEntriesPage() {
           {evvLoading && <p className="text-gray-400 text-sm">Loading EVV records...</p>}
           {!evvLoading && evvRecords.length === 0 && (
             <div className="text-center py-12 border border-dashed border-gray-200 rounded-2xl">
-              <p className="text-3xl mb-3">📋</p>
+              <p className="text-3xl mb-3">ðŸ“‹</p>
               <p className="text-gray-600 font-medium">No completed EVV records yet</p>
               <p className="text-gray-400 text-sm mt-1">EVV records appear here after RBTs complete a visit in the mobile app</p>
             </div>
@@ -1025,26 +1025,26 @@ export default function TimeEntriesPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-gray-800">{evv.clients?.full_name ?? "Unknown"}</p>
                         <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${!hasEntry ? "bg-purple-100 text-purple-700" : "bg-green-100 text-green-700"}`}>
-                          {!hasEntry ? "Needs Time Entry" : "✓ Entry Created"}
+                          {!hasEntry ? "Needs Time Entry" : "âœ“ Entry Created"}
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-3 mt-1 text-xs text-gray-500">
-                        <span>📅 {fmtDate(evv.actual_start)}</span>
-                        <span>🕐 {fmtTime(evv.actual_start)} – {fmtTime(evv.actual_end)}</span>
-                        <span>⏱️ {fmt(evv.session_duration_minutes)}</span>
-                        {evv.location_name && <span>📍 {evv.location_name}</span>}
-                        {evv.start_geofence_verified && <span className="text-green-600">✓ Geofenced</span>}
+                        <span>ðŸ“… {fmtDate(evv.actual_start)}</span>
+                        <span>ðŸ• {fmtTime(evv.actual_start)} â€“ {fmtTime(evv.actual_end)}</span>
+                        <span>â±ï¸ {fmt(evv.session_duration_minutes)}</span>
+                        {evv.location_name && <span>ðŸ“ {evv.location_name}</span>}
+                        {evv.start_geofence_verified && <span className="text-green-600">âœ“ Geofenced</span>}
                       </div>
                     </div>
-                    <span className="text-gray-400 text-xs">{expandedEVV === evv.id ? "▼" : "▶"}</span>
+                    <span className="text-gray-400 text-xs">{expandedEVV === evv.id ? "â–¼" : "â–¶"}</span>
                   </div>
                 </button>
                 {expandedEVV === evv.id && (
                   <div className="px-4 pb-4 border-t border-gray-50 pt-3 space-y-3">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       {[
-                        { label: "RBT Signature", val: evv.rbt_signature ? "✓ Signed" : "Missing", color: evv.rbt_signature ? "text-green-600" : "text-red-500" },
-                        { label: "Guardian", val: evv.guardian_signature ? "✓ Signed" : evv.guardian_unavailable ? "Unavailable" : "Missing", color: evv.guardian_signature ? "text-green-600" : evv.guardian_unavailable ? "text-orange-500" : "text-red-500" },
+                        { label: "RBT Signature", val: evv.rbt_signature ? "âœ“ Signed" : "Missing", color: evv.rbt_signature ? "text-green-600" : "text-red-500" },
+                        { label: "Guardian", val: evv.guardian_signature ? "âœ“ Signed" : evv.guardian_unavailable ? "Unavailable" : "Missing", color: evv.guardian_signature ? "text-green-600" : evv.guardian_unavailable ? "text-orange-500" : "text-red-500" },
                         { label: "Behaviors", val: String(evv.behaviors_recorded), color: "text-gray-800" },
                         { label: "Trials", val: String(evv.trials_recorded), color: "text-gray-800" },
                       ].map(item => (
@@ -1086,7 +1086,7 @@ export default function TimeEntriesPage() {
           {loading && <p className="text-gray-400 text-sm">Loading...</p>}
           {!loading && filtered.length === 0 && (
             <div className="text-center py-12 border border-dashed border-gray-200 rounded-2xl">
-              <p className="text-3xl mb-3">⏱️</p>
+              <p className="text-3xl mb-3">â±ï¸</p>
               <p className="text-gray-600 font-medium">No time entries found</p>
               <p className="text-gray-400 text-sm mt-1">Click "+ New Time Entry" to create one</p>
             </div>
@@ -1100,23 +1100,23 @@ export default function TimeEntriesPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-gray-800">{entry.clients?.full_name ?? "Unknown Client"}</p>
-                        {isAdmin && entry.profiles && <span className="text-xs text-gray-400">— {entry.profiles.full_name}</span>}
+                        {isAdmin && entry.profiles && <span className="text-xs text-gray-400">â€” {entry.profiles.full_name}</span>}
                         {entry.evv_record_id && <span className="text-xs bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded font-medium">EVV</span>}
                       </div>
                       <div className="flex flex-wrap gap-3 mt-1 text-xs text-gray-500">
-                        <span>📅 {entry.date}</span>
-                        <span>⏱️ {fmt(entry.duration_minutes)}</span>
+                        <span>ðŸ“… {entry.date}</span>
+                        <span>â±ï¸ {fmt(entry.duration_minutes)}</span>
                         <span>{entry.session_type}</span>
                         {entry.cpt_code && <span className="font-mono font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">{entry.cpt_code}</span>}
-                        {entry.drive_time_minutes > 0 && <span>🚗 {entry.drive_time_minutes}min{entry.drive_time_billable ? " (billable)" : ""}</span>}
-                        {entry.geofence_verified && <span className="text-green-600">✓ Geofenced</span>}
+                        {entry.drive_time_minutes > 0 && <span>ðŸš— {entry.drive_time_minutes}min{entry.drive_time_billable ? " (billable)" : ""}</span>}
+                        {entry.geofence_verified && <span className="text-green-600">âœ“ Geofenced</span>}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_COLORS[entry.status] ?? "bg-gray-100 text-gray-600"}`}>
                         {STATUS_LABELS[entry.status] ?? entry.status}
                       </span>
-                      <span className="text-gray-400 text-xs">{expandedEntry === entry.id ? "▼" : "▶"}</span>
+                      <span className="text-gray-400 text-xs">{expandedEntry === entry.id ? "â–¼" : "â–¶"}</span>
                     </div>
                   </div>
                 </button>
@@ -1175,7 +1175,7 @@ export default function TimeEntriesPage() {
 
                     {entry.status === "needs_correction" && entry.reviewer_notes && (
                       <div className="bg-red-50 border border-red-100 rounded-lg p-3">
-                        <p className="text-xs text-red-600 font-semibold mb-1">⚠️ Correction Required</p>
+                        <p className="text-xs text-red-600 font-semibold mb-1">âš ï¸ Correction Required</p>
                         <p className="text-sm text-red-800">{entry.reviewer_notes}</p>
                       </div>
                     )}
@@ -1190,8 +1190,8 @@ export default function TimeEntriesPage() {
                               placeholder="Add review notes (required for rejection)..." rows={2}
                               className={inputClass} />
                           </div>
-                          <Button onClick={() => approveEntry(entry.id)} loading={saving === entry.id}>✓ Approve</Button>
-                          <Button variant="danger" onClick={() => rejectEntry(entry.id)} loading={saving === entry.id}>✗ Request Correction</Button>
+                          <Button onClick={() => approveEntry(entry.id)} loading={saving === entry.id}>âœ“ Approve</Button>
+                          <Button variant="danger" onClick={() => rejectEntry(entry.id)} loading={saving === entry.id}>âœ— Request Correction</Button>
                         </>
                       )}
                       {isAdmin && entry.status === "approved" && <Button onClick={() => markBilled(entry.id)} loading={saving === entry.id}>Mark as Billed</Button>}
@@ -1208,7 +1208,7 @@ export default function TimeEntriesPage() {
       {activeTab === "drive" && (
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-            <p className="text-sm font-semibold text-blue-800 mb-1">🚗 Drive Time Entry</p>
+            <p className="text-sm font-semibold text-blue-800 mb-1">ðŸš— Drive Time Entry</p>
             <p className="text-sm text-blue-700">Calculate drive time between clients. Saves as a <span className="font-mono font-bold">T1016</span> billing entry.</p>
           </div>
 
@@ -1230,7 +1230,7 @@ export default function TimeEntriesPage() {
                     disabled={!driveClient1Id || driveLocations1.length === 0}
                     className={`${inputClass} disabled:opacity-50`}>
                     <option value="">Select location...</option>
-                    {driveLocations1.map(l => <option key={l.id} value={l.id}>{l.name} — {l.address}, {l.city}</option>)}
+                    {driveLocations1.map(l => <option key={l.id} value={l.id}>{l.name} â€” {l.address}, {l.city}</option>)}
                   </select>
                 </div>
               </div>
@@ -1250,12 +1250,12 @@ export default function TimeEntriesPage() {
                     disabled={!driveClient2Id || driveLocations2.length === 0}
                     className={`${inputClass} disabled:opacity-50`}>
                     <option value="">Select location...</option>
-                    {driveLocations2.map(l => <option key={l.id} value={l.id}>{l.name} — {l.address}, {l.city}</option>)}
+                    {driveLocations2.map(l => <option key={l.id} value={l.id}>{l.name} â€” {l.address}, {l.city}</option>)}
                   </select>
                 </div>
               </div>
               <Button onClick={calculateDriveEstimate} disabled={!driveLocation1Id || !driveLocation2Id}>
-                📍 Calculate Drive Time
+                ðŸ“ Calculate Drive Time
               </Button>
             </div>
           )}
@@ -1264,9 +1264,9 @@ export default function TimeEntriesPage() {
             <div className="bg-white border border-gray-100 rounded-xl p-6 space-y-4">
               <div className="bg-blue-50 rounded-xl p-4">
                 <p className="text-xs font-bold text-gray-500 uppercase mb-2">Route Summary</p>
-                <p className="text-sm text-gray-800">📍 {driveLocations1.find(l => l.id === driveLocation1Id)?.name} ({clients.find(c => c.id === driveClient1Id)?.full_name})</p>
-                <p className="text-xs text-gray-400 ml-5">↓</p>
-                <p className="text-sm text-gray-800">📍 {driveLocations2.find(l => l.id === driveLocation2Id)?.name} ({clients.find(c => c.id === driveClient2Id)?.full_name})</p>
+                <p className="text-sm text-gray-800">ðŸ“ {driveLocations1.find(l => l.id === driveLocation1Id)?.name} ({clients.find(c => c.id === driveClient1Id)?.full_name})</p>
+                <p className="text-xs text-gray-400 ml-5">â†“</p>
+                <p className="text-sm text-gray-800">ðŸ“ {driveLocations2.find(l => l.id === driveLocation2Id)?.name} ({clients.find(c => c.id === driveClient2Id)?.full_name})</p>
                 <p className="text-2xl font-bold text-blue-600 mt-3">~{driveEstimated} min estimated</p>
                 <p className="text-xs text-gray-400">Based on straight-line distance at 30mph average</p>
                 <div className="mt-2 flex items-center gap-2">
@@ -1289,8 +1289,8 @@ export default function TimeEntriesPage() {
               )}
 
               <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setDriveStep("select")}>← Back</Button>
-                <Button onClick={saveDriveTime} loading={driveSaving}>✓ Save Drive Time Entry (T1016)</Button>
+                <Button variant="outline" onClick={() => setDriveStep("select")}>â† Back</Button>
+                <Button onClick={saveDriveTime} loading={driveSaving}>âœ“ Save Drive Time Entry (T1016)</Button>
               </div>
             </div>
           )}
