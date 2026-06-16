@@ -460,8 +460,6 @@ export default function TimeEntriesPage() {
         </Button>
       </PageHeader>
 
-      import Link from "next/link";
-
 {/* STATS — make cards clickable */}
 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
   <div className={`border rounded-xl p-4 bg-purple-50 border-purple-100 text-purple-700`}>
