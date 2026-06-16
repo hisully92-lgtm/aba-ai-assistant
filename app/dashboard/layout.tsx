@@ -9,6 +9,7 @@ import Link from "next/link";
 import OnboardingTutorial from "@/components/OnboardingTutorials";
 import { TimerProvider } from "@/lib/contexts/TimerContext";
 import FloatingTimerBar from "@/components/timers/FloatingTimerBar";
+import FloatingChat from "@/components/layout/FloatingChat";
 
 function SkeletonLoader() {
   return (
@@ -212,6 +213,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* FLOATING TIMER BAR */}
         <FloatingTimerBar />
+
+        {/* FLOATING CHAT */}
+        <FloatingChat />
 
       </div>
     </TimerProvider>

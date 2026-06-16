@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -275,12 +275,14 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       href: "/dashboard/student-hub",
       icon: "🎓",
       children: sortChildren([
-        { label: "Supervisor Hours Review", href: "/dashboard/supervisor-hours" },
         { label: "Hour Tracker", href: "/dashboard/student-hub" },
         { label: "MVF Tracker", href: "/dashboard/student-hub" },
         { label: "My Credentials", href: "/dashboard/credentials" },
+        { label: "My Supervision Logs", href: "/dashboard/supervision" },
         { label: "SAFMEDS", href: "/dashboard/safmeds" },
-        { label: "Supervision Logs", href: "/dashboard/supervision" },
+        { label: "Student Invite", href: "/dashboard/student-invite" },
+        { label: "Supervisor Hours Review", href: "/dashboard/supervisor-hours" },
+        { label: "Training Course", href: "/dashboard/training/course" },
       ]),
     }] : []),
     ...(isSupervisor ? [{
@@ -383,7 +385,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
         { label: "Plan & Billing", href: "/dashboard/settings/billing" },
         { label: "Security", href: "/dashboard/settings/security" },
         { label: "SMS Alerts", href: "/dashboard/settings/sms" },
-        { label: "Student Analyst Hub", href: "/dashboard/student-hub" },
+
         { label: "Training Certificate", href: "/dashboard/training/certificate" },
         { label: "Referrals", href: "/dashboard/referrals" },
         { label: "Training Library", href: "/dashboard/training" },
