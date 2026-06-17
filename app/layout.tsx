@@ -1,4 +1,5 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
+import Script from "next/script";
 import { Inter } from "next/font/google";
 // @ts-ignore: allow side-effect CSS import without type declarations
 import "./globals.css";
@@ -108,7 +109,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={inter.className}>
+      <head><Script async src="https://www.googletagmanager.com/gtag/js?id=G-REXJ3JT87D" /><Script id="ga" strategy="afterInteractive" dangerouslySetInnerHTML={{__html: "window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag(String.fromCharCode(106,115),new Date());gtag(String.fromCharCode(99,111,110,102,105,103),String.fromCharCode(71,45,82,69,88,74,51,74,84,56,55,68));"}} /></head><body className={inter.className}>
         {children}
       </body>
     </html>
