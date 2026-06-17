@@ -1,4 +1,4 @@
-import { MetadataRoute } from "next";
+﻿import { MetadataRoute } from "next";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = "https://aba-ai-assistant.com";
@@ -14,3 +14,4 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/hipaa`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.4 },
   ];
 }
+
