@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase/client";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type TimeEntry = {
   id: string; client_id: string; date: string;
@@ -13,15 +14,16 @@ type TimeEntry = {
   drive_time_minutes: number; drive_time_billable: boolean;
   status: string; approved_at: string | null; billed_at: string | null;
   location_name: string | null;
+  insurance_provider?: string | null;
   clients?: { full_name: string };
   profiles?: { full_name: string };
 };
 
 export default function ApprovedBillingPage() {
+  const router = useRouter();
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState("");
-  const [userId, setUserId] = useState("");
   const [saving, setSaving] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<"approved" | "billed">("approved");
@@ -32,7 +34,6 @@ export default function ApprovedBillingPage() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
-    setUserId(user.id);
     const { data: cu } = await supabase.from("company_users").select("company_id")
       .eq("user_id", user.id).eq("status", "active").limit(1).maybeSingle();
     setCompanyId(cu?.company_id ?? "");
@@ -63,10 +64,23 @@ export default function ApprovedBillingPage() {
     setSaving(null);
   }
 
+  function generateCMS1500(entry: TimeEntry) {
+    const params = new URLSearchParams({
+      client_id: entry.client_id,
+      client_name: entry.clients?.full_name ?? "",
+      cpt_code: entry.cpt_code ?? "97153",
+      date: entry.date,
+      duration_minutes: String(entry.duration_minutes),
+      session_type: entry.session_type,
+      location: entry.location_name ?? "",
+      time_entry_id: entry.id,
+    });
+    router.push(`/dashboard/billing/cms1500?${params.toString()}`);
+  }
+
   function exportCSV() {
     const rows = filtered.map(e => [
       e.clients?.full_name ?? "",
-      e.profiles?.full_name ?? "",
       e.date,
       e.start_time ? new Date(e.start_time).toLocaleTimeString() : "",
       e.end_time ? new Date(e.end_time).toLocaleTimeString() : "",
@@ -78,7 +92,7 @@ export default function ApprovedBillingPage() {
       e.status,
       e.location_name ?? "",
     ]);
-    const header = ["Client", "RBT", "Date", "Start", "End", "Duration (min)", "Session Type", "CPT Code", "Drive Time (min)", "Drive Billable", "Status", "Location"];
+    const header = ["Client", "Date", "Start", "End", "Duration (min)", "Session Type", "CPT Code", "Drive Time (min)", "Drive Billable", "Status", "Location"];
     const csv = [header, ...rows].map(r => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -101,6 +115,9 @@ export default function ApprovedBillingPage() {
       <PageHeader title="Billing">
         <div className="flex gap-2">
           <Button variant="outline" onClick={exportCSV}>📥 Export CSV</Button>
+          <Link href="/dashboard/billing/cms1500">
+            <Button variant="outline">📄 CMS-1500 Claims</Button>
+          </Link>
           <Link href="/dashboard/session-review">
             <Button variant="outline">‹ Review Queue</Button>
           </Link>
@@ -173,19 +190,23 @@ export default function ApprovedBillingPage() {
                 <span>📅 {entry.date}</span>
                 <span>⏱️ {fmt(entry.duration_minutes)}</span>
                 <span>{entry.session_type}</span>
-                {entry.profiles && <span>RBT: {entry.profiles.full_name}</span>}
                 {entry.drive_time_minutes > 0 && <span>🚗 {entry.drive_time_minutes}min{entry.drive_time_billable ? " (billable)" : ""}</span>}
                 {entry.location_name && <span>📍 {entry.location_name}</span>}
               </div>
             </div>
-            {activeTab === "approved" && (
-              <Button onClick={() => markBilled([entry.id])} loading={saving === entry.id}>
-                Bill
+            <div className="flex gap-2 shrink-0">
+              <Button variant="outline" onClick={() => generateCMS1500(entry)}>
+                📄 CMS-1500
               </Button>
-            )}
-            {activeTab === "billed" && entry.billed_at && (
-              <span className="text-xs text-gray-400">Billed {fmtDate(entry.billed_at)}</span>
-            )}
+              {activeTab === "approved" && (
+                <Button onClick={() => markBilled([entry.id])} loading={saving === entry.id}>
+                  Bill
+                </Button>
+              )}
+              {activeTab === "billed" && entry.billed_at && (
+                <span className="text-xs text-gray-400">Billed {fmtDate(entry.billed_at)}</span>
+              )}
+            </div>
           </div>
         ))}
       </div>
