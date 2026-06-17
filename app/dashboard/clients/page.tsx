@@ -396,7 +396,11 @@ export default function ClientsPage() {
               <div className="p-4">
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
                     <p className="font-semibold text-gray-800 truncate">{client.full_name}</p>
+                    <Link href={`/dashboard/clients/${client.id}`} onClick={e => e.stopPropagation()}
+                      className="text-xs text-blue-500 hover:underline shrink-0">View Profile →</Link>
+                  </div>
                     {age !== null && <p className="text-xs text-gray-400 mt-0.5">Age: {age}</p>}
                     {client.guardian_name && <p className="text-xs text-gray-400 truncate">Guardian: {client.guardian_name}</p>}
                     {client.diagnosis && (
@@ -531,3 +535,4 @@ export default function ClientsPage() {
     </div>
   );
 }
+
