@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -7,6 +7,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
 import { useRole } from "@/lib/hooks/useRole";
+import { useRouter } from "next/navigation";
 import { usePlanGate } from "@/lib/hooks/usePlanGate";
 import UpgradePrompt from "@/components/ui/UpgradePrompt";
 
