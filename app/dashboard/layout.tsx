@@ -32,6 +32,31 @@ function SkeletonLoader() {
   );
 }
 
+function PendingScreen() {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+      <div className="w-full max-w-md bg-white border border-yellow-100 rounded-2xl shadow-lg p-8 text-center space-y-6">
+        <div className="text-5xl">⏳</div>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Pending Approval</h1>
+          <p className="text-gray-500 text-sm mt-2">
+            Your account is waiting for approval from your clinic administrator.
+            You will receive access once they confirm you as a team member.
+          </p>
+        </div>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-800">
+          Contact your clinic administrator and ask them to approve your account in Team Management.
+        </div>
+        <button
+          onClick={async () => { await supabase.auth.signOut(); window.location.href = "/login"; }}
+          className="block w-full py-3 border border-gray-200 text-gray-600 rounded-xl font-medium text-sm hover:bg-gray-50 transition-colors">
+          Sign Out
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ExpiredScreen({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
@@ -76,6 +101,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [loading, setLoading] = useState(true);
   const [expired, setExpired] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [pending, setPending] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -221,3 +247,4 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </TimerProvider>
   );
 }
+
