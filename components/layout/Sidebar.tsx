@@ -270,7 +270,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
         { label: "Visual Supports", href: "/dashboard/visual-supports" },
       ]),
     }] : []),
-    ...(isStudentAnalyst ? [{
+    ...((isStudentAnalyst || isAdmin) ? [{
       label: "Student Hub",
       href: "/dashboard/student-hub",
       icon: "🎓",
@@ -285,7 +285,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
         { label: "Training Course", href: "/dashboard/training/course" },
       ]),
     }] : []),
-    ...(isSupervisor ? [{
+    ...((isSupervisor || isAdmin) ? [{
       label: "Supervisor",
       href: "/dashboard/supervisor",
       icon: "📊",
@@ -677,3 +677,5 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
     </div>
   );
 }
+
+
