@@ -1,4 +1,5 @@
 ﻿import type { Metadata } from "next";
+import GoogleAnalytics from "@/components/GoogleAnalytics";
 
 import { Inter } from "next/font/google";
 // @ts-ignore: allow side-effect CSS import without type declarations
@@ -109,12 +110,14 @@ export default function RootLayout({
           }}
         />
       </head>
+      <GoogleAnalytics />
       <body className={inter.className}>
         {children}
       </body>
     </html>
   );
 }
+
 
 
 
