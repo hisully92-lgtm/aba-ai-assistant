@@ -1,4 +1,6 @@
-"use client";
+﻿"use client";
+// @ts-ignore
+import { useSearchParams } from "next/navigation";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -135,7 +137,8 @@ export default function StudentHubPage() {
   const [certGoal, setCertGoal] = useState<"bcba" | "bcaba">("bcba");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [activeTab, setActiveTab] = useState<"tracker" | "mvf" | "activities" | "requirements">("tracker");
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<"tracker" | "mvf" | "activities" | "requirements">((searchParams?.get("tab") as any) ?? "tracker");
   const [userId, setUserId] = useState("");
   const [companyId, setCompanyId] = useState("");
 

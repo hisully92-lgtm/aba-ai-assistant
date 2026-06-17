@@ -276,7 +276,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       icon: "🎓",
       children: sortChildren([
         { label: "Hour Tracker", href: "/dashboard/student-hub" },
-        { label: "MVF Tracker", href: "/dashboard/student-hub" },
+        { label: "MVF Tracker", href: "/dashboard/student-hub?tab=mvf" },
         { label: "My Credentials", href: "/dashboard/credentials" },
         { label: "My Supervision Logs", href: "/dashboard/supervision" },
         { label: "SAFMEDS", href: "/dashboard/safmeds" },
@@ -677,5 +677,6 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
     </div>
   );
 }
+
 
 
