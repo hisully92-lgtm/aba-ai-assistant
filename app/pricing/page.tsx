@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -164,7 +164,7 @@ export default function PricingPage() {
             <Link href="/about" className="text-sm text-gray-500 hover:text-gray-800 hidden sm:block">About</Link>
             <Link href="/contact" className="text-sm text-gray-500 hover:text-gray-800 hidden sm:block">Contact</Link>
             <Link href="/login" className="text-sm text-gray-600 hover:text-gray-800 font-medium">Sign In</Link>
-            <Link href="/login?signup=true"
+            <Link href="/onboarding"
               className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">
               Get Started
             </Link>
@@ -245,7 +245,7 @@ export default function PricingPage() {
                   ))}
                 </ul>
 
-                <Link href={`/login?signup=true&plan=${plan.id}&months=${tier.months}`}
+                <Link href={`/onboarding?plan=${plan.id}&months=${tier.months}`}
                   className={`block text-center py-2.5 rounded-xl font-semibold text-sm transition-colors ${
                     plan.highlight
                       ? "bg-blue-600 text-white hover:bg-blue-700"
