@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
+import Link from "next/link";
 import {
   BarChart,
   Bar,
@@ -272,6 +273,31 @@ export default function ERAEOBPage() {
         </Button>
       </PageHeader>
 
+      {/* BILLING FLOW */}
+      <div className="flex items-center gap-2 text-xs text-gray-400 overflow-x-auto pb-1">
+        {[
+          { label: "✅ Approved", href: "/dashboard/billing/approved" },
+          { label: "→" },
+          { label: "📄 CMS-1500", href: "/dashboard/billing/cms1500" },
+          { label: "→" },
+          { label: "🔌 Clearinghouse", href: "/dashboard/clearinghouse" },
+          { label: "→" },
+          { label: "💰 ERA/EOB", href: "" },
+        ].map((step, i) => (
+          step.label === "→" ? (
+            <span key={i} className="text-gray-300 font-bold shrink-0">→</span>
+          ) : step.href ? (
+            <Link key={i} href={step.href} className="px-3 py-1.5 rounded-full border shrink-0 border-gray-200 hover:border-blue-300 hover:text-blue-600 transition-colors">
+              {step.label}
+            </Link>
+          ) : (
+            <span key={i} className="px-3 py-1.5 rounded-full border bg-blue-600 text-white border-blue-600 shrink-0">
+              {step.label}
+            </span>
+          )
+        ))}
+      </div>
+
       {/* SUMMARY */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Section title="">
@@ -344,6 +370,19 @@ export default function ERAEOBPage() {
           <option value="pending">Pending</option>
           <option value="partial_denial">Partial Denial</option>
         </select>
+      </div>
+
+      {/* CMS-1500 LINK */}
+      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-blue-800">Post a payment from insurance?</p>
+          <p className="text-xs text-blue-600 mt-0.5">When you receive an ERA or EOB from insurance, post it here to close the billing loop.</p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <Link href="/dashboard/billing/cms1500">
+            <Button variant="outline">← Back to Claims</Button>
+          </Link>
+        </div>
       </div>
 
       {/* LIST */}

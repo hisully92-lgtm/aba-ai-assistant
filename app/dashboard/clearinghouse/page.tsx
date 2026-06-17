@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -7,6 +7,7 @@ import Section from "@/components/ui/Section";
 import { usePlanGate } from "@/lib/hooks/usePlanGate";
 import UpgradePrompt from "@/components/ui/UpgradePrompt";
 import Link from "next/link";
+import Button from "@/components/ui/Button";
 
 type Claim = {
   id: string;
@@ -200,6 +201,31 @@ export default function ClearinghousePage() {
             <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
             <p className="text-xs text-gray-500 mt-1">{stat.label}</p>
           </div>
+        ))}
+      </div>
+
+      {/* BILLING FLOW */}
+      <div className="flex items-center gap-2 text-xs text-gray-400 overflow-x-auto pb-1">
+        {[
+          { label: "✅ Approved", href: "/dashboard/billing/approved" },
+          { label: "→" },
+          { label: "📄 CMS-1500", href: "/dashboard/billing/cms1500" },
+          { label: "→" },
+          { label: "🔌 Clearinghouse", href: "" },
+          { label: "→" },
+          { label: "💰 ERA/EOB", href: "/dashboard/billing/era-eob" },
+        ].map((step, i) => (
+          step.label === "→" ? (
+            <span key={i} className="text-gray-300 font-bold shrink-0">→</span>
+          ) : step.href ? (
+            <Link key={i} href={step.href} className="px-3 py-1.5 rounded-full border shrink-0 border-gray-200 hover:border-blue-300 hover:text-blue-600 transition-colors">
+              {step.label}
+            </Link>
+          ) : (
+            <span key={i} className="px-3 py-1.5 rounded-full border bg-blue-600 text-white border-blue-600 shrink-0">
+              {step.label}
+            </span>
+          )
         ))}
       </div>
 
