@@ -19,7 +19,7 @@ interface SidebarProps {
   collapsed?: boolean;
 }
 
-const QUICK_INDEX = [
+const DEFAULT_QUICK_INDEX = [
   { label: "Dashboard", href: "/dashboard", icon: "🏠" },
   { label: "Clients", href: "/dashboard/clients", icon: "👥" },
   { label: "Schedule", href: "/dashboard/schedule", icon: "📅" },
@@ -28,6 +28,27 @@ const QUICK_INDEX = [
   { label: "BIP Plans", href: "/dashboard/bip", icon: "🧠" },
   { label: "Team", href: "/dashboard/admin", icon: "🏢" },
   { label: "Help", href: "/dashboard/help", icon: "❓" },
+];
+
+const ALL_PINNABLE = [
+  { label: "Dashboard", href: "/dashboard", icon: "🏠" },
+  { label: "Clients", href: "/dashboard/clients", icon: "👥" },
+  { label: "Schedule", href: "/dashboard/schedule", icon: "📅" },
+  { label: "Billing", href: "/dashboard/insurance", icon: "🏦" },
+  { label: "Analytics", href: "/dashboard/analytics/graphs", icon: "📈" },
+  { label: "BIP Plans", href: "/dashboard/bip", icon: "🧠" },
+  { label: "Team", href: "/dashboard/admin", icon: "🏢" },
+  { label: "Help", href: "/dashboard/help", icon: "❓" },
+  { label: "Time Entries", href: "/dashboard/time-entries", icon: "⏱️" },
+  { label: "Session Review", href: "/dashboard/session-review", icon: "📋" },
+  { label: "Training", href: "/dashboard/training", icon: "🎓" },
+  { label: "Chat", href: "/dashboard/chat", icon: "💬" },
+  { label: "Authorizations", href: "/dashboard/authorizations", icon: "🔐" },
+  { label: "CMS-1500", href: "/dashboard/billing/cms1500", icon: "📄" },
+  { label: "Accounting", href: "/dashboard/accounting", icon: "💰" },
+  { label: "Receivables", href: "/dashboard/receivables", icon: "💳" },
+  { label: "Programs", href: "/dashboard/programs", icon: "🎯" },
+  { label: "Reports", href: "/dashboard/progress-reports", icon: "📊" },
 ];
 
 function TimerToggleButton() {
@@ -48,6 +69,13 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
   const { canAccess, loading: accessLoading } = useFeatureAccess();
   const [openSections, setOpenSections] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showPinEditor, setShowPinEditor] = useState(false);
+  const [quickIndex, setQuickIndex] = useState(() => {
+    if (typeof window !== "undefined") {
+      try { const s = localStorage.getItem("quickAccessPins"); return s ? JSON.parse(s) : DEFAULT_QUICK_INDEX; } catch { return DEFAULT_QUICK_INDEX; }
+    }
+    return DEFAULT_QUICK_INDEX;
+  });
 
   async function handleLogout() {
     clearCompanyCache();
@@ -713,6 +741,10 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
     </div>
   );
 }
+
+
+
+
 
 
 
