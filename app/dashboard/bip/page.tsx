@@ -56,10 +56,9 @@ export default function BIPDashboardPage() {
       .eq("status", "active").limit(1).maybeSingle();
 
     const [{ data: clientData }, { data: bipData }] = await Promise.all([
-      supabase.from("clients").select("id, full_name, diagnosis")
-        .eq("company_id", cu?.company_id),
+      supabase.from("clients").select("id, full_name, diagnosis"),
       supabase.from("behavior_intervention_plans").select("*")
-        .eq("company_id", cu?.company_id)
+        .eq("created_by", user.id)
         .order("updated_at", { ascending: false }),
     ]);
 
@@ -353,3 +352,5 @@ export default function BIPDashboardPage() {
     </div>
   );
 }
+
+
