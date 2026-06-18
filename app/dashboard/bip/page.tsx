@@ -1,32 +1,21 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
-import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
 
 type Client = { id: string; full_name: string; diagnosis: string | null };
 type BIP = {
-  id: string;
-  client_id: string;
-  version: number;
-  status: string;
-  plan_start_date: string | null;
-  plan_end_date: string | null;
-  review_date: string | null;
-  reauth_due_date: string | null;
-  reauth_submitted: boolean;
-  reauth_approved: boolean;
-  bcba_signed: boolean;
-  caregiver_signed: boolean;
+  id: string; client_id: string; version: number; status: string;
+  plan_start_date: string | null; plan_end_date: string | null;
+  review_date: string | null; reauth_due_date: string | null;
+  reauth_submitted: boolean; reauth_approved: boolean;
+  bcba_signed: boolean; caregiver_signed: boolean;
   medical_necessity_statement: string | null;
-  recommended_hours_per_week: number;
-  lmn_obtained: boolean;
-  diagnosis_code: string | null;
-  created_at: string;
-  updated_at: string;
+  recommended_hours_per_week: number; lmn_obtained: boolean;
+  diagnosis_code: string | null; created_at: string; updated_at: string;
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -38,12 +27,22 @@ const STATUS_COLORS: Record<string, string> = {
   discontinued: "bg-red-100 text-red-600",
 };
 
+const BIP_SECTIONS = [
+  "Plan Details", "Background", "Functional Behavioral Assessment",
+  "Target Behavior", "Hypothesis", "Crisis", "Curricular Assessments",
+  "Instructional Goals", "Monitoring Outcomes and Action Plans",
+  "Service Recommendations", "Overall Comments",
+];
+
 export default function BIPDashboardPage() {
   const [bips, setBips] = useState<BIP[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState("");
   const [filterClient, setFilterClient] = useState("");
+  const [expandedClient, setExpandedClient] = useState<string | null>(null);
+  const [expandedBip, setExpandedBip] = useState<string | null>(null);
+  const [showSections, setShowSections] = useState<string | null>(null);
 
   useEffect(() => { init(); }, []);
 
@@ -52,9 +51,16 @@ export default function BIPDashboardPage() {
     const user = auth?.user;
     if (!user) return;
 
+    const { data: cu } = await supabase.from("company_users")
+      .select("company_id").eq("user_id", user.id)
+      .eq("status", "active").limit(1).maybeSingle();
+
     const [{ data: clientData }, { data: bipData }] = await Promise.all([
-      supabase.from("clients").select("id, full_name, diagnosis"),
-      supabase.from("behavior_intervention_plans").select("*").eq("created_by", user.id).order("updated_at", { ascending: false }),
+      supabase.from("clients").select("id, full_name, diagnosis")
+        .eq("company_id", cu?.company_id),
+      supabase.from("behavior_intervention_plans").select("*")
+        .eq("company_id", cu?.company_id)
+        .order("updated_at", { ascending: false }),
     ]);
 
     setClients(clientData ?? []);
@@ -62,16 +68,24 @@ export default function BIPDashboardPage() {
     setLoading(false);
   }
 
-  const clientMap = new Map(clients.map((c) => [c.id, c]));
-
   function daysUntil(date: string | null): number | null {
     if (!date) return null;
     return Math.ceil((new Date(date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   }
 
-  let filtered = bips;
-  if (filterStatus) filtered = filtered.filter((b) => b.status === filterStatus);
-  if (filterClient) filtered = filtered.filter((b) => b.client_id === filterClient);
+  const clientMap = new Map(clients.map((c) => [c.id, c]));
+
+  // Group BIPs by client
+  const bipsByClient = bips.reduce((acc, bip) => {
+    if (!acc[bip.client_id]) acc[bip.client_id] = [];
+    acc[bip.client_id].push(bip);
+    return acc;
+  }, {} as Record<string, BIP[]>);
+
+  const clientsWithBips = clients.filter(c =>
+    bipsByClient[c.id]?.length > 0 &&
+    (!filterClient || c.id === filterClient)
+  );
 
   const reauthDue = bips.filter((b) => {
     const days = daysUntil(b.reauth_due_date);
@@ -107,9 +121,7 @@ export default function BIPDashboardPage() {
           {reauthDue.map((b) => (
             <div key={b.id} className="flex items-center justify-between text-xs text-orange-600 mt-1">
               <span>{clientMap.get(b.client_id)?.full_name} — Reauth due: {b.reauth_due_date}</span>
-              <Link href={`/dashboard/bip/${b.id}`}>
-                <span className="underline">Review →</span>
-              </Link>
+              <Link href={`/dashboard/bip/${b.id}`} className="underline">Review →</Link>
             </div>
           ))}
         </div>
@@ -143,31 +155,6 @@ export default function BIPDashboardPage() {
         ))}
       </div>
 
-      {/* REAUTH CHECKLIST */}
-      <Section title="📋 Reauthorization Checklist">
-        <p className="text-xs text-gray-500 mb-3">Submit reauth packets 2–4 weeks before authorization expiration to prevent service gaps.</p>
-        <div className="space-y-2">
-          {[
-            { item: "Updated progress data with graphs showing measurable progress", doc: "Visual Analytics" },
-            { item: "BIP modifications addressing mastered skills and emerging behaviors", doc: "BIP Builder" },
-            { item: "Medical necessity statement with recommended hours", doc: "BIP Builder" },
-            { item: "Letter of Medical Necessity (LMN) signed by physician", doc: "LMN section" },
-            { item: "Current diagnosis documentation (ICD-10)", doc: "Client Profile" },
-            { item: "Caregiver training documentation and proof of collaboration", doc: "BIP Training" },
-            { item: "BCBA credentials and NPI verification", doc: "Credentials" },
-            { item: "Updated assessment results (VB-MAPP, ABLLS-R, FBA)", doc: "Assessments" },
-            { item: "Session data supporting continued medical necessity", doc: "Session Notes" },
-            { item: "Submitted to insurance portal or clearinghouse", doc: "Authorizations" },
-          ].map((item, i) => (
-            <div key={i} className="flex items-center gap-3 border border-gray-100 rounded-lg p-3 bg-white text-sm">
-              <div className="w-5 h-5 rounded border-2 border-gray-300 shrink-0" />
-              <span className="flex-1 text-gray-700">{item.item}</span>
-              <span className="text-xs text-blue-500 shrink-0">{item.doc}</span>
-            </div>
-          ))}
-        </div>
-      </Section>
-
       {/* FILTERS */}
       <div className="flex flex-wrap gap-3 items-center">
         <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)}
@@ -180,74 +167,185 @@ export default function BIPDashboardPage() {
           <option value="">All Statuses</option>
           {Object.keys(STATUS_COLORS).map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
         </select>
-        <p className="text-sm text-gray-400">{filtered.length} BIPs</p>
+        <p className="text-sm text-gray-400">{clientsWithBips.length} clients · {bips.length} BIPs</p>
       </div>
 
       {loading && <p className="text-gray-400 text-sm">Loading...</p>}
-      {!loading && filtered.length === 0 && (
-        <Section title="No BIPs Yet">
-          <p className="text-gray-400 text-sm">No behavior intervention plans found. Click "+ New BIP" to create one.</p>
-        </Section>
+
+      {!loading && clientsWithBips.length === 0 && (
+        <div className="text-center py-16 border border-dashed border-gray-200 rounded-2xl">
+          <p className="text-4xl mb-3">🧠</p>
+          <p className="text-gray-600 font-medium">No BIPs yet</p>
+          <p className="text-gray-400 text-sm mt-1">Click "+ New BIP" to create one.</p>
+        </div>
       )}
 
-      {/* BIP LIST */}
-      <div className="space-y-3">
-        {filtered.map((bip) => {
-          const client = clientMap.get(bip.client_id);
-          const reauthDays = daysUntil(bip.reauth_due_date);
-          const planDays = daysUntil(bip.plan_end_date);
-          const isReauthUrgent = reauthDays !== null && reauthDays <= 30 && !bip.reauth_submitted;
-          const isExpiring = planDays !== null && planDays <= 14;
+      {/* CLIENTS WITH STACKED BIPS */}
+      <div className="space-y-4">
+        {clientsWithBips.map(client => {
+          const clientBips = (bipsByClient[client.id] ?? [])
+            .filter(b => !filterStatus || b.status === filterStatus);
+          if (clientBips.length === 0) return null;
+          const isClientExpanded = expandedClient === client.id || expandedClient === null;
 
           return (
-            <div key={bip.id} className={`border rounded-xl bg-white ${isExpiring ? "border-red-200" : isReauthUrgent ? "border-orange-200" : "border-gray-100"}`}>
-              <div className="p-4">
-                <div className="flex justify-between items-start flex-wrap gap-3">
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-bold text-gray-800">{client?.full_name ?? "Unknown"}</p>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${STATUS_COLORS[bip.status] ?? "bg-gray-100 text-gray-600"}`}>
-                        {bip.status.replace("_", " ")}
-                      </span>
-                      <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">v{bip.version}</span>
-                      {bip.diagnosis_code && (
-                        <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{bip.diagnosis_code}</span>
-                      )}
-                    </div>
-                    <div className="flex gap-3 mt-1 text-xs text-gray-400 flex-wrap">
-                      {bip.plan_start_date && <span>Start: {bip.plan_start_date}</span>}
-                      {bip.plan_end_date && <span>End: {bip.plan_end_date}</span>}
-                      {bip.recommended_hours_per_week > 0 && <span>{bip.recommended_hours_per_week}h/week</span>}
-                    </div>
-                    <div className="flex gap-2 mt-1 flex-wrap">
-                      {bip.bcba_signed && <span className="text-xs text-green-600">✓ BCBA Signed</span>}
-                      {!bip.bcba_signed && <span className="text-xs text-orange-500">○ BCBA Unsigned</span>}
-                      {bip.caregiver_signed && <span className="text-xs text-green-600">✓ Caregiver Signed</span>}
-                      {!bip.caregiver_signed && <span className="text-xs text-orange-500">○ Caregiver Unsigned</span>}
-                      {bip.lmn_obtained && <span className="text-xs text-green-600">✓ LMN Obtained</span>}
-                    </div>
-                    {isReauthUrgent && (
-                      <p className="text-xs text-orange-600 font-medium mt-1">
-                        ⚠️ Reauth due in {reauthDays} days — submit packet now
-                      </p>
-                    )}
-                    {bip.reauth_submitted && !bip.reauth_approved && (
-                      <p className="text-xs text-blue-600 mt-1">🔄 Reauth submitted — awaiting approval</p>
-                    )}
-                    {bip.reauth_approved && (
-                      <p className="text-xs text-green-600 mt-1">✓ Reauth approved</p>
-                    )}
+            <div key={client.id} className="border border-gray-200 rounded-2xl bg-white overflow-hidden">
+              {/* CLIENT HEADER */}
+              <div
+                className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-[#1a2234] to-[#1e3a5f] cursor-pointer"
+                onClick={() => setExpandedClient(expandedClient === client.id ? null : client.id)}>
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                    {client.full_name.charAt(0)}
                   </div>
-                  <div className="flex gap-2">
-                    <Link href={`/dashboard/bip/${bip.id}`}>
-                      <Button variant="outline">View / Edit</Button>
-                    </Link>
-                    <Link href={`/dashboard/bip/${bip.id}/review`}>
-                      <Button variant="outline">Review</Button>
-                    </Link>
+                  <div>
+                    <p className="font-bold text-white">{client.full_name}</p>
+                    <p className="text-blue-300 text-xs">{client.diagnosis} · {clientBips.length} BIP{clientBips.length !== 1 ? "s" : ""}</p>
                   </div>
                 </div>
+                <div className="flex items-center gap-2">
+                  <Link href={`/dashboard/bip/new?client=${client.id}`}
+                    onClick={e => e.stopPropagation()}
+                    className="text-xs px-3 py-1.5 bg-blue-500 hover:bg-blue-400 text-white rounded-lg transition-colors">
+                    + New BIP
+                  </Link>
+                  <span className="text-white text-sm">{expandedClient === client.id ? "▲" : "▼"}</span>
+                </div>
               </div>
+
+              {/* STACKED BIPS */}
+              {(expandedClient === client.id || expandedClient === null) && (
+                <div className="divide-y divide-gray-100">
+                  {clientBips.map((bip, idx) => {
+                    const reauthDays = daysUntil(bip.reauth_due_date);
+                    const planDays = daysUntil(bip.plan_end_date);
+                    const isReauthUrgent = reauthDays !== null && reauthDays <= 30 && !bip.reauth_submitted;
+                    const isExpiring = planDays !== null && planDays <= 14;
+                    const isBipExpanded = expandedBip === bip.id;
+
+                    return (
+                      <div key={bip.id} className={`${isExpiring ? "bg-red-50" : isReauthUrgent ? "bg-orange-50" : idx % 2 === 0 ? "bg-white" : "bg-gray-50/50"}`}>
+                        {/* BIP ROW */}
+                        <div className="px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="text-center min-w-[48px]">
+                              <p className="text-xs text-gray-400">v{bip.version}</p>
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${STATUS_COLORS[bip.status] ?? "bg-gray-100 text-gray-600"}`}>
+                                {bip.status.replace("_", " ")}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap gap-2 items-center">
+                                {bip.diagnosis_code && (
+                                  <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{bip.diagnosis_code}</span>
+                                )}
+                                {bip.recommended_hours_per_week > 0 && (
+                                  <span className="text-xs text-gray-500">{bip.recommended_hours_per_week}h/week</span>
+                                )}
+                                {bip.plan_start_date && (
+                                  <span className="text-xs text-gray-400">{bip.plan_start_date} → {bip.plan_end_date}</span>
+                                )}
+                              </div>
+                              <div className="flex gap-3 mt-1 flex-wrap">
+                                <span className={`text-xs ${bip.bcba_signed ? "text-green-600" : "text-orange-500"}`}>
+                                  {bip.bcba_signed ? "✓" : "○"} BCBA
+                                </span>
+                                <span className={`text-xs ${bip.caregiver_signed ? "text-green-600" : "text-orange-500"}`}>
+                                  {bip.caregiver_signed ? "✓" : "○"} Caregiver
+                                </span>
+                                {bip.lmn_obtained && <span className="text-xs text-green-600">✓ LMN</span>}
+                                {isReauthUrgent && <span className="text-xs text-orange-600 font-medium">⚠️ Reauth in {reauthDays}d</span>}
+                                {isExpiring && <span className="text-xs text-red-600 font-medium">🚨 Expires in {planDays}d</span>}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* BIP TOOLBAR */}
+                          <div className="flex items-center gap-1 shrink-0 flex-wrap">
+                            <button onClick={() => setShowSections(showSections === bip.id ? null : bip.id)}
+                              className="text-xs px-2 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center gap-1">
+                              📋 Sections
+                            </button>
+                            <Link href={`/dashboard/bip/${bip.id}`}
+                              className="text-xs px-2 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">
+                              Edit
+                            </Link>
+                            <Link href={`/dashboard/bip/${bip.id}/review`}
+                              className="text-xs px-2 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">
+                              Preview
+                            </Link>
+                            <Link href={`/dashboard/analytics/graphs?client=${client.id}`}
+                              className="text-xs px-2 py-1.5 border border-blue-200 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100">
+                              📈 Graphs
+                            </Link>
+                            <button onClick={() => setExpandedBip(isBipExpanded ? null : bip.id)}
+                              className="text-xs text-gray-400 hover:text-gray-600 px-1">
+                              {isBipExpanded ? "▲" : "▼"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* SECTIONS PANEL */}
+                        {showSections === bip.id && (
+                          <div className="px-5 pb-3 border-t border-gray-100">
+                            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mt-2">
+                              <div className="bg-[#1a2234] px-4 py-2 flex items-center justify-between">
+                                <p className="text-white text-xs font-semibold">Behavior Plan Sections</p>
+                                <button onClick={() => setShowSections(null)} className="text-gray-400 hover:text-white text-xs">✕</button>
+                              </div>
+                              <div className="divide-y divide-gray-50">
+                                {BIP_SECTIONS.map((section, i) => (
+                                  <Link key={section}
+                                    href={`/dashboard/bip/${bip.id}?section=${encodeURIComponent(section)}`}
+                                    className={`flex items-center justify-between px-4 py-2.5 text-sm hover:bg-blue-50 hover:text-blue-700 transition-colors ${i === 0 ? "text-blue-600 font-semibold bg-blue-50" : "text-gray-700"}`}>
+                                    <span>{section}</span>
+                                    {i === 0 && <div className="w-1 h-5 bg-blue-500 rounded-full" />}
+                                  </Link>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* EXPANDED BIP DETAILS */}
+                        {isBipExpanded && (
+                          <div className="px-5 pb-4 border-t border-gray-100 pt-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {bip.medical_necessity_statement && (
+                                <div className="md:col-span-2">
+                                  <p className="text-xs font-semibold text-gray-500 mb-1">Medical Necessity Statement</p>
+                                  <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{bip.medical_necessity_statement}</p>
+                                </div>
+                              )}
+                              <div>
+                                <p className="text-xs font-semibold text-gray-500 mb-1">Review Date</p>
+                                <p className="text-sm text-gray-700">{bip.review_date ?? "—"}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold text-gray-500 mb-1">Reauth Due</p>
+                                <p className={`text-sm font-medium ${isReauthUrgent ? "text-orange-600" : "text-gray-700"}`}>
+                                  {bip.reauth_due_date ?? "—"}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex gap-2 mt-3 flex-wrap">
+                              <Link href={`/dashboard/bip/${bip.id}`}>
+                                <Button variant="outline">✏️ Edit BIP</Button>
+                              </Link>
+                              <Link href={`/dashboard/authorizations?client=${client.id}`}>
+                                <Button variant="outline">🔐 Authorizations</Button>
+                              </Link>
+                              <Link href={`/dashboard/analytics/graphs?client=${client.id}`}>
+                                <Button variant="outline">📈 View Graphs</Button>
+                              </Link>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}

@@ -78,6 +78,7 @@ export default function ClientsPage() {
   const [assignRbt, setAssignRbt] = useState("");
   const [assignSupervisor, setAssignSupervisor] = useState("");
   const [assignSaving, setAssignSaving] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
   const { isAdmin, isSupervisor, role } = useRole();
   const { canAddClient, clientCount, limits } = usePlanGate();
@@ -535,4 +536,5 @@ export default function ClientsPage() {
     </div>
   );
 }
+
 
