@@ -205,6 +205,52 @@ export default function ABAGraphsPage() {
     a.download = `graph-${selectedClientObj?.full_name ?? "client"}-${selectedGraph}-${new Date().toISOString().split("T")[0]}.png`;
     a.click();
   };
+  const [savingToBIP, setSavingToBIP] = useState(false);
+  const [savedToBIP, setSavedToBIP] = useState(false);
+  const [clientBIPs, setClientBIPs] = useState<{id: string; version: number}[]>([]);
+  const [selectedBIPId, setSelectedBIPId] = useState("");
+
+  useEffect(() => {
+    if (selectedClient) loadClientBIPs();
+  }, [selectedClient]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function loadClientBIPs() {
+    const { data } = await supabase.from("behavior_intervention_plans")
+      .select("id, version").eq("client_id", selectedClient)
+      .order("version", { ascending: false });
+    setClientBIPs(data ?? []);
+    if (data && data.length > 0) setSelectedBIPId(data[0].id);
+  }
+
+  async function saveToBIP() {
+    const el = document.getElementById("aba-chart-container");
+    if (!el || !selectedBIPId) return;
+    setSavingToBIP(true);
+    try {
+      const { default: html2canvas } = await import("html2canvas");
+      const canvas = await html2canvas(el, { backgroundColor: "#ffffff", scale: 2 });
+      const blob = await new Promise<Blob>((res) => canvas.toBlob((b) => res(b!), "image/png"));
+      const fileName = `graphs/${selectedBIPId}/${selectedGraph}-${new Date().toISOString().split("T")[0]}.png`;
+      const { error: uploadError } = await supabase.storage.from("bip-graphs").upload(fileName, blob, { upsert: true, contentType: "image/png" });
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from("bip-graphs").getPublicUrl(fileName);
+      await supabase.from("bip_graph_images").insert({
+        bip_id: selectedBIPId,
+        client_id: selectedClient,
+        graph_type: selectedGraph,
+        image_url: urlData.publicUrl,
+        date_range_from: dateFrom,
+        date_range_to: dateTo,
+        data_source: dataSource,
+      });
+      setSavedToBIP(true);
+      setTimeout(() => setSavedToBIP(false), 3000);
+    } catch (e) {
+      console.error("Save to BIP failed:", e);
+    }
+    setSavingToBIP(false);
+  }
+
   const hasData = chartData.length > 0;
 
   // Target lines to display on multi-target graphs
@@ -726,6 +772,7 @@ export default function ABAGraphsPage() {
     </div>
   );
 }
+
 
 
 
