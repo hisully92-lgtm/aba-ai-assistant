@@ -253,6 +253,8 @@ export default function BIPDetailPage({ params }: { params: { id: string } }) {
     expired: "bg-red-100 text-red-700",
   };
 
+  const BIP_SECTIONS = ["Plan Details", "Background", "Functional Behavioral Assessment", "Target Behavior", "Hypothesis", "Crisis", "Curricular Assessments", "Instructional Goals", "Monitoring Outcomes and Action Plans", "Service Recommendations", "Overall Comments"];
+  const [showSections, setShowSections] = useState(false);
   const TABS = ["overview", "behaviors", "strategies", "programs", "training", "reauth", "reviews"];
 
   if (loading) return <div className="p-8 text-gray-400">Loading BIP...</div>;
