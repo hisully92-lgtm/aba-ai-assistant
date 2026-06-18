@@ -311,6 +311,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
         { label: "SAFMEDS", href: "/dashboard/safmeds" },
         { label: "Student Invite", href: "/dashboard/student-invite" },
         { label: "Supervisor Hours Review", href: "/dashboard/supervisor-hours" },
+        { label: "Student Chat", href: "/dashboard/student-chat" },
         { label: "Training Course", href: "/dashboard/training/course" },
       ]),
     }] : []),
