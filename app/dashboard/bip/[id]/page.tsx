@@ -8,6 +8,40 @@ import Button from "@/components/ui/Button";
 import Link from "next/link";
 import jsPDF from "jspdf";
 
+function GraphsTab({ bipId, clientId }: { bipId: string; clientId: string }) {
+  const [images, setImages] = useState<any[]>([]);
+  useEffect(() => {
+    supabase.from("bip_graph_images").select("*").eq("bip_id", bipId)
+      .order("created_at", { ascending: false })
+      .then(({ data }: { data: any[] | null }) => setImages(data ?? []));
+  }, [bipId]);
+  if (images.length === 0) return (
+    <div className="text-center py-12 border border-dashed border-gray-200 rounded-2xl">
+      <p className="text-3xl mb-3">📈</p>
+      <p className="text-gray-600 font-medium">No graphs saved yet</p>
+      <p className="text-gray-400 text-sm mt-1">Go to Analytics → Graphs, select this client, and click "Save to BIP"</p>
+    </div>
+  );
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {images.map((img: any) => (
+        <div key={img.id} className="border border-gray-100 rounded-xl overflow-hidden bg-white">
+          <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+            <p className="text-xs font-semibold text-gray-700 capitalize">{img.graph_type} Graph</p>
+            <p className="text-xs text-gray-400">{img.date_range_from} → {img.date_range_to}</p>
+          </div>
+          <img src={img.image_url} alt={img.graph_type} className="w-full" />
+          <div className="px-4 py-2 flex justify-between items-center">
+            <p className="text-xs text-gray-400">{new Date(img.created_at).toLocaleDateString()}</p>
+            <a href={img.image_url} download target="_blank" rel="noopener noreferrer"
+              className="text-xs text-blue-500 hover:underline">⬇ Download</a>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 type BIP = any;
 type TargetBehavior = any;
 type SkillProgram = any;
@@ -255,7 +289,7 @@ export default function BIPDetailPage({ params }: { params: { id: string } }) {
 
   const BIP_SECTIONS = ["Plan Details", "Background", "Functional Behavioral Assessment", "Target Behavior", "Hypothesis", "Crisis", "Curricular Assessments", "Instructional Goals", "Monitoring Outcomes and Action Plans", "Service Recommendations", "Overall Comments"];
   const [showSections, setShowSections] = useState(false);
-  const TABS = ["overview", "behaviors", "strategies", "programs", "training", "reauth", "reviews"];
+  const TABS = ["overview", "behaviors", "strategies", "programs", "training", "reauth", "reviews", "graphs"];
 
   if (loading) return <div className="p-8 text-gray-400">Loading BIP...</div>;
   if (!bip) return <div className="p-8 text-red-500">BIP not found.</div>;
@@ -603,6 +637,10 @@ export default function BIPDetailPage({ params }: { params: { id: string } }) {
       )}
 
       {/* REVIEWS TAB */}
+      {/* GRAPHS TAB */}
+{activeTab === "graphs" && (
+  <GraphsTab bipId={bipId} clientId={bip?.client_id} />
+)}
       {activeTab === "reviews" && (
         <div className="space-y-3">
           <div className="flex justify-between items-center">
