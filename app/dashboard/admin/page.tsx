@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+﻿/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -238,6 +238,10 @@ export default function AdminPage() {
   }
 
   async function updateStatus(userId: string, status: string) {
+      if (userId === "a8f7b957-0aed-4e72-94e5-f4c87d27eade") {
+        alert("This account is locked and cannot have its status changed.");
+        return;
+      }
     await supabase.from("profiles").update({ status } as any).eq("id", userId);
     await supabase.from("company_users").update({ status }).eq("user_id", userId).eq("company_id", company?.id ?? "");
     if (status === "active") {
