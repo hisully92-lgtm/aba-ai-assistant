@@ -204,6 +204,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
         { label: "Insurance Providers", href: "/dashboard/insurance-providers" },
         { label: "Payroll Logs", href: "/dashboard/payroll" },
         { label: "Revenue Cycle", href: "/dashboard/billing/rcm" },
+        { label: "Receivables", href: "/dashboard/receivables" },
         { label: "Superbills", href: "/dashboard/billing/superbills" },
       ]),
     },
@@ -333,6 +334,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
         { label: "Locations", href: "/dashboard/admin/locations" },
         { label: "Macro Trends", href: "/dashboard/analytics/macro" },
         { label: "Revenue Cycle", href: "/dashboard/billing/rcm" },
+        { label: "Receivables", href: "/dashboard/receivables" },
         { label: "Staff Performance", href: "/dashboard/staff-performance" },
         { label: "Training Admin", href: "/dashboard/training/admin" },
         { label: "Visual Analytics", href: "/dashboard/analytics/graphs" },
@@ -601,9 +603,43 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
 
       {/* QUICK INDEX */}
       <div className="px-3 py-2 border-b border-[#2a3a54]">
-        <p className="text-gray-500 text-xs uppercase tracking-wide font-medium px-1 mb-1.5">Quick Access</p>
+        <div className="flex items-center justify-between px-1 mb-1.5">
+            <p className="text-gray-500 text-xs uppercase tracking-wide font-medium">Quick Access</p>
+            <button onClick={() => setShowPinEditor(p => !p)} className="text-gray-500 hover:text-white text-xs">✏️</button>
+          </div>
+          {showPinEditor && (
+            <div className="mb-2 bg-[#243044] rounded-lg p-2 max-h-40 overflow-y-auto">
+              <p className="text-gray-400 text-xs mb-1.5">Pin up to 8 items:</p>
+              <div className="space-y-1">
+                {ALL_PINNABLE.map(item => {
+                  const isPinned = quickIndex.some((q: any) => q.href === item.href);
+                  return (
+                    <button key={item.href} onClick={() => {
+                      let next;
+                      if (isPinned) {
+                        next = quickIndex.filter((q: any) => q.href !== item.href);
+                      } else if (quickIndex.length < 8) {
+                        next = [...quickIndex, item];
+                      } else return;
+                      setQuickIndex(next);
+                      localStorage.setItem("quickAccessPins", JSON.stringify(next));
+                    }}
+                    className={`w-full flex items-center gap-2 px-2 py-1 rounded text-xs transition-colors ${isPinned ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white hover:bg-[#2a3a54]"}`}>
+                      <span>{item.icon}</span>
+                      <span>{item.label}</span>
+                      {isPinned && <span className="ml-auto">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <button onClick={() => {
+                setQuickIndex(DEFAULT_QUICK_INDEX);
+                localStorage.setItem("quickAccessPins", JSON.stringify(DEFAULT_QUICK_INDEX));
+              }} className="text-xs text-gray-500 hover:text-gray-300 mt-2 underline">Reset to default</button>
+            </div>
+          )}
         <div className="grid grid-cols-4 gap-1">
-          {QUICK_INDEX.map((item) => (
+          {quickIndex.map((item) => (
             <Link key={item.href + item.label} href={item.href} onClick={handleNavClick}
               className={`flex flex-col items-center gap-0.5 py-1.5 px-1 rounded-lg text-center transition-colors ${isActive(item.href) ? "bg-[#2a3a54] text-white" : "text-gray-400 hover:text-white hover:bg-[#243044]"}`}>
               <span className="text-base">{item.icon}</span>
@@ -677,6 +713,8 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
     </div>
   );
 }
+
+
 
 
 
