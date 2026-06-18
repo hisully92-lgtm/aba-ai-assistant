@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -10,6 +10,7 @@ import {
   ReferenceLine, Legend, Label,
 } from "recharts";
 import { usePlanGate } from "@/lib/hooks/usePlanGate";
+
 
 type Client = { id: string; full_name: string };
 type DataPoint = { data_date: string; data_value: number; behavior_name: string; data_type: string };
@@ -28,6 +29,7 @@ const COLORS = ["#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c", "#0891b2"
 
 export default function ABAGraphsPage() {
   const { hasFeature, planName } = usePlanGate();
+
   const analyticsGate = hasFeature("analytics");
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState("");
@@ -192,6 +194,17 @@ export default function ABAGraphsPage() {
   }));
 
   const selectedClientObj = clients.find((c) => c.id === selectedClient);
+
+  const exportPNG = async () => {
+    const el = document.getElementById("aba-chart-container");
+    if (!el) return;
+    const { default: html2canvas } = await import("html2canvas");
+    const canvas = await html2canvas(el, { backgroundColor: "#ffffff", scale: 2 });
+    const a = document.createElement("a");
+    a.href = canvas.toDataURL("image/png");
+    a.download = `graph-${selectedClientObj?.full_name ?? "client"}-${selectedGraph}-${new Date().toISOString().split("T")[0]}.png`;
+    a.click();
+  };
   const hasData = chartData.length > 0;
 
   // Target lines to display on multi-target graphs
@@ -713,3 +726,5 @@ export default function ABAGraphsPage() {
     </div>
   );
 }
+
+
