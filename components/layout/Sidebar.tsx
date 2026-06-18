@@ -639,8 +639,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
             <div className="mb-2 bg-[#243044] rounded-lg p-2 max-h-40 overflow-y-auto">
               <p className="text-gray-400 text-xs mb-1.5">Pin up to 8 items:</p>
               <div className="space-y-1">
-                {ALL_PINNABLE.map(item => {
-                  const isPinned = quickIndex.some((q: any) => q.href === item.href);
+{ALL_PINNABLE.map((item: { label: string; href: string; icon: string }) => {                  const isPinned = quickIndex.some((q: any) => q.href === item.href);
                   return (
                     <button key={item.href} onClick={() => {
                       let next;
@@ -667,7 +666,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
             </div>
           )}
         <div className="grid grid-cols-4 gap-1">
-          {quickIndex.map((item) => (
+          {quickIndex.map((item: { label: string; href: string; icon: string }) => (
             <Link key={item.href + item.label} href={item.href} onClick={handleNavClick}
               className={`flex flex-col items-center gap-0.5 py-1.5 px-1 rounded-lg text-center transition-colors ${isActive(item.href) ? "bg-[#2a3a54] text-white" : "text-gray-400 hover:text-white hover:bg-[#243044]"}`}>
               <span className="text-base">{item.icon}</span>
@@ -741,6 +740,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
     </div>
   );
 }
+
 
 
 
