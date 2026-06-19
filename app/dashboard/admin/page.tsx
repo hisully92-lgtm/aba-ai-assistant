@@ -81,6 +81,9 @@ export default function AdminPage() {
   const [clinicianReports, setClinicianReports] = useState<ClinicianReport[]>([]);
   const [expiringAuths, setExpiringAuths] = useState<any[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
+  const [pendingChanges, setPendingChanges] = useState<Record<string, { role?: string; status?: string }>>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const LOCKED_USER_ID = "a8f7b957-0aed-4e72-94e5-f4c87d27eade";
 
   const [newCodeRole, setNewCodeRole] = useState("supervisor");
   const [newCodeExpiry, setNewCodeExpiry] = useState(() => {
@@ -231,24 +234,27 @@ export default function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  async function updateRole(userId: string, role: string) {
-    await supabase.from("profiles").update({ role } as any).eq("id", userId);
-    await supabase.from("company_users").update({ role }).eq("user_id", userId).eq("company_id", company?.id ?? "");
-    setTeam(prev => prev.map(m => m.user_id === userId ? { ...m, role } : m));
+  function stageChange(userId: string, field: "role" | "status", value: string) {
+    if (userId === LOCKED_USER_ID) return;
+    setPendingChanges(prev => ({ ...prev, [userId]: { ...prev[userId], [field]: value } }));
+    setTeam(prev => prev.map(m => m.user_id === userId ? { ...m, [field]: value } : m));
   }
 
-  async function updateStatus(userId: string, status: string) {
-      if (userId === "a8f7b957-0aed-4e72-94e5-f4c87d27eade") {
-        alert("This account is locked and cannot have its status changed.");
-        return;
-      }
-    await supabase.from("profiles").update({ status } as any).eq("id", userId);
-    await supabase.from("company_users").update({ status }).eq("user_id", userId).eq("company_id", company?.id ?? "");
-    if (status === "active") {
-      setTeam(prev => prev.map(m => m.user_id === userId ? { ...m, status } : m));
-    } else {
-      setTeam(prev => prev.filter(m => m.user_id !== userId));
+  async function saveChanges(memberId: string) {
+    const changes = pendingChanges[memberId];
+    if (!changes) return;
+    setSavingId(memberId);
+    if (changes.role) {
+      await supabase.from("profiles").update({ role: changes.role } as any).eq("id", memberId);
+      await supabase.from("company_users").update({ role: changes.role }).eq("user_id", memberId).eq("company_id", company?.id ?? "");
     }
+    if (changes.status) {
+      await supabase.from("profiles").update({ status: changes.status } as any).eq("id", memberId);
+      await supabase.from("company_users").update({ status: changes.status }).eq("user_id", memberId).eq("company_id", company?.id ?? "");
+      if (changes.status !== "active") setTeam(prev => prev.filter(m => m.user_id !== memberId));
+    }
+    setPendingChanges(prev => { const next = { ...prev }; delete next[memberId]; return next; });
+    setSavingId(null);
   }
 
   async function handleInvite() {
@@ -478,17 +484,32 @@ export default function AdminPage() {
                       </span>
                     </div>
                   </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <select value={member.role ?? ""} onChange={e => updateRole(member.user_id, e.target.value)}
-                      className="text-xs border rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300">
-                      {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
-                    <select value={member.status} onChange={e => updateStatus(member.user_id, e.target.value)}
-                      className="text-xs border rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300">
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                      <option value="suspended">Suspended</option>
-                    </select>
+                  <div className="flex gap-2 flex-wrap items-center">
+                    {member.user_id === LOCKED_USER_ID ? (
+                      <span className="text-xs px-3 py-1.5 bg-gray-100 text-gray-400 rounded-lg border border-gray-200">🔒 Locked</span>
+                    ) : (
+                      <>
+                        <select value={pendingChanges[member.user_id]?.role ?? member.role ?? ""}
+                          onChange={e => stageChange(member.user_id, "role", e.target.value)}
+                          className="text-xs border rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300">
+                          {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                        <select value={pendingChanges[member.user_id]?.status ?? member.status}
+                          onChange={e => stageChange(member.user_id, "status", e.target.value)}
+                          className="text-xs border rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300">
+                          <option value="active">Active</option>
+                          <option value="inactive">Inactive</option>
+                          <option value="suspended">Suspended</option>
+                        </select>
+                        {pendingChanges[member.user_id] && (
+                          <button onClick={() => saveChanges(member.user_id)}
+                            disabled={savingId === member.user_id}
+                            className="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50">
+                            {savingId === member.user_id ? "Saving..." : "Save"}
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -695,4 +716,7 @@ export default function AdminPage() {
     </div>
   );
 }
+
+
+
 
