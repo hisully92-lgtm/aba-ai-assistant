@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -11,21 +11,23 @@ type Post = {
   title: string;
   content: string;
   category: string;
-  anonymous: boolean;
+  identity_mode: "full" | "name_only" | "company_only" | "anonymous";
   author_name: string | null;
   company_name: string | null;
   likes: number;
+  dislikes: number;
+  pinned: boolean;
   created_at: string;
-  comment_count?: number;
 };
 
 type Comment = {
   id: string;
   post_id: string;
   content: string;
-  anonymous: boolean;
+  identity_mode: "full" | "name_only" | "company_only" | "anonymous";
   author_name: string | null;
   company_name: string | null;
+  likes: number;
   created_at: string;
 };
 
@@ -39,6 +41,34 @@ const CATEGORIES = [
   { value: "compliance", label: "🔒 Compliance", desc: "HIPAA and compliance questions" },
 ];
 
+const IDENTITY_OPTIONS = [
+  { value: "full", label: "👤 Full info", desc: "Show name + company" },
+  { value: "name_only", label: "🙋 Name only", desc: "Show your name, hide company" },
+  { value: "company_only", label: "🏢 Company only", desc: "Show clinic name, hide your name" },
+  { value: "anonymous", label: "🕵️ Anonymous", desc: "Hide everything" },
+];
+
+function getDisplayName(post: Pick<Post, "identity_mode" | "author_name" | "company_name">) {
+  switch (post.identity_mode) {
+    case "full": return { name: post.author_name ?? "Unknown", company: post.company_name };
+    case "name_only": return { name: post.author_name ?? "Unknown", company: null };
+    case "company_only": return { name: null, company: post.company_name ?? "A clinic" };
+    case "anonymous": return { name: null, company: null };
+  }
+}
+
+function DisplayLabel({ identity_mode, author_name, company_name }: { identity_mode: Post["identity_mode"]; author_name: string | null; company_name: string | null }) {
+  const { name, company } = getDisplayName({ identity_mode, author_name, company_name });
+  if (!name && !company) return <span className="text-gray-400 italic">Anonymous</span>;
+  return (
+    <span className="text-gray-500">
+      {name && <span>{name}</span>}
+      {name && company && <span className="mx-1">·</span>}
+      {company && <span>{company}</span>}
+    </span>
+  );
+}
+
 export default function CommunityPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,17 +81,18 @@ export default function CommunityPage() {
   const [companyName, setCompanyName] = useState("");
   const [userId, setUserId] = useState("");
   const [companyId, setCompanyId] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // New post form
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [category, setCategory] = useState("general");
-  const [anonymous, setAnonymous] = useState(false);
+  const [identityMode, setIdentityMode] = useState<Post["identity_mode"]>("full");
   const [posting, setPosting] = useState(false);
 
   // New comment
   const [commentText, setCommentText] = useState("");
-  const [commentAnon, setCommentAnon] = useState(false);
+  const [commentIdentity, setCommentIdentity] = useState<Post["identity_mode"]>("full");
   const [commenting, setCommenting] = useState(false);
 
   useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -73,14 +104,15 @@ export default function CommunityPage() {
     setUserId(user.id);
 
     const [{ data: profile }, { data: companyUser }, { data: optout }] = await Promise.all([
-      supabase.from("profiles").select("full_name").eq("id", user.id).single(),
-      supabase.from("company_users").select("company_id, companies(name)").eq("user_id", user.id).eq("status", "active").limit(1).maybeSingle(),
+      supabase.from("profiles").select("full_name, role").eq("id", user.id).single(),
+      supabase.from("company_users").select("company_id, role, companies(name)").eq("user_id", user.id).eq("status", "active").limit(1).maybeSingle(),
       supabase.from("community_optouts").select("id").eq("user_id", user.id).maybeSingle(),
     ]);
 
     setUserName(profile?.full_name ?? "");
     setCompanyName((companyUser?.companies as any)?.name ?? "");
     setCompanyId(companyUser?.company_id ?? "");
+    setIsAdmin(profile?.role === "admin" || companyUser?.role === "admin");
     setOptedOut(!!optout);
 
     if (!optout) loadPosts();
@@ -91,6 +123,7 @@ export default function CommunityPage() {
     const { data } = await supabase
       .from("community_posts")
       .select("*")
+      .order("pinned", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(50);
     setPosts(data ?? []);
@@ -114,26 +147,37 @@ export default function CommunityPage() {
   async function handlePost() {
     if (!title.trim() || !content.trim()) return;
     setPosting(true);
-
     await supabase.from("community_posts").insert({
       user_id: userId,
       company_id: companyId || null,
       title: title.trim(),
       content: content.trim(),
       category,
-      anonymous,
-      author_name: anonymous ? null : userName,
-      company_name: anonymous ? null : companyName,
+      identity_mode: identityMode,
+      author_name: identityMode === "anonymous" || identityMode === "company_only" ? null : userName,
+      company_name: identityMode === "anonymous" || identityMode === "name_only" ? null : companyName,
+      likes: 0,
+      dislikes: 0,
+      pinned: false,
     });
-
-    setTitle(""); setContent(""); setAnonymous(false); setShowNewPost(false);
+    setTitle(""); setContent(""); setIdentityMode("full"); setShowNewPost(false);
     await loadPosts();
     setPosting(false);
   }
 
-  async function handleLike(postId: string) {
-    await supabase.from("community_posts").update({ likes: (posts.find(p => p.id === postId)?.likes ?? 0) + 1 }).eq("id", postId);
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes + 1 } : p));
+  async function handleLike(postId: string, type: "likes" | "dislikes") {
+    const post = posts.find(p => p.id === postId);
+    if (!post) return;
+    const newVal = (post[type] ?? 0) + 1;
+    await supabase.from("community_posts").update({ [type]: newVal }).eq("id", postId);
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, [type]: newVal } : p));
+    if (selectedPost?.id === postId) setSelectedPost(prev => prev ? { ...prev, [type]: newVal } : prev);
+  }
+
+  async function handlePin(postId: string, pinned: boolean) {
+    await supabase.from("community_posts").update({ pinned: !pinned }).eq("id", postId);
+    await loadPosts();
+    if (selectedPost?.id === postId) setSelectedPost(prev => prev ? { ...prev, pinned: !pinned } : prev);
   }
 
   async function openPost(post: Post) {
@@ -145,21 +189,28 @@ export default function CommunityPage() {
   async function handleComment() {
     if (!commentText.trim() || !selectedPost) return;
     setCommenting(true);
-
     await supabase.from("community_comments").insert({
       post_id: selectedPost.id,
       user_id: userId,
       company_id: companyId || null,
       content: commentText.trim(),
-      anonymous: commentAnon,
-      author_name: commentAnon ? null : userName,
-      company_name: commentAnon ? null : companyName,
+      identity_mode: commentIdentity,
+      author_name: commentIdentity === "anonymous" || commentIdentity === "company_only" ? null : userName,
+      company_name: commentIdentity === "anonymous" || commentIdentity === "name_only" ? null : companyName,
+      likes: 0,
     });
-
-    setCommentText(""); setCommentAnon(false);
+    setCommentText(""); setCommentIdentity("full");
     const { data } = await supabase.from("community_comments").select("*").eq("post_id", selectedPost.id).order("created_at");
     setComments(data ?? []);
     setCommenting(false);
+  }
+
+  async function handleCommentLike(commentId: string) {
+    const comment = comments.find(c => c.id === commentId);
+    if (!comment) return;
+    const newVal = (comment.likes ?? 0) + 1;
+    await supabase.from("community_comments").update({ likes: newVal }).eq("id", commentId);
+    setComments(prev => prev.map(c => c.id === commentId ? { ...c, likes: newVal } : c));
   }
 
   const filteredPosts = filterCategory === "all" ? posts : posts.filter(p => p.category === filterCategory);
@@ -188,20 +239,35 @@ export default function CommunityPage() {
         </PageHeader>
 
         <div className="border border-gray-100 rounded-2xl p-6 bg-white">
-          <div className="flex items-start justify-between mb-3">
-            <span className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded-full">
-              {CATEGORIES.find(c => c.value === selectedPost.category)?.label ?? selectedPost.category}
-            </span>
+          <div className="flex items-start justify-between mb-3 flex-wrap gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded-full">
+                {CATEGORIES.find(c => c.value === selectedPost.category)?.label ?? selectedPost.category}
+              </span>
+              {selectedPost.pinned && <span className="text-xs px-2 py-1 bg-yellow-50 text-yellow-700 rounded-full">📌 Pinned</span>}
+            </div>
             <span className="text-xs text-gray-400">{new Date(selectedPost.created_at).toLocaleDateString()}</span>
           </div>
           <h2 className="text-xl font-bold text-gray-900 mb-3">{selectedPost.title}</h2>
           <p className="text-gray-600 text-sm leading-relaxed mb-4 whitespace-pre-wrap">{selectedPost.content}</p>
-          <div className="flex items-center gap-4 text-xs text-gray-400 border-t pt-3">
-            <span>{selectedPost.anonymous ? "Anonymous" : selectedPost.author_name ?? "Unknown"}</span>
-            {!selectedPost.anonymous && selectedPost.company_name && <span>· {selectedPost.company_name}</span>}
-            <button onClick={() => handleLike(selectedPost.id)} className="ml-auto flex items-center gap-1 hover:text-red-500 transition-colors">
-              ❤️ {selectedPost.likes}
-            </button>
+          <div className="flex items-center gap-3 text-xs border-t pt-3 flex-wrap">
+            <DisplayLabel identity_mode={selectedPost.identity_mode} author_name={selectedPost.author_name} company_name={selectedPost.company_name} />
+            <div className="ml-auto flex items-center gap-2">
+              {isAdmin && (
+                <button onClick={() => handlePin(selectedPost.id, selectedPost.pinned)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg border border-yellow-200 text-yellow-600 hover:bg-yellow-50 transition-colors">
+                  {selectedPost.pinned ? "📌 Unpin" : "📌 Pin"}
+                </button>
+              )}
+              <button onClick={() => handleLike(selectedPost.id, "likes")}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg border border-green-200 text-green-600 hover:bg-green-50 transition-colors">
+                👍 {selectedPost.likes ?? 0}
+              </button>
+              <button onClick={() => handleLike(selectedPost.id, "dislikes")}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-colors">
+                👎 {selectedPost.dislikes ?? 0}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -211,10 +277,13 @@ export default function CommunityPage() {
             {comments.map(c => (
               <div key={c.id} className="border border-gray-100 rounded-xl p-3 bg-white">
                 <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.content}</p>
-                <div className="flex gap-2 text-xs text-gray-400 mt-2">
-                  <span>{c.anonymous ? "Anonymous" : c.author_name ?? "Unknown"}</span>
-                  {!c.anonymous && c.company_name && <span>· {c.company_name}</span>}
+                <div className="flex items-center gap-2 text-xs text-gray-400 mt-2">
+                  <DisplayLabel identity_mode={c.identity_mode} author_name={c.author_name} company_name={c.company_name} />
                   <span className="ml-auto">{new Date(c.created_at).toLocaleDateString()}</span>
+                  <button onClick={() => handleCommentLike(c.id)}
+                    className="flex items-center gap-1 hover:text-green-600 transition-colors">
+                    👍 {c.likes ?? 0}
+                  </button>
                 </div>
               </div>
             ))}
@@ -225,11 +294,17 @@ export default function CommunityPage() {
               placeholder="Write a comment..."
               rows={3}
               className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
-                <input type="checkbox" checked={commentAnon} onChange={e => setCommentAnon(e.target.checked)} />
-                Post anonymously
-              </label>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1">
+                {IDENTITY_OPTIONS.map(opt => (
+                  <button key={opt.value}
+                    onClick={() => setCommentIdentity(opt.value as Post["identity_mode"])}
+                    title={opt.desc}
+                    className={`text-xs px-2 py-1 rounded-full border transition-colors ${commentIdentity === opt.value ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-500 border-gray-200 hover:border-blue-300"}`}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
               <Button onClick={handleComment} loading={commenting} disabled={!commentText.trim()}>
                 Post Comment
               </Button>
@@ -255,7 +330,7 @@ export default function CommunityPage() {
       </PageHeader>
 
       <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
-        🌐 Connect with other ABA clinics, share clinical tips, and find BCBA supervisors. Posts marked anonymous hide your name and clinic.
+        🌐 Connect with other ABA clinics, share clinical tips, and find BCBA supervisors. Choose how much of your identity to share on each post.
       </div>
 
       {showNewPost && (
@@ -272,11 +347,25 @@ export default function CommunityPage() {
               placeholder="Share your thoughts, questions, or resources..."
               rows={5}
               className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-                <input type="checkbox" checked={anonymous} onChange={e => setAnonymous(e.target.checked)} />
-                Post anonymously (hides your name and clinic)
-              </label>
+
+            <div>
+              <p className="text-xs font-medium text-gray-600 mb-1.5">Who sees your identity?</p>
+              <div className="flex flex-wrap gap-2">
+                {IDENTITY_OPTIONS.map(opt => (
+                  <button key={opt.value}
+                    onClick={() => setIdentityMode(opt.value as Post["identity_mode"])}
+                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${identityMode === opt.value ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-500 border-gray-200 hover:border-blue-300"}`}>
+                    {opt.label}
+                    <span className="ml-1 opacity-70">— {opt.desc}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-1.5">
+                Posting as: {identityMode === "full" ? `${userName} · ${companyName}` : identityMode === "name_only" ? userName : identityMode === "company_only" ? companyName : "Anonymous"}
+              </p>
+            </div>
+
+            <div className="flex justify-end">
               <Button onClick={handlePost} loading={posting} disabled={!title.trim() || !content.trim()}>
                 Post
               </Button>
@@ -285,7 +374,6 @@ export default function CommunityPage() {
         </Section>
       )}
 
-      {/* CATEGORY FILTER */}
       <div className="flex gap-2 overflow-x-auto pb-1">
         <button onClick={() => setFilterCategory("all")}
           className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${filterCategory === "all" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
@@ -299,7 +387,6 @@ export default function CommunityPage() {
         ))}
       </div>
 
-      {/* POSTS */}
       <div className="space-y-3">
         {filteredPosts.length === 0 && (
           <div className="text-center py-12 text-gray-400">
@@ -310,19 +397,24 @@ export default function CommunityPage() {
         {filteredPosts.map(post => (
           <div key={post.id}
             onClick={() => openPost(post)}
-            className="border border-gray-100 rounded-2xl p-5 bg-white hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer">
-            <div className="flex items-start justify-between mb-2">
-              <span className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded-full">
-                {CATEGORIES.find(c => c.value === post.category)?.label ?? post.category}
-              </span>
+            className={`border rounded-2xl p-5 bg-white hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer ${post.pinned ? "border-yellow-200 bg-yellow-50/30" : "border-gray-100"}`}>
+            <div className="flex items-start justify-between mb-2 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded-full">
+                  {CATEGORIES.find(c => c.value === post.category)?.label ?? post.category}
+                </span>
+                {post.pinned && <span className="text-xs px-2 py-1 bg-yellow-50 text-yellow-700 rounded-full">📌 Pinned</span>}
+              </div>
               <span className="text-xs text-gray-400">{new Date(post.created_at).toLocaleDateString()}</span>
             </div>
             <h3 className="font-semibold text-gray-900 mb-1">{post.title}</h3>
             <p className="text-sm text-gray-500 line-clamp-2">{post.content}</p>
-            <div className="flex items-center gap-3 mt-3 text-xs text-gray-400">
-              <span>{post.anonymous ? "Anonymous" : post.author_name ?? "Unknown"}</span>
-              {!post.anonymous && post.company_name && <span>· {post.company_name}</span>}
-              <span className="ml-auto flex items-center gap-1">❤️ {post.likes}</span>
+            <div className="flex items-center gap-3 mt-3 text-xs">
+              <DisplayLabel identity_mode={post.identity_mode} author_name={post.author_name} company_name={post.company_name} />
+              <div className="ml-auto flex items-center gap-2 text-gray-400">
+                <span>👍 {post.likes ?? 0}</span>
+                <span>👎 {post.dislikes ?? 0}</span>
+              </div>
             </div>
           </div>
         ))}
