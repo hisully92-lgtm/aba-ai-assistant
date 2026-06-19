@@ -36,15 +36,8 @@ type Assignment = {
 const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 
 const emptyForm = {
-  name: "",
-  address: "",
-  city: "",
-  state: "",
-  zip: "",
-  phone: "",
-  lat: "",
-  lng: "",
-  radius: "300",
+  name: "", address: "", city: "", state: "", zip: "",
+  phone: "", lat: "", lng: "", radius: "300",
 };
 
 export default function LocationsPage() {
@@ -60,6 +53,7 @@ export default function LocationsPage() {
   const [coordForm, setCoordForm] = useState({ lat: "", lng: "", radius: "300" });
   const [savingCoords, setSavingCoords] = useState(false);
   const [companyId, setCompanyId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => { init(); }, []);
 
@@ -67,13 +61,15 @@ export default function LocationsPage() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return;
+    setUserId(user.id);
 
     const { data: companyUser } = await supabase
       .from("company_users")
       .select("company_id")
       .eq("user_id", user.id)
       .eq("status", "active")
-      .single();
+      .limit(1)
+      .maybeSingle();
 
     if (!companyUser?.company_id) return;
     setCompanyId(companyUser.company_id);
@@ -94,35 +90,34 @@ export default function LocationsPage() {
     if (!form.name || !companyId) return;
     setSaving(true);
 
-    const { data: auth } = await supabase.auth.getUser();
-    const user = auth?.user;
-    if (!user) return;
+    const res = await fetch("/api/admin/save-location", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        companyId,
+        name: form.name,
+        address: form.address || null,
+        city: form.city || null,
+        state: form.state || null,
+        zip: form.zip || null,
+        phone: form.phone || null,
+        lat: form.lat || null,
+        lng: form.lng || null,
+        radius: form.radius || "300",
+        createdBy: userId,
+      }),
+    });
 
-    const { data, error } = await supabase.from("locations").insert([{
-      name: form.name,
-      address: form.address || null,
-      city: form.city || null,
-      state: form.state || null,
-      zip: form.zip || null,
-      phone: form.phone || null,
-      lat: form.lat ? parseFloat(form.lat) : null,
-      lng: form.lng ? parseFloat(form.lng) : null,
-      radius: form.radius ? parseInt(form.radius) : 300,
-      company_id: companyId,
-      is_active: true,
-      created_by: user.id,
-    }]).select().maybeSingle();
-
-    if (error) {
-        console.error("Location save error:", error);
-        alert("Failed to save: " + error.message);
-      } else if (data) {
-        setLocations((prev) => [...prev, data]);
-        setForm(emptyForm);
-        setShowForm(false);
-      }
-      setSaving(false);
+    const result = await res.json();
+    if (!res.ok) {
+      alert("Failed to save location: " + result.error);
+    } else if (result.data) {
+      setLocations(prev => [...prev, result.data]);
+      setForm(emptyForm);
+      setShowForm(false);
     }
+    setSaving(false);
+  }
 
   async function saveCoords(locationId: string) {
     setSavingCoords(true);
@@ -130,8 +125,7 @@ export default function LocationsPage() {
       lat: coordForm.lat ? parseFloat(coordForm.lat) : null,
       lng: coordForm.lng ? parseFloat(coordForm.lng) : null,
       radius: coordForm.radius ? parseInt(coordForm.radius) : 300,
-    }).eq("id", locationId).select().single();
-
+    }).eq("id", locationId).select().maybeSingle();
     if (data) setLocations(prev => prev.map(l => l.id === locationId ? data : l));
     setEditingCoords(null);
     setSavingCoords(false);
@@ -139,31 +133,29 @@ export default function LocationsPage() {
 
   async function toggleLocation(id: string, is_active: boolean) {
     await supabase.from("locations").update({ is_active: !is_active }).eq("id", id);
-    setLocations((prev) => prev.map((l) => l.id === id ? { ...l, is_active: !is_active } : l));
+    setLocations(prev => prev.map(l => l.id === id ? { ...l, is_active: !is_active } : l));
   }
 
   async function deleteLocation(id: string) {
+    if (!confirm("Delete this location? This cannot be undone.")) return;
     await supabase.from("locations").delete().eq("id", id);
-    setLocations((prev) => prev.filter((l) => l.id !== id));
+    setLocations(prev => prev.filter(l => l.id !== id));
   }
 
   async function toggleAssignment(userId: string, locationId: string) {
-    const existing = assignments.find((a) => a.user_id === userId && a.location_id === locationId);
+    const existing = assignments.find(a => a.user_id === userId && a.location_id === locationId);
     if (existing) {
       await supabase.from("user_location_assignments").delete()
         .eq("user_id", userId).eq("location_id", locationId);
-      setAssignments((prev) => prev.filter((a) => !(a.user_id === userId && a.location_id === locationId)));
+      setAssignments(prev => prev.filter(a => !(a.user_id === userId && a.location_id === locationId)));
     } else {
-      const { data: auth } = await supabase.auth.getUser();
-      const user = auth?.user;
-      const isPrimary = !assignments.find((a) => a.user_id === userId);
+      const isPrimary = !assignments.find(a => a.user_id === userId);
       const { data } = await supabase.from("user_location_assignments").insert([{
         user_id: userId,
         location_id: locationId,
         is_primary: isPrimary,
-        created_by: user?.id,
       }]).select().maybeSingle();
-      if (data) setAssignments((prev) => [...prev, data]);
+      if (data) setAssignments(prev => [...prev, data]);
     }
   }
 
@@ -171,21 +163,21 @@ export default function LocationsPage() {
     await supabase.from("user_location_assignments").update({ is_primary: false }).eq("user_id", userId);
     await supabase.from("user_location_assignments").update({ is_primary: true })
       .eq("user_id", userId).eq("location_id", locationId);
-    setAssignments((prev) => prev.map((a) =>
+    setAssignments(prev => prev.map(a =>
       a.user_id === userId ? { ...a, is_primary: a.location_id === locationId } : a
     ));
   }
 
   function isAssigned(userId: string, locationId: string) {
-    return assignments.some((a) => a.user_id === userId && a.location_id === locationId);
+    return assignments.some(a => a.user_id === userId && a.location_id === locationId);
   }
 
   function isPrimary(userId: string, locationId: string) {
-    return assignments.some((a) => a.user_id === userId && a.location_id === locationId && a.is_primary);
+    return assignments.some(a => a.user_id === userId && a.location_id === locationId && a.is_primary);
   }
 
   function getUsersForLocation(locationId: string) {
-    return profiles.filter((p) => isAssigned(p.id, locationId));
+    return profiles.filter(p => isAssigned(p.id, locationId));
   }
 
   const roleColor: Record<string, string> = {
@@ -211,68 +203,66 @@ export default function LocationsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <label className="text-sm font-medium text-gray-700 mb-1 block">Location Name *</label>
-              <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+              <input type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
                 placeholder="e.g. Main Clinic, North Office"
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div className="md:col-span-2">
               <label className="text-sm font-medium text-gray-700 mb-1 block">Address</label>
-              <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })}
+              <input type="text" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}
                 placeholder="Street address"
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">City</label>
-              <input type="text" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })}
+              <input type="text" value={form.city} onChange={e => setForm({ ...form, city: e.target.value })}
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">State</label>
-                <select value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })}
+                <select value={form.state} onChange={e => setForm({ ...form, state: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                   <option value="">Select...</option>
-                  {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">ZIP</label>
-                <input type="text" value={form.zip} onChange={(e) => setForm({ ...form, zip: e.target.value })}
+                <input type="text" value={form.zip} onChange={e => setForm({ ...form, zip: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
               </div>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Phone</label>
-              <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div />
             <div className="md:col-span-2 border-t border-gray-100 pt-4">
-              <p className="text-sm font-semibold text-gray-700 mb-3">Geofence Coordinates (optional)</p>
+              <p className="text-sm font-semibold text-gray-700 mb-1">Geofence Coordinates (optional)</p>
               <p className="text-xs text-gray-400 mb-3">
-                Add GPS coordinates to enable geofence clock-in verification. Find coordinates at{" "}
-                <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">maps.google.com</a>{" "}
-                â€” right-click your location and copy the coordinates.
+                Find coordinates at <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">maps.google.com</a> — right-click your location and copy the coordinates.
               </p>
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs font-medium text-gray-600 mb-1 block">Latitude</label>
                   <input type="number" step="0.000001" value={form.lat}
-                    onChange={(e) => setForm({ ...form, lat: e.target.value })}
+                    onChange={e => setForm({ ...form, lat: e.target.value })}
                     placeholder="e.g. 38.3032"
                     className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-600 mb-1 block">Longitude</label>
                   <input type="number" step="0.000001" value={form.lng}
-                    onChange={(e) => setForm({ ...form, lng: e.target.value })}
+                    onChange={e => setForm({ ...form, lng: e.target.value })}
                     placeholder="e.g. -77.4605"
                     className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-600 mb-1 block">Radius (meters)</label>
                   <input type="number" value={form.radius}
-                    onChange={(e) => setForm({ ...form, radius: e.target.value })}
+                    onChange={e => setForm({ ...form, radius: e.target.value })}
                     placeholder="300"
                     className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
                 </div>
@@ -289,7 +279,7 @@ export default function LocationsPage() {
       {loading && <p className="text-gray-400 text-sm">Loading...</p>}
 
       <div className="space-y-4">
-        {locations.map((loc) => {
+        {locations.map(loc => {
           const assignedUsers = getUsersForLocation(loc.id);
           const isExpanded = expandedLocation === loc.id;
           const hasCoords = loc.lat && loc.lng;
@@ -306,7 +296,7 @@ export default function LocationsPage() {
                       </span>
                       {hasCoords ? (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                          ðŸ“ Geofence set ({loc.radius ?? 300}m)
+                          Geofence set ({loc.radius ?? 300}m)
                         </span>
                       ) : (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">
@@ -337,11 +327,11 @@ export default function LocationsPage() {
                       });
                     }}
                       className="px-3 py-1.5 border border-blue-200 text-blue-600 rounded-lg text-xs hover:bg-blue-50">
-                      ðŸ“ {hasCoords ? "Edit Coords" : "Set Coords"}
+                      {hasCoords ? "Edit Coords" : "Set Coords"}
                     </button>
                     <button onClick={() => setExpandedLocation(isExpanded ? null : loc.id)}
                       className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 hover:bg-gray-50">
-                      {isExpanded ? "â–² Hide Staff" : "â–¼ Manage Staff"}
+                      {isExpanded ? "Hide Staff" : "Manage Staff"}
                     </button>
                     <button onClick={() => toggleLocation(loc.id, loc.is_active)}
                       className={`px-3 py-1.5 border rounded-lg text-xs ${loc.is_active ? "border-orange-200 text-orange-600 hover:bg-orange-50" : "border-green-200 text-green-600 hover:bg-green-50"}`}>
@@ -354,14 +344,11 @@ export default function LocationsPage() {
                   </div>
                 </div>
 
-                {/* COORDS EDITOR */}
                 {editingCoords === loc.id && (
                   <div className="mt-4 border border-blue-100 rounded-xl p-4 bg-blue-50">
                     <p className="text-sm font-semibold text-blue-700 mb-2">Geofence Coordinates</p>
                     <p className="text-xs text-blue-500 mb-3">
-                      Find coordinates at{" "}
-                      <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="underline">maps.google.com</a>{" "}
-                      â€” right-click your clinic location and copy the lat/lng.
+                      Find coordinates at <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="underline">maps.google.com</a> — right-click your clinic location and copy the lat/lng.
                     </p>
                     <div className="grid grid-cols-3 gap-3 mb-3">
                       <div>
@@ -393,12 +380,11 @@ export default function LocationsPage() {
                   </div>
                 )}
 
-                {/* STAFF ASSIGNMENT */}
                 {isExpanded && (
                   <div className="mt-4 border-t border-gray-100 pt-4">
                     <p className="text-sm font-semibold text-gray-700 mb-3">Staff Access for {loc.name}</p>
                     <div className="space-y-2">
-                      {profiles.map((profile) => {
+                      {profiles.map(profile => {
                         const assigned = isAssigned(profile.id, loc.id);
                         const primary = isPrimary(profile.id, loc.id);
                         return (
@@ -415,7 +401,7 @@ export default function LocationsPage() {
                                       {profile.role}
                                     </span>
                                   )}
-                                  {primary && <span className="text-xs text-blue-600 font-medium">â­ Primary</span>}
+                                  {primary && <span className="text-xs text-blue-600 font-medium">Primary</span>}
                                 </div>
                               </div>
                             </div>
@@ -428,7 +414,7 @@ export default function LocationsPage() {
                               )}
                               <button onClick={() => toggleAssignment(profile.id, loc.id)}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${assigned ? "bg-blue-600 text-white hover:bg-blue-700" : "border border-gray-300 text-gray-600 hover:border-blue-400"}`}>
-                                {assigned ? "âœ“ Assigned" : "+ Assign"}
+                                {assigned ? "Assigned" : "+ Assign"}
                               </button>
                             </div>
                           </div>
@@ -444,16 +430,11 @@ export default function LocationsPage() {
 
         {!loading && locations.length === 0 && (
           <div className="text-center py-12 border border-dashed border-gray-200 rounded-2xl">
-            <p className="text-4xl mb-3">ðŸ¢</p>
             <p className="text-gray-600 font-medium">No locations yet</p>
-            <p className="text-gray-400 text-sm mt-1">Add your first location to assign staff and enable geofencing</p>
+            <p className="text-gray-400 text-sm mt-1">Add your first location to assign staff and enable geofencing.</p>
           </div>
         )}
       </div>
     </div>
   );
 }
-
-
-
-
