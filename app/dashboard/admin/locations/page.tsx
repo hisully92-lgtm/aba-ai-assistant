@@ -18,6 +18,7 @@ type Location = {
   lng: number | null;
   radius: number | null;
   is_active: boolean;
+  payment_status: string;
 };
 
 type Profile = {
@@ -47,6 +48,8 @@ export default function LocationsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [billingType, setBillingType] = useState<"addon" | "separate" | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [expandedLocation, setExpandedLocation] = useState<string | null>(null);
   const [editingCoords, setEditingCoords] = useState<string | null>(null);
@@ -54,6 +57,7 @@ export default function LocationsPage() {
   const [savingCoords, setSavingCoords] = useState(false);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [processingPayment, setProcessingPayment] = useState(false);
 
   useEffect(() => { init(); }, []);
 
@@ -86,10 +90,68 @@ export default function LocationsPage() {
     setLoading(false);
   }
 
+  function handleAddLocationClick() {
+    if (locations.length === 0) {
+      // First location is free
+      setShowForm(true);
+    } else {
+      // Additional locations require payment
+      setShowPaymentModal(true);
+      setBillingType(null);
+    }
+  }
+
+  async function handlePaymentProceed() {
+    if (!billingType || !form.name || !companyId) {
+      // Show form first to get location name
+      setShowPaymentModal(false);
+      setShowForm(true);
+      return;
+    }
+    await processPayment();
+  }
+
+  async function processPayment() {
+    if (!companyId || !form.name) return;
+    setProcessingPayment(true);
+
+    const { data: auth } = await supabase.auth.getUser();
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+
+    const res = await fetch("/api/square/location-checkout", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        companyId,
+        locationName: form.name,
+        billingType,
+      }),
+    });
+
+    const result = await res.json();
+    if (!res.ok) {
+      alert("Payment setup failed: " + result.error);
+      setProcessingPayment(false);
+      return;
+    }
+
+    // Redirect to Square checkout
+    window.location.href = result.url;
+  }
+
   async function handleSave() {
     if (!form.name || !companyId) return;
-    setSaving(true);
 
+    // If this is an additional location, require payment first
+    if (locations.length >= 1 && !billingType) {
+      setShowPaymentModal(true);
+      return;
+    }
+
+    setSaving(true);
     const res = await fetch("/api/admin/save-location", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -115,6 +177,7 @@ export default function LocationsPage() {
       setLocations(prev => [...prev, result.data]);
       setForm(emptyForm);
       setShowForm(false);
+      setBillingType(null);
     }
     setSaving(false);
   }
@@ -142,16 +205,16 @@ export default function LocationsPage() {
     setLocations(prev => prev.filter(l => l.id !== id));
   }
 
-  async function toggleAssignment(userId: string, locationId: string) {
-    const existing = assignments.find(a => a.user_id === userId && a.location_id === locationId);
+  async function toggleAssignment(uid: string, locationId: string) {
+    const existing = assignments.find(a => a.user_id === uid && a.location_id === locationId);
     if (existing) {
       await supabase.from("user_location_assignments").delete()
-        .eq("user_id", userId).eq("location_id", locationId);
-      setAssignments(prev => prev.filter(a => !(a.user_id === userId && a.location_id === locationId)));
+        .eq("user_id", uid).eq("location_id", locationId);
+      setAssignments(prev => prev.filter(a => !(a.user_id === uid && a.location_id === locationId)));
     } else {
-      const isPrimary = !assignments.find(a => a.user_id === userId);
+      const isPrimary = !assignments.find(a => a.user_id === uid);
       const { data } = await supabase.from("user_location_assignments").insert([{
-        user_id: userId,
+        user_id: uid,
         location_id: locationId,
         is_primary: isPrimary,
       }]).select().maybeSingle();
@@ -159,21 +222,21 @@ export default function LocationsPage() {
     }
   }
 
-  async function setPrimary(userId: string, locationId: string) {
-    await supabase.from("user_location_assignments").update({ is_primary: false }).eq("user_id", userId);
+  async function setPrimary(uid: string, locationId: string) {
+    await supabase.from("user_location_assignments").update({ is_primary: false }).eq("user_id", uid);
     await supabase.from("user_location_assignments").update({ is_primary: true })
-      .eq("user_id", userId).eq("location_id", locationId);
+      .eq("user_id", uid).eq("location_id", locationId);
     setAssignments(prev => prev.map(a =>
-      a.user_id === userId ? { ...a, is_primary: a.location_id === locationId } : a
+      a.user_id === uid ? { ...a, is_primary: a.location_id === locationId } : a
     ));
   }
 
-  function isAssigned(userId: string, locationId: string) {
-    return assignments.some(a => a.user_id === userId && a.location_id === locationId);
+  function isAssigned(uid: string, locationId: string) {
+    return assignments.some(a => a.user_id === uid && a.location_id === locationId);
   }
 
-  function isPrimary(userId: string, locationId: string) {
-    return assignments.some(a => a.user_id === userId && a.location_id === locationId && a.is_primary);
+  function isPrimary(uid: string, locationId: string) {
+    return assignments.some(a => a.user_id === uid && a.location_id === locationId && a.is_primary);
   }
 
   function getUsersForLocation(locationId: string) {
@@ -192,14 +255,87 @@ export default function LocationsPage() {
 
   return (
     <div className="space-y-6">
+
+      {/* PAYMENT MODAL */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl space-y-4">
+            <h3 className="text-lg font-bold text-gray-900">Add a New Location</h3>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+              <p className="font-semibold mb-1">Payment Required</p>
+              <p>Each additional location costs <strong>$49/month</strong>. Square will process your payment and your new location will become active once payment is confirmed. A confirmation email will be sent to your admin email.</p>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-gray-700">Choose billing method:</p>
+
+              <button
+                onClick={() => setBillingType("addon")}
+                className={`w-full text-left border rounded-xl p-4 transition-all ${billingType === "addon" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"}`}>
+                <p className="font-semibold text-gray-800 text-sm">Add to existing subscription</p>
+                <p className="text-xs text-gray-500 mt-1">$49/mo added to your current billing cycle. Managed together with your plan.</p>
+              </button>
+
+              <button
+                onClick={() => setBillingType("separate")}
+                className={`w-full text-left border rounded-xl p-4 transition-all ${billingType === "separate" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"}`}>
+                <p className="font-semibold text-gray-800 text-sm">Separate Square payment</p>
+                <p className="text-xs text-gray-500 mt-1">$49/mo billed as a separate subscription. Good for keeping location billing independent.</p>
+              </button>
+            </div>
+
+            {billingType && (
+              <div className="border-t pt-4 space-y-3">
+                <p className="text-sm font-semibold text-gray-700">Location name (required before checkout):</p>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
+                  placeholder="e.g. North Office, Second Clinic"
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              </div>
+            )}
+
+            <p className="text-xs text-gray-400">
+              You will be redirected to Square to complete payment. Your location will activate automatically once Square confirms the transaction.
+            </p>
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => { setShowPaymentModal(false); setBillingType(null); }}
+                className="px-4 py-2 border rounded-lg text-sm text-gray-500 hover:bg-gray-50">
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!billingType || !form.name) return;
+                  setShowPaymentModal(false);
+                  setShowForm(true);
+                }}
+                disabled={!billingType || !form.name.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+                Continue to Location Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <PageHeader title="Locations & Staff Assignments">
-        <Button onClick={() => setShowForm(!showForm)}>
+        <Button onClick={handleAddLocationClick}>
           {showForm ? "Cancel" : "+ Add Location"}
         </Button>
       </PageHeader>
 
+      {locations.length > 0 && (
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
+          Your first location is included free. Additional locations are $49/mo each, billed through Square.
+        </div>
+      )}
+
       {showForm && (
-        <Section title="New Location">
+        <Section title={locations.length === 0 ? "New Location (Free)" : `New Location — $49/mo (${billingType === "addon" ? "Added to subscription" : "Separate payment"})`}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <label className="text-sm font-medium text-gray-700 mb-1 block">Location Name *</label>
@@ -269,9 +405,18 @@ export default function LocationsPage() {
               </div>
             </div>
           </div>
-          <div className="mt-4 flex gap-2">
-            <Button onClick={handleSave} loading={saving}>Save Location</Button>
-            <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+          <div className="mt-4 flex gap-2 items-center">
+            {locations.length >= 1 && billingType ? (
+              <button
+                onClick={processPayment}
+                disabled={processingPayment || !form.name.trim()}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50">
+                {processingPayment ? "Redirecting to Square..." : "Proceed to Payment ($49/mo)"}
+              </button>
+            ) : (
+              <Button onClick={handleSave} loading={saving}>Save Location</Button>
+            )}
+            <Button variant="outline" onClick={() => { setShowForm(false); setBillingType(null); }}>Cancel</Button>
           </div>
         </Section>
       )}
@@ -294,6 +439,11 @@ export default function LocationsPage() {
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${loc.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                         {loc.is_active ? "Active" : "Inactive"}
                       </span>
+                      {loc.payment_status === "pending" && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
+                          Payment Pending
+                        </span>
+                      )}
                       {hasCoords ? (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
                           Geofence set ({loc.radius ?? 300}m)
@@ -431,7 +581,7 @@ export default function LocationsPage() {
         {!loading && locations.length === 0 && (
           <div className="text-center py-12 border border-dashed border-gray-200 rounded-2xl">
             <p className="text-gray-600 font-medium">No locations yet</p>
-            <p className="text-gray-400 text-sm mt-1">Add your first location to assign staff and enable geofencing.</p>
+            <p className="text-gray-400 text-sm mt-1">Add your first location free. Additional locations are $49/mo each.</p>
           </div>
         )}
       </div>

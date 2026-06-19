@@ -1,4 +1,4 @@
-const SQUARE_ACCESS_TOKEN = process.env.SQUARE_ACCESS_TOKEN!;
+﻿const SQUARE_ACCESS_TOKEN = process.env.SQUARE_ACCESS_TOKEN!;
 const BASE_URL =
   process.env.SQUARE_ENVIRONMENT === "production"
     ? "https://connect.squareup.com"
@@ -36,7 +36,7 @@ export async function createSquarePaymentLink(
     body: JSON.stringify({
       idempotency_key: crypto.randomUUID(),
       quick_pay: {
-        name: `${planLabels[planType] ?? "ABA AI Plan"} — ${contractLabel}`,
+        name: `${planLabels[planType] ?? "ABA AI Plan"} â€” ${contractLabel}`,
         price_money: {
           amount: totalAmount,
           currency: "USD",
