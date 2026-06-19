@@ -98,7 +98,7 @@ export default function LocationsPage() {
     const user = auth?.user;
     if (!user) return;
 
-    const { data } = await supabase.from("locations").insert([{
+    const { data, error } = await supabase.from("locations").insert([{
       name: form.name,
       address: form.address || null,
       city: form.city || null,
@@ -111,13 +111,18 @@ export default function LocationsPage() {
       company_id: companyId,
       is_active: true,
       created_by: user.id,
-    }]).select().single();
+    }]).select().maybeSingle();
 
-    if (data) setLocations((prev) => [...prev, data]);
-    setForm(emptyForm);
-    setShowForm(false);
-    setSaving(false);
-  }
+    if (error) {
+        console.error("Location save error:", error);
+        alert("Failed to save: " + error.message);
+      } else if (data) {
+        setLocations((prev) => [...prev, data]);
+        setForm(emptyForm);
+        setShowForm(false);
+      }
+      setSaving(false);
+    }
 
   async function saveCoords(locationId: string) {
     setSavingCoords(true);
@@ -157,7 +162,7 @@ export default function LocationsPage() {
         location_id: locationId,
         is_primary: isPrimary,
         created_by: user?.id,
-      }]).select().single();
+      }]).select().maybeSingle();
       if (data) setAssignments((prev) => [...prev, data]);
     }
   }
@@ -448,3 +453,6 @@ export default function LocationsPage() {
     </div>
   );
 }
+
+
+
