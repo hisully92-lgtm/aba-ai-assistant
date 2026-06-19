@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -247,7 +247,7 @@ export default function LocationsPage() {
               <p className="text-xs text-gray-400 mb-3">
                 Add GPS coordinates to enable geofence clock-in verification. Find coordinates at{" "}
                 <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">maps.google.com</a>{" "}
-                — right-click your location and copy the coordinates.
+                â€” right-click your location and copy the coordinates.
               </p>
               <div className="grid grid-cols-3 gap-3">
                 <div>
@@ -301,7 +301,7 @@ export default function LocationsPage() {
                       </span>
                       {hasCoords ? (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-                          📍 Geofence set ({loc.radius ?? 300}m)
+                          ðŸ“ Geofence set ({loc.radius ?? 300}m)
                         </span>
                       ) : (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">
@@ -332,11 +332,11 @@ export default function LocationsPage() {
                       });
                     }}
                       className="px-3 py-1.5 border border-blue-200 text-blue-600 rounded-lg text-xs hover:bg-blue-50">
-                      📍 {hasCoords ? "Edit Coords" : "Set Coords"}
+                      ðŸ“ {hasCoords ? "Edit Coords" : "Set Coords"}
                     </button>
                     <button onClick={() => setExpandedLocation(isExpanded ? null : loc.id)}
                       className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 hover:bg-gray-50">
-                      {isExpanded ? "▲ Hide Staff" : "▼ Manage Staff"}
+                      {isExpanded ? "â–² Hide Staff" : "â–¼ Manage Staff"}
                     </button>
                     <button onClick={() => toggleLocation(loc.id, loc.is_active)}
                       className={`px-3 py-1.5 border rounded-lg text-xs ${loc.is_active ? "border-orange-200 text-orange-600 hover:bg-orange-50" : "border-green-200 text-green-600 hover:bg-green-50"}`}>
@@ -356,7 +356,7 @@ export default function LocationsPage() {
                     <p className="text-xs text-blue-500 mb-3">
                       Find coordinates at{" "}
                       <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="underline">maps.google.com</a>{" "}
-                      — right-click your clinic location and copy the lat/lng.
+                      â€” right-click your clinic location and copy the lat/lng.
                     </p>
                     <div className="grid grid-cols-3 gap-3 mb-3">
                       <div>
@@ -410,7 +410,7 @@ export default function LocationsPage() {
                                       {profile.role}
                                     </span>
                                   )}
-                                  {primary && <span className="text-xs text-blue-600 font-medium">⭐ Primary</span>}
+                                  {primary && <span className="text-xs text-blue-600 font-medium">â­ Primary</span>}
                                 </div>
                               </div>
                             </div>
@@ -423,7 +423,7 @@ export default function LocationsPage() {
                               )}
                               <button onClick={() => toggleAssignment(profile.id, loc.id)}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${assigned ? "bg-blue-600 text-white hover:bg-blue-700" : "border border-gray-300 text-gray-600 hover:border-blue-400"}`}>
-                                {assigned ? "✓ Assigned" : "+ Assign"}
+                                {assigned ? "âœ“ Assigned" : "+ Assign"}
                               </button>
                             </div>
                           </div>
@@ -439,7 +439,7 @@ export default function LocationsPage() {
 
         {!loading && locations.length === 0 && (
           <div className="text-center py-12 border border-dashed border-gray-200 rounded-2xl">
-            <p className="text-4xl mb-3">🏢</p>
+            <p className="text-4xl mb-3">ðŸ¢</p>
             <p className="text-gray-600 font-medium">No locations yet</p>
             <p className="text-gray-400 text-sm mt-1">Add your first location to assign staff and enable geofencing</p>
           </div>
