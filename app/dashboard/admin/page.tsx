@@ -259,17 +259,27 @@ export default function AdminPage() {
     }
 
     setSavingId(memberId);
-    if (changes.role) {
-      await supabase.from("profiles").update({ role: changes.role } as any).eq("id", memberId);
-      await supabase.from("company_users").update({ role: changes.role }).eq("user_id", memberId).eq("company_id", company?.id ?? "");
-    }
-    if (changes.status) {
-      await supabase.from("profiles").update({ status: changes.status } as any).eq("id", memberId);
-      await supabase.from("company_users").update({ status: changes.status }).eq("user_id", memberId).eq("company_id", company?.id ?? "");
-      if (changes.status !== "active") setTeam(prev => prev.filter(m => m.user_id !== memberId));
-    }
-    setPendingChanges(prev => { const next = { ...prev }; delete next[memberId]; return next; });
-    setSavingId(null);
+      const res = await fetch("/api/admin/update-member", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          memberId,
+          companyId: company?.id,
+          role: changes.role ?? null,
+          status: changes.status ?? null,
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        console.error("Save failed:", result.error);
+        alert("Failed to save: " + result.error);
+      } else {
+        if (changes.status && changes.status !== "active") {
+          setTeam(prev => prev.filter(m => m.user_id !== memberId));
+        }
+      }
+      setPendingChanges(prev => { const next = { ...prev }; delete next[memberId]; return next; });
+      setSavingId(null);
   }
 
   async function handleInvite() {
@@ -731,6 +741,8 @@ export default function AdminPage() {
     </div>
   );
 }
+
+
 
 
 
