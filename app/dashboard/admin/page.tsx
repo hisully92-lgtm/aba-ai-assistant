@@ -243,6 +243,21 @@ export default function AdminPage() {
   async function saveChanges(memberId: string) {
     const changes = pendingChanges[memberId];
     if (!changes) return;
+
+    // Confirm before granting admin access
+    if (changes.role === "admin") {
+      const member = team.find(m => m.user_id === memberId);
+      const confirmed = window.confirm(
+        `You are granting ${member?.full_name ?? "this user"} full admin access.\n\nThis gives them complete control over your clinic including team management, billing, and all settings.\n\nAre you sure?`
+      );
+      if (!confirmed) {
+        // Revert the staged change
+        setPendingChanges(prev => { const next = { ...prev }; delete next[memberId]; return next; });
+        setTeam(prev => prev.map(m => m.user_id === memberId ? { ...m, role: m.role } : m));
+        return;
+      }
+    }
+
     setSavingId(memberId);
     if (changes.role) {
       await supabase.from("profiles").update({ role: changes.role } as any).eq("id", memberId);
@@ -716,6 +731,8 @@ export default function AdminPage() {
     </div>
   );
 }
+
+
 
 
 
