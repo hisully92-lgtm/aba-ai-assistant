@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+﻿/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -73,6 +73,8 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [generating, setGenerating] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [inviteSent, setInviteSent] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
   useEffect(() => { void init(); }, [clientId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -117,7 +119,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     setSummary(null);
 
     try {
-      // Route through /api/ai — never call Anthropic directly from the client
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -136,13 +137,33 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
       const data = await res.json();
       if (data.error) { setError(data.error); return; }
-
       const text = data.content?.[0]?.text ?? data.result ?? data.text ?? "";
       setSummary(text);
     } catch {
       setError("AI generation failed. Please try again.");
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function handleSendParentInvite() {
+    if (!client?.caregiver_email) return;
+    setInviteError(null);
+
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email: client.caregiver_email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/parent/auth/confirm`,
+        shouldCreateUser: true,
+        data: { role: "parent", linked_client_id: client.id },
+      },
+    });
+
+    if (otpError) {
+      setInviteError(otpError.message);
+    } else {
+      setInviteSent(true);
+      setTimeout(() => setInviteSent(false), 5000);
     }
   }
 
@@ -404,69 +425,105 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       )}
 
       {activeTab === "intake" && (
-        <Section title="Intake Information">
-          {!intake ? (
-            <div className="text-center py-6">
-              <p className="text-gray-400 text-sm mb-3">No intake form on file.</p>
-              <Link href="/dashboard/client-intake">
-                <Button>Complete Intake Form</Button>
-              </Link>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              {intake.primary_diagnosis && (
-                <div>
-                  <p className="text-xs text-gray-500">Primary Diagnosis</p>
-                  <p className="font-medium text-gray-800">{intake.primary_diagnosis}</p>
+        <div className="space-y-4">
+          <Section title="Intake Information">
+            {!intake ? (
+              <div className="text-center py-6">
+                <p className="text-gray-400 text-sm mb-3">No intake form on file.</p>
+                <Link href="/dashboard/client-intake">
+                  <Button>Complete Intake Form</Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                {intake.primary_diagnosis && (
+                  <div>
+                    <p className="text-xs text-gray-500">Primary Diagnosis</p>
+                    <p className="font-medium text-gray-800">{intake.primary_diagnosis}</p>
+                  </div>
+                )}
+                {intake.icd10_code && (
+                  <div>
+                    <p className="text-xs text-gray-500">ICD-10 Code</p>
+                    <p className="font-medium text-gray-800">{intake.icd10_code}</p>
+                  </div>
+                )}
+                {intake.insurance_provider && (
+                  <div>
+                    <p className="text-xs text-gray-500">Insurance Provider</p>
+                    <p className="font-medium text-gray-800">{intake.insurance_provider}</p>
+                  </div>
+                )}
+                {intake.authorization_number && (
+                  <div>
+                    <p className="text-xs text-gray-500">Authorization Number</p>
+                    <p className="font-medium text-gray-800">{intake.authorization_number}</p>
+                  </div>
+                )}
+                {intake.authorized_hours > 0 && (
+                  <div>
+                    <p className="text-xs text-gray-500">Authorized Hours</p>
+                    <p className="font-medium text-gray-800">{intake.authorized_hours}h</p>
+                  </div>
+                )}
+                {intake.authorization_end && (
+                  <div>
+                    <p className="text-xs text-gray-500">Authorization Expires</p>
+                    <p className={`font-medium ${authExpiring ? "text-red-600" : "text-gray-800"}`}>
+                      {intake.authorization_end}{authExpiring ? ` (${daysUntil(intake.authorization_end)} days)` : ""}
+                    </p>
+                  </div>
+                )}
+                {intake.emergency_contact && (
+                  <div>
+                    <p className="text-xs text-gray-500">Emergency Contact</p>
+                    <p className="font-medium text-gray-800">{intake.emergency_contact} — {intake.emergency_phone}</p>
+                  </div>
+                )}
+                {intake.medications && (
+                  <div className="md:col-span-2">
+                    <p className="text-xs text-gray-500">Medications</p>
+                    <p className="font-medium text-gray-800">{intake.medications}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </Section>
+
+          <Section title="Parent Portal Access">
+            <p className="text-sm text-gray-500 mb-3">
+              Send a portal invite to the caregiver so they can log in at{" "}
+              <strong>aba-ai-assistant.com/parent</strong> to view their child&apos;s progress.
+            </p>
+
+            {inviteSent && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700 mb-3">
+                Portal invite sent to {client.caregiver_email}!
+              </div>
+            )}
+            {inviteError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 mb-3">
+                {inviteError}
+              </div>
+            )}
+
+            {client.caregiver_email ? (
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500">Caregiver email</p>
+                  <p className="text-sm font-medium text-gray-800">{client.caregiver_email}</p>
                 </div>
-              )}
-              {intake.icd10_code && (
-                <div>
-                  <p className="text-xs text-gray-500">ICD-10 Code</p>
-                  <p className="font-medium text-gray-800">{intake.icd10_code}</p>
-                </div>
-              )}
-              {intake.insurance_provider && (
-                <div>
-                  <p className="text-xs text-gray-500">Insurance Provider</p>
-                  <p className="font-medium text-gray-800">{intake.insurance_provider}</p>
-                </div>
-              )}
-              {intake.authorization_number && (
-                <div>
-                  <p className="text-xs text-gray-500">Authorization Number</p>
-                  <p className="font-medium text-gray-800">{intake.authorization_number}</p>
-                </div>
-              )}
-              {intake.authorized_hours > 0 && (
-                <div>
-                  <p className="text-xs text-gray-500">Authorized Hours</p>
-                  <p className="font-medium text-gray-800">{intake.authorized_hours}h</p>
-                </div>
-              )}
-              {intake.authorization_end && (
-                <div>
-                  <p className="text-xs text-gray-500">Authorization Expires</p>
-                  <p className={`font-medium ${authExpiring ? "text-red-600" : "text-gray-800"}`}>
-                    {intake.authorization_end}{authExpiring ? ` (${daysUntil(intake.authorization_end)} days)` : ""}
-                  </p>
-                </div>
-              )}
-              {intake.emergency_contact && (
-                <div>
-                  <p className="text-xs text-gray-500">Emergency Contact</p>
-                  <p className="font-medium text-gray-800">{intake.emergency_contact} — {intake.emergency_phone}</p>
-                </div>
-              )}
-              {intake.medications && (
-                <div className="md:col-span-2">
-                  <p className="text-xs text-gray-500">Medications</p>
-                  <p className="font-medium text-gray-800">{intake.medications}</p>
-                </div>
-              )}
-            </div>
-          )}
-        </Section>
+                <Button onClick={handleSendParentInvite}>
+                  Send Portal Invite
+                </Button>
+              </div>
+            ) : (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-sm text-orange-700">
+                No caregiver email on file. Add one in the client profile to enable parent portal access.
+              </div>
+            )}
+          </Section>
+        </div>
       )}
     </div>
   );

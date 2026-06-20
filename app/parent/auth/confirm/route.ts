@@ -47,5 +47,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
+  // Link parent to client if linked_client_id was passed during signup
+  const meta = user.user_metadata;
+  if (meta?.linked_client_id) {
+    const { createClient } = await import("@supabase/supabase-js");
+    const admin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+    await admin.from("clients").update({ parent_user_id: user.id })
+      .eq("id", meta.linked_client_id);
+
+    // Also update profile role to parent
+    await admin.from("profiles").update({ role: "parent" }).eq("id", user.id);
+  }
+
   return NextResponse.redirect(new URL("/parent/dashboard", req.url));
 }
+
