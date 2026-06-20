@@ -641,7 +641,7 @@ export default function OnboardingPage() {
                         <p className="text-xs text-gray-500 mt-0.5">{plan.desc}</p>
                       </div>
                       <div className="text-right shrink-0 ml-3">
-                        <p className="text-xl font-bold text-blue-600">\${price}</p>
+                        <p className="text-xl font-bold text-blue-600">${price}</p>
                         <p className="text-xs text-gray-400">/mo</p>
                         {savings > 0 && <p className="text-xs text-green-600">Save \${savings}</p>}
                       </div>
@@ -664,7 +664,7 @@ export default function OnboardingPage() {
               </div>
               {selectedMonths > 1 && (
                 <p className="text-xs text-gray-400">
-                  Billed as \${(PLAN_TIERS[selectedPlan]?.[selectedMonths] ?? 0) * selectedMonths} every {selectedMonths} months
+                  Billed as ${(PLAN_TIERS[selectedPlan]?.[selectedMonths] ?? 0) * selectedMonths} every {selectedMonths} months
                 </p>
               )}
             </div>
@@ -861,6 +861,8 @@ export default function OnboardingPage() {
     </div>
   );
 }
+
+
 
 
 
