@@ -63,21 +63,20 @@ export async function POST(req: Request) {
     } else {
       // Create company
       const slug = pending.clinic_name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+      // Generate clinic code first
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      const rand = (n: number) => Array.from({ length: n }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+      newClinicCode = `${rand(4)}-${rand(4)}`;
+
+      // Insert company with clinic code in one atomic operation
       const { data: company } = await supabaseAdmin
         .from("companies")
-        .insert({ name: pending.clinic_name, slug })
+        .insert({ name: pending.clinic_name, slug, clinic_code: newClinicCode })
         .select()
         .single();
 
       if (!company) return NextResponse.json({ error: "Failed to create clinic" }, { status: 500 });
       companyId = company.id;
-
-      // Generate clinic code
-      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-      const rand = (n: number) => Array.from({ length: n }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-      newClinicCode = `${rand(4)}-${rand(4)}`;
-
-      await supabaseAdmin.from("companies").update({ clinic_code: newClinicCode }).eq("id", company.id);
 
       // Save HIPAA agreement
       if (pending.hipaa_signature) {
@@ -201,3 +200,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
