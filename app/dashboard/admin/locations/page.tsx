@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { usePlanGate } from "@/lib/hooks/usePlanGate";
+import UpgradePrompt from "@/components/ui/UpgradePrompt";
 import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
@@ -57,6 +59,7 @@ export default function LocationsPage() {
   const [savingCoords, setSavingCoords] = useState(false);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const { canAddLocation, limits, planName } = usePlanGate();
   const [processingPayment, setProcessingPayment] = useState(false);
 
   useEffect(() => { init(); }, []);
@@ -91,6 +94,10 @@ export default function LocationsPage() {
   }
 
   function handleAddLocationClick() {
+    // Check plan gate first
+    const gate = canAddLocation();
+    if (!gate.allowed) return;
+
     if (locations.length === 0) {
       // First location is free
       setShowForm(true);
@@ -328,11 +335,21 @@ export default function LocationsPage() {
         </Button>
       </PageHeader>
 
-      {locations.length > 0 && (
-        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
-          Your first location is included free. Additional locations are $49/mo each, billed through Square.
-        </div>
-      )}
+      {(() => {
+        const gate = canAddLocation();
+        if (!gate.allowed) return (
+          <UpgradePrompt
+            reason={`Your ${planName} plan allows up to ${limits.locations} location${limits.locations === 1 ? "" : "s"}. Upgrade to add more.`}
+            upgradeTo={gate.upgradeTo}
+            feature="Additional Locations"
+          />
+        );
+        return locations.length > 0 ? (
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
+            Your first location is included free. Additional locations are $49/mo each, billed through Square.
+          </div>
+        ) : null;
+      })()}
 
       {showForm && (
         <Section title={locations.length === 0 ? "New Location (Free)" : `New Location — $49/mo (${billingType === "addon" ? "Added to subscription" : "Separate payment"})`}>
@@ -588,3 +605,4 @@ export default function LocationsPage() {
     </div>
   );
 }
+
