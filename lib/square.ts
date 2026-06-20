@@ -13,7 +13,8 @@ const PLAN_PRICES: Record<string, Record<number, number>> = {
 export async function createSquarePaymentLink(
   userId: string,
   planType: string = "professional",
-  months: number = 1
+  months: number = 1,
+  redirectUrl: string = ""
 ) {
   const planPrices = PLAN_PRICES[planType] ?? PLAN_PRICES.professional;
   const pricePerMonth = planPrices[months] ?? planPrices[1];
@@ -64,6 +65,8 @@ export async function createSquarePaymentLink(
   console.log("Square API success:", JSON.stringify(data));
   return data;
 }
+
+
 
 
 
