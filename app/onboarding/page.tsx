@@ -625,77 +625,51 @@ export default function OnboardingPage() {
             </div>
 
             <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-xs text-green-700 text-center">
-              🎉 <strong>30-day free trial</strong> — your card won&apos;t be charged until the trial ends.
+              🎉 <strong>30-day free trial</strong> — your card will not be charged until the trial ends.
             </div>
 
-            <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-              {PLANS.map(plan => (
-                <button key={plan.id} type="button" onClick={() => setSelectedPlan(plan.id)}
-                  className={`w-full rounded-xl border p-4 text-left transition-all ${selectedPlan === plan.id ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"}`}>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-semibold text-gray-800">{plan.label}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{plan.desc}</p>
-                      <ul className="mt-2 space-y-0.5">
-                        {plan.features.map(f => (
-                          <li key={f} className="text-xs text-gray-600">✓ {f}</li>
-                        ))}
-                      </ul>
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+              {PLANS.map(plan => {
+                const price = PLAN_TIERS[plan.id]?.[selectedMonths] ?? plan.price;
+                const savings = selectedMonths > 1 ? (plan.price - price) * selectedMonths : 0;
+                return (
+                  <button key={plan.id} type="button" onClick={() => setSelectedPlan(plan.id)}
+                    className={`w-full rounded-xl border p-4 text-left transition-all ${selectedPlan === plan.id ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"}`}>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-semibold text-gray-800">{plan.label}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{plan.desc}</p>
+                      </div>
+                      <div className="text-right shrink-0 ml-3">
+                        <p className="text-xl font-bold text-blue-600">\${price}</p>
+                        <p className="text-xs text-gray-400">/mo</p>
+                        {savings > 0 && <p className="text-xs text-green-600">Save \${savings}</p>}
+                      </div>
                     </div>
-                    <div className="text-right shrink-0 ml-3">
-                      <p className="text-xl font-bold text-gray-800">${plan.price}</p>
-                      <p className="text-xs text-gray-400">/month</p>
-                      <p className="text-xs text-green-600 mt-1">First month free</p>
-                    </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="border border-gray-200 rounded-xl p-4 space-y-3">
-              <p className="text-sm font-semibold text-gray-700">Payment Information</p>
-              <p className="text-xs text-gray-400">Your card will not be charged until after your 30-day free trial.</p>
-              <input type="text" placeholder="Name on card" value={cardName}
-                onChange={e => setCardName(e.target.value)} className={inputClass} />
-              <input type="text" placeholder="Card number" value={cardNumber}
-                onChange={e => setCardNumber(e.target.value.replace(/\D/g, "").slice(0, 16))}
-                className={inputClass} />
-              <div className="grid grid-cols-2 gap-2">
-                <input type="text" placeholder="MM/YY" value={cardExpiry}
-                  onChange={e => setCardExpiry(e.target.value)} className={inputClass} />
-                <input type="text" placeholder="CVC" value={cardCvc}
-                  onChange={e => setCardCvc(e.target.value.slice(0, 4))} className={inputClass} />
+            <div className="border border-gray-200 rounded-xl p-4 space-y-2">
+              <p className="text-sm font-semibold text-gray-700">Contract Length</p>
+              <div className="grid grid-cols-5 gap-1">
+                {CONTRACT_OPTIONS.map(opt => (
+                  <button key={opt.months} type="button"
+                    onClick={() => setSelectedMonths(opt.months)}
+                    className={`rounded-lg border py-2 text-xs font-medium transition-all ${selectedMonths === opt.months ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-blue-300"}`}>
+                    {opt.label}
+                  </button>
+                ))}
               </div>
+              {selectedMonths > 1 && (
+                <p className="text-xs text-gray-400">
+                  Billed as \${(PLAN_TIERS[selectedPlan]?.[selectedMonths] ?? 0) * selectedMonths} every {selectedMonths} months
+                </p>
+              )}
             </div>
 
-{/* NONPROFIT DISCOUNT */}
-<div className="border border-green-200 rounded-xl p-4 bg-green-50 space-y-2">
-  <div className="flex items-center justify-between">
-    <div>
-      <p className="text-sm font-semibold text-gray-700">Nonprofit Organization?</p>
-      <p className="text-xs text-gray-500">501(c)(3) organizations receive 20% off all plans.</p>
-    </div>
-    <button
-      type="button"
-      onClick={() => setIsNonprofit(p => !p)}
-      className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${isNonprofit ? "bg-green-500" : "bg-gray-300"}`}>
-      <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${isNonprofit ? "left-7" : "left-1"}`} />
-    </button>
-  </div>
-  {isNonprofit && (
-    <div className="space-y-2 pt-1">
-      <input type="text" placeholder="Organization EIN (e.g. 12-3456789)"
-        value={nonprofitEin} onChange={e => setNonprofitEin(e.target.value)}
-        className={inputClass} />
-      <p className="text-xs text-green-700">
-        20% discount applied after verification. We&apos;ll confirm your 501(c)(3) status within 1 business day.
-      </p>
-    </div>
-  )}
-</div>
-
-
-            <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+            <div className="border border-gray-200 rounded-xl p-4 space-y-2">
               <p className="text-sm font-semibold text-gray-700">Company Code Delivery</p>
               <p className="text-xs text-gray-400">Choose how you want to receive your clinic and admin codes.</p>
               <div className="grid grid-cols-2 gap-2">
@@ -716,16 +690,36 @@ export default function OnboardingPage() {
                   value={codeEmail} onChange={e => setCodeEmail(e.target.value)}
                   className={inputClass} />
               )}
-              <p className="text-xs text-gray-400">
-                Disclaimer: ABA AI Assistant securely stores your company codes as a backup for support purposes only.
-              </p>
+            </div>
+
+            <div className="border border-gray-200 rounded-xl p-4 bg-green-50 space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">Nonprofit Organization?</p>
+                  <p className="text-xs text-gray-500">501(c)(3) organizations receive 20% off.</p>
+                </div>
+                <button type="button" onClick={() => setIsNonprofit(p => !p)}
+                  className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${isNonprofit ? "bg-green-500" : "bg-gray-300"}`}>
+                  <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${isNonprofit ? "left-7" : "left-1"}`} />
+                </button>
+              </div>
+              {isNonprofit && (
+                <input type="text" placeholder="Organization EIN (e.g. 12-3456789)"
+                  value={nonprofitEin} onChange={e => setNonprofitEin(e.target.value)}
+                  className={inputClass} />
+              )}
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+              <p className="font-semibold mb-1">Secure Payment via Square</p>
+              <p className="text-xs">You will be redirected to Square to securely enter your payment details. Your card will not be charged until after your 30-day free trial.</p>
             </div>
 
             <div className="flex gap-2">
               <button type="button" onClick={() => setStep("role")} className={btnSecondary}>← Back</button>
-              <button type="button" onClick={handleComplete} disabled={loading || !cardNumber || !cardName}
+              <button type="button" onClick={handleCheckout} disabled={checkoutLoading}
                 className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
-                {loading ? "Setting up..." : "Start Free Trial →"}
+                {checkoutLoading ? "Redirecting to Square..." : "Proceed to Payment →"}
               </button>
             </div>
           </div>
@@ -867,6 +861,7 @@ export default function OnboardingPage() {
     </div>
   );
 }
+
 
 
 
