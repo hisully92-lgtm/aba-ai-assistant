@@ -741,7 +741,7 @@ export default function OnboardingPage() {
                       <p className="text-sm font-medium text-gray-800">{r.label}</p>
                       <p className="mt-0.5 text-xs text-gray-500">{r.desc}</p>
                     </div>
-                    {r.requiresCode && (
+                    {r.requiresCode && joinExisting && (
                       <span className="ml-2 shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-xs text-orange-700">Code required</span>
                     )}
                   </div>
@@ -861,6 +861,8 @@ export default function OnboardingPage() {
     </div>
   );
 }
+
+
 
 
 
