@@ -152,7 +152,8 @@ export default function OnboardingPage() {
 
   function handleRoleStep() {
     setError("");
-    if (selectedRole?.requiresCode) { setStep("code"); return; }
+    // New clinic founders skip code verification
+    if (selectedRole?.requiresCode && joinExisting) { setStep("code"); return; }
     if (!joinExisting) { setStep("payment"); return; }
     handleComplete();
   }
@@ -866,6 +867,8 @@ export default function OnboardingPage() {
     </div>
   );
 }
+
+
 
 
 
