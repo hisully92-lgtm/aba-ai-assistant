@@ -44,7 +44,7 @@ export async function createSquarePaymentLink(
         location_id: process.env.SQUARE_LOCATION_ID,
       },
       checkout_options: {
-        redirect_url: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/settings/billing?success=true`,
+        redirect_url: redirectUrl,
       },
       metadata: {
         userId,
@@ -64,3 +64,6 @@ export async function createSquarePaymentLink(
   console.log("Square API success:", JSON.stringify(data));
   return data;
 }
+
+
+

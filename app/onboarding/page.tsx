@@ -54,6 +54,22 @@ const PLANS = [
   },
 ];
 
+const PLAN_TIERS: Record<string, Record<number, number>> = {
+  starter:        { 1: 129, 3: 122, 6: 116, 9: 110, 12: 99 },
+  professional:   { 1: 249, 3: 236, 6: 224, 9: 212, 12: 199 },
+  growth:         { 1: 349, 3: 331, 6: 314, 9: 297, 12: 279 },
+  enterprise:     { 1: 499, 3: 474, 6: 449, 9: 424, 12: 399 },
+  clinic:         { 1: 599, 3: 569, 6: 539, 9: 509, 12: 499 },
+};
+
+const CONTRACT_OPTIONS = [
+  { months: 1, label: "Monthly", savings: 0 },
+  { months: 3, label: "3 Months", savings: null },
+  { months: 6, label: "6 Months", savings: null },
+  { months: 9, label: "9 Months", savings: null },
+  { months: 12, label: "Annual", savings: null },
+];
+
 function generateAdminCode(clinicCode: string): string {
   const random = Math.random().toString(36).substring(2, 6).toUpperCase();
   const year = new Date().getFullYear();
@@ -95,6 +111,8 @@ export default function OnboardingPage() {
   const [locations, setLocations] = useState([{ name: "", address: "", city: "", state: "", zip: "" }]);
 
   const [selectedPlan, setSelectedPlan] = useState("professional");
+  const [selectedMonths, setSelectedMonths] = useState(1);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCvc, setCardCvc] = useState("");
@@ -186,6 +204,61 @@ export default function OnboardingPage() {
 
   function removeLocation(index: number) {
     setLocations(locations.filter((_, i) => i !== index));
+  }
+
+  async function handleCheckout() {
+    if (!selectedPlan) return;
+    setCheckoutLoading(true);
+    setError("");
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.push("/login"); return; }
+
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+
+      const plan = PLANS.find(p => p.id === selectedPlan) ?? PLANS[1];
+      const tier = PLAN_TIERS[selectedPlan]?.[selectedMonths] ?? plan.price;
+
+      const res = await fetch("/api/square/onboarding-checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name,
+          clinicName,
+          planType: selectedPlan,
+          planLabel: plan.label,
+          months: selectedMonths,
+          pricePerMonth: tier,
+          role,
+          hipaaSignature,
+          locations,
+          codePreference,
+          codeEmail,
+          isNonprofit,
+          nonprofitEin,
+          joinExisting,
+          clinicCode,
+          verificationCode,
+        }),
+      });
+
+      const result = await res.json();
+      if (!res.ok) {
+        setError("Payment setup failed: " + result.error);
+        setCheckoutLoading(false);
+        return;
+      }
+
+      window.location.href = result.url;
+    } catch (err: any) {
+      setError(err.message);
+      setCheckoutLoading(false);
+    }
   }
 
   async function handleComplete() {
@@ -793,3 +866,10 @@ export default function OnboardingPage() {
     </div>
   );
 }
+
+
+
+
+
+
+
