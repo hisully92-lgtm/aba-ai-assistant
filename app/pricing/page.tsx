@@ -182,7 +182,7 @@ export default function PricingPage() {
             🎉 First month free — card required but not charged until trial ends
           </div>
           <p className="text-xs text-gray-400 mt-3">
-            Extra locations beyond your plan limit: <strong>+$29/mo per location</strong>
+            Extra locations beyond your plan limit: <strong>+$49/mo per location</strong>
           </p>
         </div>
 
@@ -341,3 +341,4 @@ export default function PricingPage() {
     </div>
   );
 }
+

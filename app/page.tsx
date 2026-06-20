@@ -187,7 +187,7 @@ export default function HomePage() {
             ))}
           </div>
           <p className="text-sm text-gray-400 mt-8">
-            Save up to $1,200/year with annual plans · Extra locations +$29/mo ·{" "}
+            Save up to $1,200/year with annual plans · Extra locations +$49/mo ·{" "}
             <Link href="/pricing" className="text-blue-500 hover:underline">View all pricing options →</Link>
           </p>
         </div>
@@ -263,3 +263,5 @@ export default function HomePage() {
     </div>
   );
 }
+
+
