@@ -1,12 +1,1 @@
-﻿{
-  "crons": [
-    {
-      "path": "/api/queue/worker",
-      "schedule": "0 * * * *"
-    },
-    {
-      "path": "/api/sms/process-queue",
-      "schedule": "0 * * * *"
-    }
-  ]
-}
+﻿{}
