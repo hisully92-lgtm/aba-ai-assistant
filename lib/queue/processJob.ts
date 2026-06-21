@@ -8,6 +8,67 @@ const anthropic = new Anthropic({
 
 const MAX_ATTEMPTS = 3;
 
+async function processSessionCancellationSMS(payload: any): Promise<void> {
+  const { scheduleEntryId, companyId, clientId, date, startTime, sessionType } = payload;
+
+  const { data: client } = await supabaseAdmin
+    .from("clients")
+    .select("full_name, caregiver_name, caregiver_phone")
+    .eq("id", clientId)
+    .maybeSingle();
+
+  if (!client) throw new Error("Client not found");
+
+  const { data: template } = await supabaseAdmin
+    .from("sms_templates")
+    .select("*")
+    .eq("company_id", companyId)
+    .eq("trigger_type", "session_cancelled")
+    .eq("enabled", true)
+    .maybeSingle();
+
+  const defaultMessage = `Your session for ${client.full_name} on ${date} at ${startTime ?? "TBD"} (${sessionType}) has been cancelled. Please contact your clinic for more information.`;
+
+  const message = template
+    ? template.message_template
+        .replace("{client_name}", client.full_name ?? "your child")
+        .replace("{date}", date ?? "")
+        .replace("{time}", startTime ?? "TBD")
+        .replace("{session_type}", sessionType ?? "")
+        .replace("{clinic_name}", "your clinic")
+    : defaultMessage;
+
+  const phones: string[] = [];
+  if (client.caregiver_phone) phones.push(client.caregiver_phone);
+
+  const { data: entry } = await supabaseAdmin
+    .from("schedule_entries")
+    .select("assigned_to")
+    .eq("id", scheduleEntryId)
+    .maybeSingle();
+
+  if (entry?.assigned_to) {
+    const { data: staffProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("phone")
+      .eq("id", entry.assigned_to)
+      .maybeSingle();
+    if (staffProfile?.phone) phones.push(staffProfile.phone);
+  }
+
+  if (phones.length === 0) return;
+
+  for (const phone of phones) {
+    await supabaseAdmin.from("sms_queue").insert({
+      company_id: companyId,
+      to_number: phone,
+      message,
+      trigger_type: "session_cancelled",
+      scheduled_for: new Date().toISOString(),
+    });
+  }
+}
+
 async function sendSMSJob(payload: any): Promise<void> {
   const { to, message, companyId, triggerType } = payload;
   if (!to || !message) throw new Error("Missing to or message");
@@ -217,7 +278,6 @@ async function processSMSQueue(): Promise<number> {
 }
 
 export async function processJob(jobId: string) {
-  // FETCH JOB
   const { data: job, error } = await supabaseAdmin
     .from("jobs")
     .select("*")
@@ -228,7 +288,6 @@ export async function processJob(jobId: string) {
     throw new Error(`Job not found: ${jobId}`);
   }
 
-  // CHECK MAX ATTEMPTS
   if (job.attempts >= MAX_ATTEMPTS) {
     await supabaseAdmin
       .from("jobs")
@@ -238,11 +297,9 @@ export async function processJob(jobId: string) {
         updated_at: new Date().toISOString(),
       })
       .eq("id", jobId);
-
     return { success: false, jobId, reason: "max_attempts_reached" };
   }
 
-  // MARK AS PROCESSING
   await supabaseAdmin
     .from("jobs")
     .update({
@@ -252,13 +309,33 @@ export async function processJob(jobId: string) {
     })
     .eq("id", jobId);
 
+  // HANDLE NON-AI JOB TYPES
+  if (job.payload?.type === "session_cancellation_sms") {
+    try {
+      await processSessionCancellationSMS(job.payload);
+      await supabaseAdmin.from("jobs").update({
+        status: "complete",
+        result: { text: "Cancellation SMS queued" },
+        updated_at: new Date().toISOString(),
+      }).eq("id", jobId);
+      return { success: true, jobId, result: "Cancellation SMS queued" };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      await supabaseAdmin.from("jobs").update({
+        status: job.attempts + 1 < MAX_ATTEMPTS ? "pending" : "dead",
+        error: message,
+        updated_at: new Date().toISOString(),
+      }).eq("id", jobId);
+      throw err;
+    }
+  }
+
   // RESOLVE MODEL FROM JOB TYPE
   const jobType = (job.payload?.jobType ?? "summary") as AITaskType;
   const modelConfig = getModelConfig(jobType);
   logModelSelection(jobType);
 
   try {
-    // RUN AI WITH ROUTED MODEL
     const response = await anthropic.messages.create({
       model: modelConfig.model,
       max_tokens: modelConfig.maxTokens,
@@ -274,7 +351,6 @@ export async function processJob(jobId: string) {
       .map((block: any) => (block.type === "text" ? block.text : ""))
       .join("\n");
 
-    // MARK AS COMPLETE
     await supabaseAdmin
       .from("jobs")
       .update({

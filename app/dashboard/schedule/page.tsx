@@ -138,8 +138,35 @@ export default function SchedulePage() {
     };
 
     if (editingId) {
+      const { data: prevEntry } = await supabase
+        .from("schedule_entries")
+        .select("status, client_id")
+        .eq("id", editingId)
+        .maybeSingle();
+
       await supabase.from("schedule_entries").update(payload).eq("id", editingId);
       setEntries(prev => prev.map(e => e.id === editingId ? { ...e, ...payload, id: editingId } : e));
+
+      // Fire cancellation SMS if status changed to cancelled and client is set
+      if (payload.status === "cancelled" && prevEntry?.status !== "cancelled" && payload.client_id) {
+        try {
+          await fetch("/api/sms/queue-cancellation", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              scheduleEntryId: editingId,
+              companyId,
+              clientId: payload.client_id,
+              date: payload.date,
+              startTime: payload.start_time,
+              sessionType: payload.session_type,
+            }),
+          });
+        } catch {
+          // Non-blocking — SMS failure should not prevent save
+        }
+      }
+
       setEditingId(null);
     } else {
       const { data } = await supabase.from("schedule_entries").insert([payload]).select().single();
