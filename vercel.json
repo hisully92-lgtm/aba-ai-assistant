@@ -1,8 +1,12 @@
-{
+﻿{
   "crons": [
     {
       "path": "/api/queue/worker",
-      "schedule": "* * * * *"
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/sms/process-queue",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
