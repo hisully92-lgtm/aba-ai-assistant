@@ -11,11 +11,11 @@ const PLANS = [
     desc: "Perfect for solo practitioners just getting started",
     monthly: 129,
     tiers: [
-      { label: "Monthly", months: 1, price: 129, savings: 0 },
-      { label: "3 Months", months: 3, price: 122, savings: 21 },
-      { label: "6 Months", months: 6, price: 116, savings: 78 },
-      { label: "9 Months", months: 9, price: 110, savings: 171 },
-      { label: "12 Months (Annual)", months: 12, price: 99, savings: 360 },
+      { label: "Monthly", months: 1, price: 149, savings: 0 },
+      { label: "3 Months", months: 3, price: 141, savings: 24 },
+      { label: "6 Months", months: 6, price: 134, savings: 90 },
+      { label: "9 Months", months: 9, price: 127, savings: 198 },
+      { label: "12 Months (Annual)", months: 12, price: 119, savings: 360 },
     ],
     features: [
       "1 clinician",
@@ -37,11 +37,11 @@ const PLANS = [
     desc: "For growing practices with multiple clinicians",
     monthly: 249,
     tiers: [
-      { label: "Monthly", months: 1, price: 249, savings: 0 },
-      { label: "3 Months", months: 3, price: 236, savings: 39 },
-      { label: "6 Months", months: 6, price: 224, savings: 150 },
-      { label: "9 Months", months: 9, price: 212, savings: 333 },
-      { label: "12 Months (Annual)", months: 12, price: 199, savings: 600 },
+      { label: "Monthly", months: 1, price: 299, savings: 0 },
+      { label: "3 Months", months: 3, price: 284, savings: 45 },
+      { label: "6 Months", months: 6, price: 269, savings: 180 },
+      { label: "9 Months", months: 9, price: 254, savings: 405 },
+      { label: "12 Months (Annual)", months: 12, price: 239, savings: 720 },
     ],
     features: [
       "Up to 5 clinicians",
@@ -65,11 +65,11 @@ const PLANS = [
     desc: "For mid-size clinics with growing teams",
     monthly: 349,
     tiers: [
-      { label: "Monthly", months: 1, price: 349, savings: 0 },
-      { label: "3 Months", months: 3, price: 331, savings: 54 },
-      { label: "6 Months", months: 6, price: 314, savings: 210 },
-      { label: "9 Months", months: 9, price: 297, savings: 468 },
-      { label: "12 Months (Annual)", months: 12, price: 279, savings: 840 },
+      { label: "Monthly", months: 1, price: 399, savings: 0 },
+      { label: "3 Months", months: 3, price: 379, savings: 60 },
+      { label: "6 Months", months: 6, price: 359, savings: 240 },
+      { label: "9 Months", months: 9, price: 339, savings: 540 },
+      { label: "12 Months (Annual)", months: 12, price: 319, savings: 960 },
     ],
     features: [
       "Up to 25 clinicians",
@@ -91,11 +91,11 @@ const PLANS = [
     desc: "For large multi-location organizations",
     monthly: 499,
     tiers: [
-      { label: "Monthly", months: 1, price: 499, savings: 0 },
-      { label: "3 Months", months: 3, price: 474, savings: 75 },
-      { label: "6 Months", months: 6, price: 449, savings: 300 },
-      { label: "9 Months", months: 9, price: 424, savings: 675 },
-      { label: "12 Months (Annual)", months: 12, price: 399, savings: 1200 },
+      { label: "Monthly", months: 1, price: 549, savings: 0 },
+      { label: "3 Months", months: 3, price: 521, savings: 84 },
+      { label: "6 Months", months: 6, price: 494, savings: 330 },
+      { label: "9 Months", months: 9, price: 467, savings: 738 },
+      { label: "12 Months (Annual)", months: 12, price: 439, savings: 1320 },
     ],
     features: [
       "Up to 75 clinicians",
@@ -118,11 +118,11 @@ const PLANS = [
     desc: "For established clinics needing unlimited everything",
     monthly: 599,
     tiers: [
-      { label: "Monthly", months: 1, price: 599, savings: 0 },
-      { label: "3 Months", months: 3, price: 569, savings: 90 },
-      { label: "6 Months", months: 6, price: 539, savings: 360 },
-      { label: "9 Months", months: 9, price: 509, savings: 810 },
-      { label: "12 Months (Annual)", months: 12, price: 499, savings: 1200 },
+      { label: "Monthly", months: 1, price: 699, savings: 0 },
+      { label: "3 Months", months: 3, price: 664, savings: 105 },
+      { label: "6 Months", months: 6, price: 629, savings: 420 },
+      { label: "9 Months", months: 9, price: 594, savings: 945 },
+      { label: "12 Months (Annual)", months: 12, price: 559, savings: 1680 },
     ],
     features: [
       "Unlimited clinicians",
@@ -282,8 +282,8 @@ export default function PricingPage() {
                 { label: "Custom Branding", values: ["—", "—", "—", "✓", "✓"] },
                 { label: "White-Label", values: ["—", "—", "—", "—", "✓"] },
                 { label: "API Access", values: ["—", "—", "—", "—", "✓"] },
-                { label: "Monthly Price", values: ["$129", "$249", "$349", "$499", "$599"] },
-                { label: "Annual Price", values: ["$99/mo", "$199/mo", "$279/mo", "$399/mo", "$499/mo"] },
+                { label: "Monthly Price", values: ["`$149", "`$299", "`$399", "`$549", "`$699"] },
+                { label: "Annual Price", values: ["`$119/mo", "`$239/mo", "`$319/mo", "`$439/mo", "`$559/mo"] },
               ].map((row, i) => (
                 <tr key={row.label} className={i % 2 === 0 ? "bg-gray-50" : "bg-white"}>
                   <td className="py-3 px-4 text-gray-600 font-medium">{row.label}</td>
@@ -341,4 +341,6 @@ export default function PricingPage() {
     </div>
   );
 }
+
+
 

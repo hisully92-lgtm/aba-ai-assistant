@@ -20,46 +20,46 @@ const PLANS = [
   {
     id: "starter",
     label: "Starter",
-    price: 129,
+    price: 149,
     desc: "1 clinician · Up to 10 clients · 1 location",
     features: ["Session notes", "Basic data collection", "Progress reports", "Email support"],
   },
   {
     id: "professional",
     label: "Professional",
-    price: 249,
+    price: 299,
     desc: "Up to 5 clinicians · Unlimited clients · 2 locations",
     features: ["Everything in Starter", "AI session notes", "Insurance billing", "Priority support"],
   },
   {
     id: "growth",
     label: "Growth",
-    price: 349,
+    price: 399,
     desc: "Up to 25 clinicians · Unlimited clients · 5 locations",
     features: ["Everything in Professional", "Advanced reporting", "Multi-location dashboard", "Onboarding support"],
   },
   {
     id: "enterprise",
     label: "Enterprise",
-    price: 499,
+    price: 549,
     desc: "Up to 75 clinicians · Unlimited clients · 15 locations",
     features: ["Everything in Growth", "EDI 837 claims", "QuickBooks integration", "Custom branding"],
   },
   {
     id: "clinic",
     label: "Clinic",
-    price: 599,
+    price: 699,
     desc: "Unlimited clinicians · Unlimited clients · Unlimited locations",
     features: ["Everything in Enterprise", "White-label options", "API access", "Priority dedicated support"],
   },
 ];
 
 const PLAN_TIERS: Record<string, Record<number, number>> = {
-  starter:        { 1: 129, 3: 122, 6: 116, 9: 110, 12: 99 },
-  professional:   { 1: 249, 3: 236, 6: 224, 9: 212, 12: 199 },
-  growth:         { 1: 349, 3: 331, 6: 314, 9: 297, 12: 279 },
-  enterprise:     { 1: 499, 3: 474, 6: 449, 9: 424, 12: 399 },
-  clinic:         { 1: 599, 3: 569, 6: 539, 9: 509, 12: 499 },
+  starter:        { 1: 149, 3: 141, 6: 134, 9: 127, 12: 119 },
+  professional:   { 1: 299, 3: 284, 6: 269, 9: 254, 12: 239 },
+  growth:         { 1: 399, 3: 379, 6: 359, 9: 339, 12: 319 },
+  enterprise:     { 1: 549, 3: 521, 6: 494, 9: 467, 12: 439 },
+  clinic:         { 1: 699, 3: 664, 6: 629, 9: 594, 12: 559 },
 };
 
 const CONTRACT_OPTIONS = [
@@ -861,6 +861,7 @@ export default function OnboardingPage() {
     </div>
   );
 }
+
 
 
 

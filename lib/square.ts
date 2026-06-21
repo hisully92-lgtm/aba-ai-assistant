@@ -5,9 +5,11 @@ const BASE_URL =
     : "https://connect.squareupsandbox.com";
 
 const PLAN_PRICES: Record<string, Record<number, number>> = {
-  starter:      { 1: 5900,  3: 5600,  6: 5300,  9: 5100,  12: 4900 },
-  professional: { 1: 11900, 3: 11300, 6: 10700, 9: 10300, 12: 9900 },
-  clinic:       { 1: 23900, 3: 22700, 6: 21500, 9: 20700, 12: 19900 },
+  starter:      { 1: 14900, 3: 14100, 6: 13400, 9: 12700, 12: 11900 },
+  professional: { 1: 29900, 3: 28400, 6: 26900, 9: 25400, 12: 23900 },
+  growth:       { 1: 39900, 3: 37900, 6: 35900, 9: 33900, 12: 31900 },
+  enterprise:   { 1: 54900, 3: 52100, 6: 49400, 9: 46700, 12: 43900 },
+  clinic:       { 1: 69900, 3: 66400, 6: 62900, 9: 59400, 12: 55900 },
 };
 
 export async function createSquarePaymentLink(
@@ -65,6 +67,8 @@ export async function createSquarePaymentLink(
   console.log("Square API success:", JSON.stringify(data));
   return data;
 }
+
+
 
 
 
