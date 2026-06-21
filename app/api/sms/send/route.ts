@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
-  const { to, message } = await req.json();
+  const { to, message, companyId, triggerType } = await req.json();
 
   if (!to || !message) {
     return NextResponse.json({ error: "to and message are required" }, { status: 400 });
@@ -11,17 +12,13 @@ export async function POST(req: NextRequest) {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const fromNumber = process.env.TWILIO_PHONE_NUMBER;
 
-  // SCAFFOLD — Twilio not yet configured
   if (!accountSid || !authToken || !fromNumber) {
-    console.log(`[SMS SCAFFOLD] Would send to ${to}: ${message}`);
     return NextResponse.json({
       success: false,
-      scaffold: true,
-      message: "SMS scaffold ready. Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER to .env.local to activate.",
-    });
+      error: "Twilio not configured",
+    }, { status: 500 });
   }
 
-  // PRODUCTION — uncomment when Twilio is configured
   try {
     const response = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
@@ -38,7 +35,29 @@ export async function POST(req: NextRequest) {
     const data = await response.json();
 
     if (!response.ok) {
+      // Log failed attempt
+      if (companyId) {
+        await supabaseAdmin.from("sms_logs").insert({
+          company_id: companyId,
+          to_number: to,
+          message,
+          trigger_type: triggerType ?? "manual",
+          status: "failed",
+        });
+      }
       return NextResponse.json({ error: data.message }, { status: 400 });
+    }
+
+    // Log successful send
+    if (companyId) {
+      await supabaseAdmin.from("sms_logs").insert({
+        company_id: companyId,
+        to_number: to,
+        message,
+        trigger_type: triggerType ?? "manual",
+        status: "sent",
+        twilio_sid: data.sid,
+      });
     }
 
     return NextResponse.json({ success: true, sid: data.sid });
