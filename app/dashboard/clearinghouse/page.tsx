@@ -99,6 +99,11 @@ export default function ClearinghousePage() {
   const [savingSetup, setSavingSetup] = useState(false);
   const [setupSaved, setSetupSaved] = useState(false);
   const [companyId, setCompanyId] = useState<string | null>(null);
+  const [selectedClearinghouse, setSelectedClearinghouse] = useState("office_ally");
+  const [clearinghouseUsername, setClearinghouseUsername] = useState("");
+  const [clearinghousePassword, setClearinghousePassword] = useState("");
+  const [availityApiKey, setAvailityApiKey] = useState("");
+  const [availityOrgId, setAvailityOrgId] = useState("");
   const [generatingEDI, setGeneratingEDI] = useState<string | null>(null);
 
   const { hasFeature, planName } = usePlanGate();
@@ -513,16 +518,120 @@ export default function ClearinghousePage() {
       {/* SETUP TAB */}
       {activeTab === "setup" && (
         <div className="space-y-4">
-          <Section title="Office Ally Setup">
-            <p className="text-sm text-gray-600 mb-4">
-              Configure your clinic details for EDI claim generation. These are used to populate your EDI 837 files.
-            </p>
+          {setupSaved && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
+              Setup saved successfully.
+            </div>
+          )}
 
-            {setupSaved && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700 mb-3">
-                ✓ Setup saved successfully.
+          <Section title="Clinic Billing Information">
+            <div className="space-y-3 max-w-md">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Clinic NPI Number</label>
+                <input type="text" value={npiNumber}
+                  onChange={e => setNpiNumber(e.target.value)}
+                  placeholder="10-digit NPI"
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                <p className="text-xs text-gray-400 mt-1">
+                  Do not have an NPI? <a href="https://nppes.cms.hhs.gov" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Apply at nppes.cms.hhs.gov</a>
+                </p>
               </div>
-            )}
+            </div>
+          </Section>
+
+          <Section title="Clearinghouse Connection">
+            <p className="text-sm text-gray-600 mb-4">
+              Connect your existing clearinghouse account. Claims will be submitted through your own account so you maintain full control of your billing relationships.
+            </p>
+            <div className="space-y-3 max-w-md">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Select Clearinghouse</label>
+                <select value={selectedClearinghouse}
+                  onChange={e => setSelectedClearinghouse(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                  <option value="office_ally">Office Ally</option>
+                  <option value="availity">Availity</option>
+                  <option value="change_healthcare">Change Healthcare</option>
+                  <option value="waystar">Waystar</option>
+                  <option value="trizetto">TriZetto</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              {selectedClearinghouse === "office_ally" && (
+                <div className="space-y-3 border border-gray-100 rounded-xl p-4 bg-gray-50">
+                  <p className="text-xs font-semibold text-gray-600">Office Ally Credentials</p>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">Company ID</label>
+                    <input type="text" value={officeAllyId}
+                      onChange={e => setOfficeAllyId(e.target.value)}
+                      placeholder="e.g. 1307531"
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">Username</label>
+                    <input type="text" value={clearinghouseUsername}
+                      onChange={e => setClearinghouseUsername(e.target.value)}
+                      placeholder="Office Ally username"
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                  </div>
+                  <a href="https://cms.officeally.com" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 underline">Sign up or log in to Office Ally</a>
+                </div>
+              )}
+
+              {selectedClearinghouse === "availity" && (
+                <div className="space-y-3 border border-gray-100 rounded-xl p-4 bg-gray-50">
+                  <p className="text-xs font-semibold text-gray-600">Availity Credentials</p>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">API Key</label>
+                    <input type="password" value={availityApiKey}
+                      onChange={e => setAvailityApiKey(e.target.value)}
+                      placeholder="Your Availity API key"
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">Organization ID</label>
+                    <input type="text" value={availityOrgId}
+                      onChange={e => setAvailityOrgId(e.target.value)}
+                      placeholder="Your Availity organization ID"
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                  </div>
+                  <a href="https://www.availity.com" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 underline">Sign up or log in to Availity</a>
+                </div>
+              )}
+
+              {(selectedClearinghouse === "change_healthcare" || selectedClearinghouse === "waystar" || selectedClearinghouse === "trizetto" || selectedClearinghouse === "other") && (
+                <div className="space-y-3 border border-gray-100 rounded-xl p-4 bg-gray-50">
+                  <p className="text-xs font-semibold text-gray-600">Credentials</p>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">Username or API Key</label>
+                    <input type="text" value={clearinghouseUsername}
+                      onChange={e => setClearinghouseUsername(e.target.value)}
+                      placeholder="Username or API key"
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">Password or Secret</label>
+                    <input type="password" value={clearinghousePassword}
+                      onChange={e => setClearinghousePassword(e.target.value)}
+                      placeholder="Password or secret key"
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700">
+                Your credentials are encrypted before being stored. ABA AI Assistant staff cannot view your clearinghouse login details.
+              </div>
+
+              <button onClick={saveSetup} disabled={savingSetup}
+                className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
+                {savingSetup ? "Saving..." : "Save Setup"}
+              </button>
+            </div>
+          </Section>
+        </div>
+      )}
 
             <div className="space-y-3 max-w-md">
               <div>
@@ -680,3 +789,5 @@ export default function ClearinghousePage() {
 '@
 Set-Content $path $c -Encoding UTF8
 Write-Host "Done - clearinghouse page"
+
+
