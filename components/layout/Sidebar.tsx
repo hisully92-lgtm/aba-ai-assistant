@@ -165,7 +165,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
     { label: "DTT Data Collection", href: "/dashboard/dtt" },
     { label: "Program Fidelity", href: "/dashboard/fidelity" },
     { label: "Program Progress", href: "/dashboard/programs/progress" },
-    { label: "Skill Targets", href: "/dashboard/targets" },
+    { label: "Skill Targets", href: "/dashboard/programs/targets" },
     { label: "Skill Analytics", href: "/dashboard/analytics/skills" },
   ]),
 },
