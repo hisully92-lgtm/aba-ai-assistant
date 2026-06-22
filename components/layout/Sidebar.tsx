@@ -244,7 +244,6 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
         { label: "Accounting", href: "/dashboard/accounting" },
         { label: "Competency Checks", href: "/dashboard/competency" },
         { label: "Locations", href: "/dashboard/admin/locations" },
-        { label: "Role Codes", href: "/dashboard/admin" },
         { label: "Staff Performance", href: "/dashboard/staff-performance" },
         { label: "Supervision Logs", href: "/dashboard/supervision" },
         { label: "Team Management", href: "/dashboard/admin" },
