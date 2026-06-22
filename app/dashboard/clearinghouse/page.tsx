@@ -1,6 +1,4 @@
-﻿$path = "app\dashboard\clearinghouse\page.tsx"
-$c = @'
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -99,11 +97,6 @@ export default function ClearinghousePage() {
   const [savingSetup, setSavingSetup] = useState(false);
   const [setupSaved, setSetupSaved] = useState(false);
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const [selectedClearinghouse, setSelectedClearinghouse] = useState("office_ally");
-  const [clearinghouseUsername, setClearinghouseUsername] = useState("");
-  const [clearinghousePassword, setClearinghousePassword] = useState("");
-  const [availityApiKey, setAvailityApiKey] = useState("");
-  const [availityOrgId, setAvailityOrgId] = useState("");
   const [generatingEDI, setGeneratingEDI] = useState<string | null>(null);
 
   const { hasFeature, planName } = usePlanGate();
@@ -183,12 +176,8 @@ export default function ClearinghousePage() {
   async function handleGenerateEDI(claim: Claim) {
     setGeneratingEDI(claim.id);
     const ediContent = generateEDI837(claim, clinicName, officeAllyId || "1307531");
-    
-    // Save EDI file to claim
     await supabase.from("edi_claims").update({ edi_file: ediContent, status: "ready" }).eq("id", claim.id);
     setClaims(prev => prev.map(c => c.id === claim.id ? { ...c, edi_file: ediContent, status: "ready" } : c));
-
-    // Download the file
     const blob = new Blob([ediContent], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -200,10 +189,7 @@ export default function ClearinghousePage() {
   }
 
   async function handleSubmitClaim(claim: Claim) {
-    if (!claim.edi_file) {
-      alert("Please generate the EDI 837 file first.");
-      return;
-    }
+    if (!claim.edi_file) { alert("Please generate the EDI 837 file first."); return; }
     await supabase.from("edi_claims").update({
       status: "submitted",
       submitted_at: new Date().toISOString(),
@@ -277,7 +263,6 @@ export default function ClearinghousePage() {
         </button>
       </PageHeader>
 
-      {/* DISCLAIMER BANNER */}
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
         <p className="text-sm font-semibold text-amber-800">Before submitting EDI claims, your clinic needs:</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-amber-700">
@@ -307,7 +292,6 @@ export default function ClearinghousePage() {
         </div>
       </div>
 
-      {/* STATS */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: "Draft Claims", value: draftCount, color: "text-gray-600", icon: "📝" },
@@ -323,7 +307,6 @@ export default function ClearinghousePage() {
         ))}
       </div>
 
-      {/* BILLING FLOW */}
       <div className="flex items-center gap-2 text-xs text-gray-400 overflow-x-auto pb-1">
         {[
           { label: "✅ Approved", href: "/dashboard/billing/approved" },
@@ -348,7 +331,6 @@ export default function ClearinghousePage() {
         ))}
       </div>
 
-      {/* TABS */}
       <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
         {[
           { key: "claims", label: `Claims (${claims.length})` },
@@ -363,66 +345,50 @@ export default function ClearinghousePage() {
         ))}
       </div>
 
-      {/* NEW CLAIM FORM */}
       {showForm && activeTab === "claims" && (
         <Section title="New EDI Claim">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Client Name *</label>
-              <input type="text" value={form.client_name}
-                onChange={e => setForm(p => ({ ...p, client_name: e.target.value }))}
-                placeholder="Client full name"
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              <input type="text" value={form.client_name} onChange={e => setForm(p => ({ ...p, client_name: e.target.value }))}
+                placeholder="Client full name" className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">CPT Code *</label>
-              <select value={form.cpt_code}
-                onChange={e => setForm(p => ({ ...p, cpt_code: e.target.value }))}
+              <select value={form.cpt_code} onChange={e => setForm(p => ({ ...p, cpt_code: e.target.value }))}
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                 <option value="">Select CPT code...</option>
-                {CPT_CODES.map(c => (
-                  <option key={c.code} value={c.code}>{c.code} — {c.desc}</option>
-                ))}
+                {CPT_CODES.map(c => <option key={c.code} value={c.code}>{c.code} — {c.desc}</option>)}
               </select>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Date of Service *</label>
-              <input type="date" value={form.date_of_service}
-                onChange={e => setForm(p => ({ ...p, date_of_service: e.target.value }))}
+              <input type="date" value={form.date_of_service} onChange={e => setForm(p => ({ ...p, date_of_service: e.target.value }))}
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Amount ($)</label>
-              <input type="number" value={form.amount}
-                onChange={e => setForm(p => ({ ...p, amount: e.target.value }))}
-                placeholder="0.00"
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              <input type="number" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))}
+                placeholder="0.00" className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Units</label>
-              <input type="number" value={form.units}
-                onChange={e => setForm(p => ({ ...p, units: e.target.value }))}
-                placeholder="1"
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              <input type="number" value={form.units} onChange={e => setForm(p => ({ ...p, units: e.target.value }))}
+                placeholder="1" className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Diagnosis Code (ICD-10)</label>
-              <input type="text" value={form.diagnosis_code}
-                onChange={e => setForm(p => ({ ...p, diagnosis_code: e.target.value }))}
-                placeholder="e.g. F84.0"
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              <input type="text" value={form.diagnosis_code} onChange={e => setForm(p => ({ ...p, diagnosis_code: e.target.value }))}
+                placeholder="e.g. F84.0" className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Rendering NPI</label>
-              <input type="text" value={form.npi}
-                onChange={e => setForm(p => ({ ...p, npi: e.target.value }))}
-                placeholder={npiNumber || "10-digit NPI"}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              <input type="text" value={form.npi} onChange={e => setForm(p => ({ ...p, npi: e.target.value }))}
+                placeholder={npiNumber || "10-digit NPI"} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Payer / Insurance *</label>
-              <select value={form.payer}
-                onChange={e => setForm(p => ({ ...p, payer: e.target.value }))}
+              <select value={form.payer} onChange={e => setForm(p => ({ ...p, payer: e.target.value }))}
                 className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
                 <option value="">Select payer...</option>
                 {PAYERS.map(p => <option key={p} value={p}>{p}</option>)}
@@ -431,18 +397,17 @@ export default function ClearinghousePage() {
           </div>
           <div className="mt-4 flex gap-2">
             <button onClick={handleSaveClaim} disabled={saving || !form.client_name || !form.cpt_code || !form.payer}
-              className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
+              className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
               {saving ? "Saving..." : "Save Claim"}
             </button>
             <button onClick={() => setShowForm(false)}
-              className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">
+              className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50">
               Cancel
             </button>
           </div>
         </Section>
       )}
 
-      {/* CLAIMS LIST */}
       {activeTab === "claims" && (
         <div className="space-y-3">
           {loading && <p className="text-gray-400 text-sm">Loading claims...</p>}
@@ -471,22 +436,19 @@ export default function ClearinghousePage() {
                     {claim.diagnosis_code && ` · ICD: ${claim.diagnosis_code}`}
                   </p>
                   {claim.submitted_at && (
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      Submitted {new Date(claim.submitted_at).toLocaleDateString()}
-                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">Submitted {new Date(claim.submitted_at).toLocaleDateString()}</p>
                   )}
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   {(claim.status === "draft" || claim.status === "ready") && (
-                    <button onClick={() => handleGenerateEDI(claim)}
-                      disabled={generatingEDI === claim.id}
-                      className="text-xs px-3 py-1.5 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50">
+                    <button onClick={() => handleGenerateEDI(claim)} disabled={generatingEDI === claim.id}
+                      className="text-xs px-3 py-1.5 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 disabled:opacity-50">
                       {generatingEDI === claim.id ? "Generating..." : "Generate EDI 837"}
                     </button>
                   )}
                   {claim.status === "ready" && (
                     <button onClick={() => handleSubmitClaim(claim)}
-                      className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                      className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                       Submit to Office Ally →
                     </button>
                   )}
@@ -494,8 +456,7 @@ export default function ClearinghousePage() {
                     <button onClick={async () => {
                       await supabase.from("edi_claims").update({ status: "accepted" }).eq("id", claim.id);
                       setClaims(prev => prev.map(c => c.id === claim.id ? { ...c, status: "accepted" } : c));
-                    }}
-                      className="text-xs px-3 py-1.5 border border-green-200 text-green-600 rounded-lg hover:bg-green-50 transition-colors">
+                    }} className="text-xs px-3 py-1.5 border border-green-200 text-green-600 rounded-lg hover:bg-green-50">
                       Mark Accepted
                     </button>
                   )}
@@ -503,8 +464,7 @@ export default function ClearinghousePage() {
                     <button onClick={async () => {
                       await supabase.from("edi_claims").update({ status: "paid" }).eq("id", claim.id);
                       setClaims(prev => prev.map(c => c.id === claim.id ? { ...c, status: "paid" } : c));
-                    }}
-                      className="text-xs px-3 py-1.5 border border-purple-200 text-purple-600 rounded-lg hover:bg-purple-50 transition-colors">
+                    }} className="text-xs px-3 py-1.5 border border-purple-200 text-purple-600 rounded-lg hover:bg-purple-50">
                       Mark Paid
                     </button>
                   )}
@@ -515,147 +475,29 @@ export default function ClearinghousePage() {
         </div>
       )}
 
-      {/* SETUP TAB */}
       {activeTab === "setup" && (
         <div className="space-y-4">
-          {setupSaved && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
-              Setup saved successfully.
-            </div>
-          )}
-
-          <Section title="Clinic Billing Information">
+          <Section title="Office Ally Setup">
+            <p className="text-sm text-gray-600 mb-4">Configure your clinic details for EDI claim generation.</p>
+            {setupSaved && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700 mb-3">✓ Setup saved successfully.</div>
+            )}
             <div className="space-y-3 max-w-md">
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Clinic NPI Number</label>
-                <input type="text" value={npiNumber}
-                  onChange={e => setNpiNumber(e.target.value)}
-                  placeholder="10-digit NPI"
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                <p className="text-xs text-gray-400 mt-1">
-                  Do not have an NPI? <a href="https://nppes.cms.hhs.gov" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Apply at nppes.cms.hhs.gov</a>
-                </p>
-              </div>
-            </div>
-          </Section>
-
-          <Section title="Clearinghouse Connection">
-            <p className="text-sm text-gray-600 mb-4">
-              Connect your existing clearinghouse account. Claims will be submitted through your own account so you maintain full control of your billing relationships.
-            </p>
-            <div className="space-y-3 max-w-md">
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Select Clearinghouse</label>
-                <select value={selectedClearinghouse}
-                  onChange={e => setSelectedClearinghouse(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
-                  <option value="office_ally">Office Ally</option>
-                  <option value="availity">Availity</option>
-                  <option value="change_healthcare">Change Healthcare</option>
-                  <option value="waystar">Waystar</option>
-                  <option value="trizetto">TriZetto</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-
-              {selectedClearinghouse === "office_ally" && (
-                <div className="space-y-3 border border-gray-100 rounded-xl p-4 bg-gray-50">
-                  <p className="text-xs font-semibold text-gray-600">Office Ally Credentials</p>
-                  <div>
-                    <label className="text-xs font-medium text-gray-600 mb-1 block">Company ID</label>
-                    <input type="text" value={officeAllyId}
-                      onChange={e => setOfficeAllyId(e.target.value)}
-                      placeholder="e.g. 1307531"
-                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-600 mb-1 block">Username</label>
-                    <input type="text" value={clearinghouseUsername}
-                      onChange={e => setClearinghouseUsername(e.target.value)}
-                      placeholder="Office Ally username"
-                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                  </div>
-                  <a href="https://cms.officeally.com" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 underline">Sign up or log in to Office Ally</a>
-                </div>
-              )}
-
-              {selectedClearinghouse === "availity" && (
-                <div className="space-y-3 border border-gray-100 rounded-xl p-4 bg-gray-50">
-                  <p className="text-xs font-semibold text-gray-600">Availity Credentials</p>
-                  <div>
-                    <label className="text-xs font-medium text-gray-600 mb-1 block">API Key</label>
-                    <input type="password" value={availityApiKey}
-                      onChange={e => setAvailityApiKey(e.target.value)}
-                      placeholder="Your Availity API key"
-                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-600 mb-1 block">Organization ID</label>
-                    <input type="text" value={availityOrgId}
-                      onChange={e => setAvailityOrgId(e.target.value)}
-                      placeholder="Your Availity organization ID"
-                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                  </div>
-                  <a href="https://www.availity.com" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 underline">Sign up or log in to Availity</a>
-                </div>
-              )}
-
-              {(selectedClearinghouse === "change_healthcare" || selectedClearinghouse === "waystar" || selectedClearinghouse === "trizetto" || selectedClearinghouse === "other") && (
-                <div className="space-y-3 border border-gray-100 rounded-xl p-4 bg-gray-50">
-                  <p className="text-xs font-semibold text-gray-600">Credentials</p>
-                  <div>
-                    <label className="text-xs font-medium text-gray-600 mb-1 block">Username or API Key</label>
-                    <input type="text" value={clearinghouseUsername}
-                      onChange={e => setClearinghouseUsername(e.target.value)}
-                      placeholder="Username or API key"
-                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-600 mb-1 block">Password or Secret</label>
-                    <input type="password" value={clearinghousePassword}
-                      onChange={e => setClearinghousePassword(e.target.value)}
-                      placeholder="Password or secret key"
-                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                  </div>
-                </div>
-              )}
-
-              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700">
-                Your credentials are encrypted before being stored. ABA AI Assistant staff cannot view your clearinghouse login details.
-              </div>
-
-              <button onClick={saveSetup} disabled={savingSetup}
-                className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
-                {savingSetup ? "Saving..." : "Save Setup"}
-              </button>
-            </div>
-          </Section>
-        </div>
-      )}
-
-            <div className="space-y-3 max-w-md">
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Clinic NPI Number</label>
-                <input type="text" value={npiNumber}
-                  onChange={e => setNpiNumber(e.target.value)}
-                  placeholder="10-digit NPI"
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                <input type="text" value={npiNumber} onChange={e => setNpiNumber(e.target.value)}
+                  placeholder="10-digit NPI" className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
                 <p className="text-xs text-gray-400 mt-1">
                   Don&apos;t have an NPI? <a href="https://nppes.cms.hhs.gov" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Apply at nppes.cms.hhs.gov →</a>
                 </p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Office Ally Company ID</label>
-                <input type="text" value={officeAllyId}
-                  onChange={e => setOfficeAllyId(e.target.value)}
-                  placeholder="Your Office Ally Company ID"
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                <p className="text-xs text-gray-400 mt-1">
-                  Find this in your <a href="https://cms.officeally.com" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Office Ally account → My Settings → Company Information</a>
-                </p>
+                <input type="text" value={officeAllyId} onChange={e => setOfficeAllyId(e.target.value)}
+                  placeholder="Your Office Ally Company ID" className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
               </div>
               <button onClick={saveSetup} disabled={savingSetup}
-                className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
+                className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
                 {savingSetup ? "Saving..." : "Save Setup"}
               </button>
             </div>
@@ -663,56 +505,39 @@ export default function ClearinghousePage() {
         </div>
       )}
 
-      {/* PAYER ENROLLMENT TAB */}
       {activeTab === "payers" && (
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-700">
             <p className="font-semibold mb-1">Payer Enrollment Required</p>
-            <p className="text-xs">Before submitting claims to these payers, your clinic must complete EDI enrollment. Click the links below to access enrollment forms through Office Ally.</p>
+            <p className="text-xs">Before submitting claims to these payers, your clinic must complete EDI enrollment.</p>
           </div>
-
           {[
-            {
-              state: "Virginia",
-              payers: [
-                { name: "Medicare Virginia (Palmetto)", url: "https://cms.officeally.com/OfficeAlly/Forms/EDI/Medicare_VA_WV_PartB_EDI_ERA_ENR_PKT.pdf", required: true },
-                { name: "Optima Health", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
-                { name: "Sentara Health Plans", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
-                { name: "Virginia Premier Health Plans", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: false },
-              ]
-            },
-            {
-              state: "Georgia",
-              payers: [
-                { name: "Medicaid Georgia", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
-                { name: "Medicare Georgia (Part B)", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
-              ]
-            },
-            {
-              state: "North Carolina",
-              payers: [
-                { name: "Medicaid North Carolina", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
-                { name: "Alliance Behavioral Health", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
-                { name: "Partners Behavioral Health", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
-                { name: "Medicare North Carolina (Part B)", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
-              ]
-            },
-            {
-              state: "South Carolina",
-              payers: [
-                { name: "Medicaid South Carolina", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
-                { name: "Medicare South Carolina (Part B)", url: "https://cms.officeally.com/OfficeAlly/Forms/EDI/Medicare_SC_PartB_EDI_ERA_ENR_PKT.pdf", required: true },
-              ]
-            },
-            {
-              state: "Florida",
-              payers: [
-                { name: "Medicaid Florida", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
-                { name: "Medicare Florida (Part A)", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
-                { name: "Medicare Florida (Part B)", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
-                { name: "ICARE", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: false },
-              ]
-            },
+            { state: "Virginia", payers: [
+              { name: "Medicare Virginia (Palmetto)", url: "https://cms.officeally.com/OfficeAlly/Forms/EDI/Medicare_VA_WV_PartB_EDI_ERA_ENR_PKT.pdf", required: true },
+              { name: "Optima Health", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
+              { name: "Sentara Health Plans", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
+              { name: "Virginia Premier Health Plans", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: false },
+            ]},
+            { state: "Georgia", payers: [
+              { name: "Medicaid Georgia", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
+              { name: "Medicare Georgia (Part B)", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
+            ]},
+            { state: "North Carolina", payers: [
+              { name: "Medicaid North Carolina", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
+              { name: "Alliance Behavioral Health", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
+              { name: "Partners Behavioral Health", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
+              { name: "Medicare North Carolina (Part B)", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
+            ]},
+            { state: "South Carolina", payers: [
+              { name: "Medicaid South Carolina", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
+              { name: "Medicare South Carolina (Part B)", url: "https://cms.officeally.com/OfficeAlly/Forms/EDI/Medicare_SC_PartB_EDI_ERA_ENR_PKT.pdf", required: true },
+            ]},
+            { state: "Florida", payers: [
+              { name: "Medicaid Florida", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
+              { name: "Medicare Florida (Part A)", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
+              { name: "Medicare Florida (Part B)", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: true },
+              { name: "ICARE", url: "https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx", required: false },
+            ]},
           ].map(state => (
             <Section key={state.state} title={`${state.state} Payers`}>
               <div className="space-y-2">
@@ -725,7 +550,7 @@ export default function ClearinghousePage() {
                       <span className="text-sm text-gray-800">{payer.name}</span>
                     </div>
                     <a href={payer.url} target="_blank" rel="noopener noreferrer"
-                      className="text-xs px-3 py-1.5 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
+                      className="text-xs px-3 py-1.5 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50">
                       Enroll →
                     </a>
                   </div>
@@ -733,19 +558,9 @@ export default function ClearinghousePage() {
               </div>
             </Section>
           ))}
-
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-xs text-gray-500">
-            All enrollment forms are provided by Office Ally and pre-filled with their clearinghouse information.
-            You will need your NPI number and clinic information to complete enrollment.
-            <a href="https://cms.officeally.com/Pages/ResourceCenter/PayerEDIEnrollmentForms.aspx" target="_blank" rel="noopener noreferrer"
-              className="block mt-1 text-blue-500 hover:underline">
-              View all payer enrollment forms at Office Ally →
-            </a>
-          </div>
         </div>
       )}
 
-      {/* REPORTS TAB */}
       {activeTab === "reports" && (
         <Section title="Claims Summary">
           <div className="overflow-x-auto">
@@ -786,8 +601,3 @@ export default function ClearinghousePage() {
     </div>
   );
 }
-'@
-Set-Content $path $c -Encoding UTF8
-Write-Host "Done - clearinghouse page"
-
-
