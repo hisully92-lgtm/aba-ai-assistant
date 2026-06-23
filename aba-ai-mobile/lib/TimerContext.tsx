@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+﻿import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Audio } from "expo-av";
 import * as Notifications from "expo-notifications";
+import { AppState, AppStateStatus } from "react-native";
 
 export type SoundOption = "chime" | "bell" | "ding" | "soft" | "none";
 
@@ -45,7 +46,11 @@ const SOUND_FILES: Record<SoundOption, any> = {
 async function playAlert(soundOption: SoundOption) {
   if (soundOption === "none") return;
   try {
-    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+    await Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+      shouldDuckAndroid: false,
+    });
     const { sound } = await Audio.Sound.createAsync(SOUND_FILES[soundOption]);
     await sound.playAsync();
     sound.setOnPlaybackStatusUpdate(status => {
@@ -62,10 +67,9 @@ async function scheduleTimerNotification(label: string, durationSeconds: number)
   try {
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== "granted") return undefined;
-
     const notificationId = await Notifications.scheduleNotificationAsync({
       content: {
-        title: "⏱️ Timer Complete",
+        title: "Timer Complete",
         body: `${label} timer has finished!`,
         sound: true,
         priority: Notifications.AndroidNotificationPriority.HIGH,
@@ -95,8 +99,69 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   const [timers, setTimers] = useState<Timer[]>([]);
   const [sound, setSound] = useState<SoundOption>("chime");
   const soundRef = useRef<SoundOption>("chime");
+  const silentSoundRef = useRef<Audio.Sound | null>(null);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const timersRef = useRef<Timer[]>([]);
 
   useEffect(() => { soundRef.current = sound; }, [sound]);
+  useEffect(() => { timersRef.current = timers; }, [timers]);
+
+  useEffect(() => {
+    Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+      shouldDuckAndroid: false,
+    });
+  }, []);
+
+  useEffect(() => {
+    const hasRunningTimers = timers.some(t => t.running && t.durationSeconds !== null);
+    if (hasRunningTimers) {
+      startSilentLoop();
+    } else {
+      stopSilentLoop();
+    }
+    return () => { stopSilentLoop(); };
+  }, [timers]);
+
+  async function startSilentLoop() {
+    if (silentSoundRef.current) return;
+    try {
+      const { sound: silentSound } = await Audio.Sound.createAsync(
+        SOUND_FILES["chime"],
+        { isLooping: true, volume: 0.001 }
+      );
+      await silentSound.playAsync();
+      silentSoundRef.current = silentSound;
+    } catch (e) {
+      console.log("Silent loop error:", e);
+    }
+  }
+
+  async function stopSilentLoop() {
+    if (!silentSoundRef.current) return;
+    try {
+      await silentSoundRef.current.stopAsync();
+      await silentSoundRef.current.unloadAsync();
+      silentSoundRef.current = null;
+    } catch (e) {
+      console.log("Stop silent loop error:", e);
+    }
+  }
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (appStateRef.current.match(/inactive|background/) && nextState === "active") {
+        timersRef.current.forEach(t => {
+          if (t.alerted && t.notificationId) {
+            cancelTimerNotification(t.notificationId);
+          }
+        });
+      }
+      appStateRef.current = nextState;
+    });
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -108,9 +173,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
           if (elapsed === t.elapsed) return t;
           changed = true;
           if (t.durationSeconds !== null && t.durationSeconds - elapsed <= 0 && !t.alerted) {
-            // Play in-app sound (works when app is open)
             playAlert(soundRef.current);
-            // Cancel the push notification since we already alerted in-app
             cancelTimerNotification(t.notificationId);
             return { ...t, elapsed, alerted: true };
           }
@@ -124,16 +187,12 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
 
   const addTimer = useCallback((label: string, durationSeconds?: number): string => {
     const id = `timer-${Date.now()}`;
-
-    // Schedule push notification if timer has a duration
-    // so it fires even when app is backgrounded/closed
     const timer: Timer = {
       id, label,
       startedAt: Date.now(),
       durationSeconds: durationSeconds ?? null,
       running: true, elapsed: 0, alerted: false,
     };
-
     if (durationSeconds) {
       scheduleTimerNotification(label, durationSeconds).then(notificationId => {
         if (notificationId) {
@@ -141,7 +200,6 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
         }
       });
     }
-
     setTimers(prev => [...prev, timer]);
     return id;
   }, []);
@@ -157,7 +215,6 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   const pauseTimer = useCallback((id: string) => {
     setTimers(prev => prev.map(t => {
       if (t.id !== id) return t;
-      // Cancel scheduled notification when paused
       cancelTimerNotification(t.notificationId);
       return { ...t, running: false, notificationId: undefined };
     }));
@@ -168,8 +225,6 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
       if (t.id !== id) return t;
       const newStartedAt = Date.now() - t.elapsed * 1000;
       const remaining = t.durationSeconds ? t.durationSeconds - t.elapsed : null;
-
-      // Reschedule notification for remaining time
       if (remaining && remaining > 0) {
         scheduleTimerNotification(t.label, remaining).then(notificationId => {
           if (notificationId) {
@@ -177,7 +232,6 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
           }
         });
       }
-
       return { ...t, running: true, startedAt: newStartedAt, notificationId: undefined };
     }));
   }, []);
@@ -185,10 +239,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   const resetTimer = useCallback((id: string) => {
     setTimers(prev => prev.map(t => {
       if (t.id !== id) return t;
-      // Cancel old notification
       cancelTimerNotification(t.notificationId);
-      // Schedule new notification
-      let newNotificationId: string | undefined;
       if (t.durationSeconds) {
         scheduleTimerNotification(t.label, t.durationSeconds).then(notifId => {
           if (notifId) {
@@ -196,10 +247,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
           }
         });
       }
-      return {
-        ...t, startedAt: Date.now(), elapsed: 0,
-        running: true, alerted: false, notificationId: newNotificationId,
-      };
+      return { ...t, startedAt: Date.now(), elapsed: 0, running: true, alerted: false, notificationId: undefined };
     }));
   }, []);
 
