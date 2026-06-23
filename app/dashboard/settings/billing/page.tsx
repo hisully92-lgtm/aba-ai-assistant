@@ -517,7 +517,7 @@ export default function BillingPage() {
           </div>
 
           <p className="text-xs text-center text-gray-400">
-            Extra locations beyond plan limit: <strong>+$29/mo per location</strong>
+            Extra locations beyond plan limit: <strong>+$49/mo per location</strong>
           </p>
 
           {/* NONPROFIT DISCOUNT */}
@@ -816,3 +816,4 @@ export default function BillingPage() {
     </div>
   );
 }
+
