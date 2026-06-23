@@ -1,78 +1,66 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
-  const { sessionId, clientName, duration } = await req.json();
-
-  const apiKey = process.env.DAILY_API_KEY;
-  const domain = process.env.DAILY_DOMAIN;
-
-  // SCAFFOLD — Daily.co not yet configured
-  if (!apiKey || !domain) {
-    const mockRoom = `aba-session-${sessionId ?? "demo"}`;
-    return NextResponse.json({
-      success: false,
-      scaffold: true,
-      room_url: `https://your-domain.daily.co/${mockRoom}`,
-      room_name: mockRoom,
-      message: "Video scaffold ready. Add DAILY_API_KEY and DAILY_DOMAIN to .env.local to activate.",
-    });
-  }
-
   try {
-    const expiryTime = Math.floor(Date.now() / 1000) + (duration ?? 7200);
+    const { sessionId, clientName, duration = 60, companyId } = await req.json();
 
-    // Create room
-    const roomResponse = await fetch("https://api.daily.co/v1/rooms", {
+    // Check if company has their own Daily.co config
+    let apiKey = process.env.DAILY_API_KEY;
+    let domain = process.env.NEXT_PUBLIC_DAILY_DOMAIN ?? "aba-ai-assistant.daily.co";
+
+    if (companyId) {
+      const { data: config } = await supabaseAdmin
+        .from("company_telehealth_config")
+        .select("api_key, domain, use_hosted")
+        .eq("company_id", companyId)
+        .eq("platform", "daily")
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (config?.api_key && !config.use_hosted) {
+        apiKey = config.api_key;
+        domain = config.domain ?? domain;
+      }
+    }
+
+    if (!apiKey) {
+      return NextResponse.json({ error: "Daily.co not configured" }, { status: 400 });
+    }
+
+    const roomName = `aba-${sessionId}-${Date.now()}`.slice(0, 50).replace(/[^a-z0-9-]/gi, "-").toLowerCase();
+    const expiryTime = Math.floor(Date.now() / 1000) + duration * 60 + 3600;
+
+    const res = await fetch("https://api.daily.co/v1/rooms", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        name: `aba-session-${sessionId}`,
+        name: roomName,
         properties: {
           exp: expiryTime,
           max_participants: 10,
-          enable_chat: true,
           enable_screenshare: true,
-          enable_recording: "cloud",
-          hipaa: true,
+          enable_chat: true,
+          start_video_off: false,
+          start_audio_off: false,
+          lang: "en",
         },
       }),
     });
 
-    const room = await roomResponse.json();
-
-    if (!roomResponse.ok) {
-      return NextResponse.json({ error: room.error }, { status: 400 });
+    if (!res.ok) {
+      const err = await res.json();
+      return NextResponse.json({ error: err.error ?? "Failed to create room" }, { status: 500 });
     }
 
-    // Create token for host
-    const tokenResponse = await fetch("https://api.daily.co/v1/meeting-tokens", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        properties: {
-          room_name: room.name,
-          exp: expiryTime,
-          is_owner: true,
-          user_name: clientName ?? "Host",
-        },
-      }),
-    });
+    const room = await res.json();
+    const roomUrl = `https://${domain}/${roomName}`;
 
-    const token = await tokenResponse.json();
-
-    return NextResponse.json({
-      success: true,
-      room_url: room.url,
-      room_name: room.name,
-      token: token.token,
-    });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, room_url: roomUrl, room_name: roomName });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
