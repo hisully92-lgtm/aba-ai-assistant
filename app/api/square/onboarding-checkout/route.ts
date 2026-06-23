@@ -18,7 +18,12 @@ export async function POST(req: Request) {
       isNonprofit, nonprofitEin, joinExisting, clinicCode, verificationCode,
     } = body;
 
-    // Save pending onboarding record
+    // Apply nonprofit discount to stored price if applicable
+    const NONPROFIT_DISCOUNT = 0.20;
+    const effectivePrice = isNonprofit && nonprofitEin
+      ? Math.round(pricePerMonth * (1 - NONPROFIT_DISCOUNT))
+      : pricePerMonth;
+
     const { data: pending, error: pendingError } = await supabaseAdmin
       .from("pending_onboarding")
       .upsert({
@@ -28,8 +33,8 @@ export async function POST(req: Request) {
         plan_type: planType,
         plan_label: planLabel,
         months,
-        price_per_month: pricePerMonth,
-        total_price: pricePerMonth * months,
+        price_per_month: effectivePrice,
+        total_price: effectivePrice * months,
         role,
         hipaa_signature: hipaaSignature,
         locations: JSON.stringify(locations),
@@ -49,10 +54,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: pendingError.message }, { status: 500 });
     }
 
-    // Create Square payment link
-    const result = await createSquarePaymentLink(user.id, planType, months, `${process.env.NEXT_PUBLIC_SITE_URL}/onboarding/complete?success=true`);
-    const url = result?.payment_link?.url ?? result?.paymentLink?.url;
+    const result = await createSquarePaymentLink(
+      user.id,
+      planType,
+      months,
+      `${process.env.NEXT_PUBLIC_SITE_URL}/onboarding/complete?success=true`,
+      isNonprofit,
+      nonprofitEin
+    );
 
+    const url = result?.payment_link?.url ?? result?.paymentLink?.url;
     if (!url) {
       return NextResponse.json({ error: "Failed to create payment link" }, { status: 500 });
     }
@@ -63,4 +74,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
-

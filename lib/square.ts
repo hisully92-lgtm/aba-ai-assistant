@@ -12,23 +12,35 @@ const PLAN_PRICES: Record<string, Record<number, number>> = {
   clinic:       { 1: 69900, 3: 66400, 6: 62900, 9: 59400, 12: 55900 },
 };
 
+const NONPROFIT_DISCOUNT = 0.20; // 20% off
+
 export async function createSquarePaymentLink(
   userId: string,
   planType: string = "professional",
   months: number = 1,
-  redirectUrl: string = ""
+  redirectUrl: string = "",
+  isNonprofit: boolean = false,
+  nonprofitEin: string = ""
 ) {
   const planPrices = PLAN_PRICES[planType] ?? PLAN_PRICES.professional;
   const pricePerMonth = planPrices[months] ?? planPrices[1];
-  const totalAmount = pricePerMonth * months;
+  let totalAmount = pricePerMonth * months;
+
+  // Apply 20% nonprofit discount
+  if (isNonprofit && nonprofitEin) {
+    totalAmount = Math.round(totalAmount * (1 - NONPROFIT_DISCOUNT));
+  }
 
   const planLabels: Record<string, string> = {
     starter: "Starter Plan",
     professional: "Professional Plan",
+    growth: "Growth Plan",
+    enterprise: "Enterprise Plan",
     clinic: "Clinic Plan",
   };
 
   const contractLabel = months === 1 ? "Monthly" : `${months}-Month Contract`;
+  const nonprofitLabel = isNonprofit ? " (Nonprofit 20% Discount)" : "";
 
   const res = await fetch(`${BASE_URL}/v2/online-checkout/payment-links`, {
     method: "POST",
@@ -39,7 +51,7 @@ export async function createSquarePaymentLink(
     body: JSON.stringify({
       idempotency_key: crypto.randomUUID(),
       quick_pay: {
-        name: `${planLabels[planType] ?? "ABA AI Plan"} â€” ${contractLabel}`,
+        name: `${planLabels[planType] ?? "ABA AI Plan"} — ${contractLabel}${nonprofitLabel}`,
         price_money: {
           amount: totalAmount,
           currency: "USD",
@@ -53,6 +65,8 @@ export async function createSquarePaymentLink(
         userId,
         planType,
         months: String(months),
+        isNonprofit: String(isNonprofit),
+        nonprofitEin,
       },
     }),
   });
@@ -67,10 +81,3 @@ export async function createSquarePaymentLink(
   console.log("Square API success:", JSON.stringify(data));
   return data;
 }
-
-
-
-
-
-
-
