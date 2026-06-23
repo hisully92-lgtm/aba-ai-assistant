@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "a8200861-7f72-4dc1-a005-29d95a42be26"
+      }
+    },
+    "android": {
+      "package": "com.abaai.mobile"
+    }
+  }
+}
