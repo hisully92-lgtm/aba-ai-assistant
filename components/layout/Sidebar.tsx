@@ -201,6 +201,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
         { label: "Session Recordings", href: "/dashboard/telehealth/recordings" },
         { label: "Signatures", href: "/dashboard/signatures" },
         { label: "Telehealth", href: "/dashboard/telehealth" },
+        { label: "Telehealth Settings", href: "/dashboard/settings/telehealth" },
         { label: "Time Tracking", href: "/dashboard/timetracking" },
         { label: "Waiting Room", href: "/dashboard/telehealth/waiting-room" },
       ]),
