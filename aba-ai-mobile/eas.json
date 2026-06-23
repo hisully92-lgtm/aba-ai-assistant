@@ -1,0 +1,39 @@
+﻿{
+  "cli": {
+    "version": ">= 10.0.0",
+    appVersionSource: "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": false
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": false
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "ios": {
+        "distribution": "store"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "aba.ai.assistant@gmail.com",
+        "ascAppId": "6783136054",
+        "appleTeamId": "ZKUR38BG9T"
+      }
+    }
+  }
+}

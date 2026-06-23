@@ -1,7 +1,7 @@
-{
+﻿{
   "expo": {
     "name": "ABA AI",
-    "slug": "aba-ai-mobile",
+    "slug": "aba-ai-app",
     "scheme": "abaai",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -15,7 +15,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.abaai.mobile"
+      "bundleIdentifier": "com.abaai.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["audio"]
+      }
     },
     "android": {
       "adaptiveIcon": {
