@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -39,9 +39,9 @@ const PLANS = [
   {
     name: "Starter",
     type: "starter",
-    icon: "🌱",
+    icon: "ðŸŒ±",
     description: "Perfect for solo practitioners just getting started",
-    pricing: { 1: 129, 3: 122, 6: 116, 9: 110, 12: 99 },
+    pricing: { 1: 149, 3: 141, 6: 134, 9: 127, 12: 119 },
     features: [
       "1 clinician",
       "Up to 10 clients",
@@ -55,10 +55,10 @@ const PLANS = [
   {
     name: "Professional",
     type: "professional",
-    icon: "⚡",
+    icon: "âš¡",
     description: "For growing practices with multiple clinicians",
     popular: true,
-    pricing: { 1: 249, 3: 236, 6: 224, 9: 212, 12: 199 },
+    pricing: { 1: 299, 3: 284, 6: 269, 9: 254, 12: 239 },
     features: [
       "Up to 5 clinicians",
       "Unlimited clients",
@@ -75,9 +75,9 @@ const PLANS = [
   {
     name: "Growth",
     type: "growth",
-    icon: "📈",
+    icon: "ðŸ“ˆ",
     description: "For mid-size clinics with growing teams",
-    pricing: { 1: 349, 3: 331, 6: 314, 9: 297, 12: 279 },
+    pricing: { 1: 399, 3: 379, 6: 359, 9: 339, 12: 319 },
     features: [
       "Up to 25 clinicians",
       "Unlimited clients",
@@ -92,9 +92,9 @@ const PLANS = [
   {
     name: "Enterprise",
     type: "enterprise",
-    icon: "🏢",
+    icon: "ðŸ¢",
     description: "For large multi-location organizations",
-    pricing: { 1: 499, 3: 474, 6: 449, 9: 424, 12: 399 },
+    pricing: { 1: 549, 3: 521, 6: 494, 9: 467, 12: 439 },
     features: [
       "Up to 75 clinicians",
       "Unlimited clients",
@@ -110,9 +110,9 @@ const PLANS = [
   {
     name: "Clinic",
     type: "clinic",
-    icon: "🏥",
+    icon: "ðŸ¥",
     description: "For established clinics needing unlimited everything",
-    pricing: { 1: 599, 3: 569, 6: 539, 9: 509, 12: 499 },
+    pricing: { 1: 699, 3: 664, 6: 629, 9: 594, 12: 559 },
     features: [
       "Unlimited clinicians",
       "Unlimited clients",
@@ -234,7 +234,7 @@ export default function BillingPage() {
       freeze_months: codeData.free_months,
       freeze_start_date: freezeStart.toISOString().split("T")[0],
       freeze_end_date: freezeEnd.toISOString().split("T")[0],
-      freeze_reason: `Referral reward — ${codeData.free_months} free month${codeData.free_months > 1 ? "s" : ""}`,
+      freeze_reason: `Referral reward â€” ${codeData.free_months} free month${codeData.free_months > 1 ? "s" : ""}`,
       referral_code_used: codeData.code,
     }).eq("id", activeContract.id);
 
@@ -262,7 +262,7 @@ export default function BillingPage() {
       }),
     });
 
-    setRedeemSuccess(`🎉 Success! Your subscription will be frozen for ${codeData.free_months} free month${codeData.free_months > 1 ? "s" : ""} from ${freezeStart.toLocaleDateString()} to ${freezeEnd.toLocaleDateString()}.`);
+    setRedeemSuccess(`ðŸŽ‰ Success! Your subscription will be frozen for ${codeData.free_months} free month${codeData.free_months > 1 ? "s" : ""} from ${freezeStart.toLocaleDateString()} to ${freezeEnd.toLocaleDateString()}.`);
     setReferralCode("");
     await init();
     setRedeemingCode(false);
@@ -388,18 +388,18 @@ export default function BillingPage() {
           <div className="flex justify-between items-start flex-wrap gap-3">
             <div>
               <p className="font-bold text-gray-800">
-                {activeContract.plan_name} Plan —{" "}
+                {activeContract.plan_name} Plan â€”{" "}
                 {activeContract.contract_length_months === 1 ? "Monthly" : `${activeContract.contract_length_months}-Month Contract`}
               </p>
               <p className="text-sm text-gray-600 mt-1">
                 {activeContract.status === "trial"
                   ? `Free trial ends ${activeContract.end_date}`
-                  : `$${activeContract.price_per_month.toFixed(2)}/mo · Renews ${activeContract.end_date}`}
-                {activeContract.auto_renew ? " · Auto-renew ON" : " · Auto-renew OFF"}
+                  : `$${activeContract.price_per_month.toFixed(2)}/mo Â· Renews ${activeContract.end_date}`}
+                {activeContract.auto_renew ? " Â· Auto-renew ON" : " Â· Auto-renew OFF"}
               </p>
               {activeContract.freeze_months && activeContract.freeze_start_date && (
                 <div className="mt-2 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 text-xs text-purple-700">
-                  🎁 <strong>Subscription Freeze Applied:</strong> {activeContract.freeze_months} free month{activeContract.freeze_months > 1 ? "s" : ""} from {activeContract.freeze_start_date} to {activeContract.freeze_end_date}.
+                  ðŸŽ <strong>Subscription Freeze Applied:</strong> {activeContract.freeze_months} free month{activeContract.freeze_months > 1 ? "s" : ""} from {activeContract.freeze_start_date} to {activeContract.freeze_end_date}.
                 </div>
               )}
               {daysUntilRenewal(activeContract.end_date) <= 30 && daysUntilRenewal(activeContract.end_date) > 0 && (
@@ -420,7 +420,7 @@ export default function BillingPage() {
           { key: "plans", label: "Plans & Pricing" },
           { key: "contracts", label: "My Contracts" },
           { key: "history", label: "Billing History" },
-          { key: "referral", label: "🎁 Referral Code" },
+          { key: "referral", label: "ðŸŽ Referral Code" },
         ].map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key as any)}
             className={`px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${activeTab === tab.key ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
@@ -436,9 +436,9 @@ export default function BillingPage() {
               <p className="text-2xl font-black mb-1">First Month Free</p>
               <p className="text-sm opacity-90 mb-3">Try any plan free for 30 days. No credit card required to start.</p>
               <div className="flex justify-center gap-6 text-sm flex-wrap">
-                <span>✓ Full access</span>
-                <span>✓ Cancel anytime</span>
-                <span>✓ No hidden fees</span>
+                <span>âœ“ Full access</span>
+                <span>âœ“ Cancel anytime</span>
+                <span>âœ“ No hidden fees</span>
               </div>
             </div>
           )}
@@ -478,7 +478,7 @@ export default function BillingPage() {
                         const s = getSavings(plan.type, opt.months);
                         return (
                           <option key={opt.months} value={opt.months}>
-                            {opt.label} — ${p}/mo{s > 0 ? ` (Save $${s})` : ""}
+                            {opt.label} â€” ${p}/mo{s > 0 ? ` (Save $${s})` : ""}
                           </option>
                         );
                       })}
@@ -502,14 +502,14 @@ export default function BillingPage() {
                   <ul className="mt-3 space-y-1.5 flex-1">
                     {plan.features.map(f => (
                       <li key={f} className="text-xs text-gray-600 flex items-start gap-1.5">
-                        <span className="text-green-500 font-bold mt-0.5 shrink-0">✓</span> {f}
+                        <span className="text-green-500 font-bold mt-0.5 shrink-0">âœ“</span> {f}
                       </li>
                     ))}
                   </ul>
                   <button
                     onClick={() => { setSelectedPlan(plan.type); setShowCheckout(true); }}
                     className={`w-full mt-4 py-2 rounded-xl text-sm font-bold transition-colors ${isSelected && showCheckout ? "bg-blue-600 text-white" : "border-2 border-blue-300 text-blue-600 hover:bg-blue-50"}`}>
-                    {isSelected && showCheckout ? "Selected ✓" : `Select ${plan.name}`}
+                    {isSelected && showCheckout ? "Selected âœ“" : `Select ${plan.name}`}
                   </button>
                 </div>
               );
@@ -522,8 +522,8 @@ export default function BillingPage() {
 
           {/* NONPROFIT DISCOUNT */}
           <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700">
-            <p className="font-semibold mb-1">🌿 Nonprofit Discount Available</p>
-            <p className="text-xs">501(c)(3) organizations receive 20% off all plans. <a href="mailto:support@aba-ai-assistant.com?subject=Nonprofit Discount Request" className="underline font-medium">Contact us to apply →</a></p>
+            <p className="font-semibold mb-1">ðŸŒ¿ Nonprofit Discount Available</p>
+            <p className="text-xs">501(c)(3) organizations receive 20% off all plans. <a href="mailto:support@aba-ai-assistant.com?subject=Nonprofit Discount Request" className="underline font-medium">Contact us to apply â†’</a></p>
           </div>
 
           {showCheckout && currentPlan && (
@@ -533,7 +533,7 @@ export default function BillingPage() {
                   <p className="font-bold text-gray-700">Order Summary</p>
                   {isFirstSubscription && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700 font-medium">
-                      ✓ First month free applied automatically
+                      âœ“ First month free applied automatically
                     </div>
                   )}
                   <div className="space-y-2 text-sm">
@@ -621,8 +621,8 @@ export default function BillingPage() {
                   )}
                   <Button onClick={handleSubscribe} loading={saving} className="w-full">
                     {isFirstSubscription
-                      ? "Start Free Trial →"
-                      : `Pay with Square — $${currentTotal} ${currentMonths > 1 ? `for ${currentMonths} months` : "/month"}`}
+                      ? "Start Free Trial â†’"
+                      : `Pay with Square â€” $${currentTotal} ${currentMonths > 1 ? `for ${currentMonths} months` : "/month"}`}
                   </Button>
                   <Button variant="outline" onClick={() => { setShowCheckout(false); setError(null); }} className="w-full">
                     Cancel
@@ -657,16 +657,16 @@ export default function BillingPage() {
                       </span>
                     </div>
                     <p className="text-sm text-gray-500 mt-1">
-                      {contract.contract_length_months === 1 ? "Monthly" : `${contract.contract_length_months}-Month Contract`} ·
+                      {contract.contract_length_months === 1 ? "Monthly" : `${contract.contract_length_months}-Month Contract`} Â·
                       {contract.status === "trial" ? " Free trial" : ` $${contract.price_per_month.toFixed(2)}/mo`}
                     </p>
                     <div className="flex gap-3 mt-1 text-xs text-gray-400">
-                      <span>{contract.start_date} → {contract.end_date}</span>
+                      <span>{contract.start_date} â†’ {contract.end_date}</span>
                       <span>{contract.payment_method}</span>
                     </div>
                     {contract.freeze_months && contract.freeze_start_date && (
                       <div className="mt-2 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 text-xs text-purple-700">
-                        🎁 Freeze: {contract.freeze_months} free month{contract.freeze_months > 1 ? "s" : ""} from {contract.freeze_start_date} to {contract.freeze_end_date}
+                        ðŸŽ Freeze: {contract.freeze_months} free month{contract.freeze_months > 1 ? "s" : ""} from {contract.freeze_start_date} to {contract.freeze_end_date}
                       </div>
                     )}
                     {isExpiringSoon && (
@@ -709,11 +709,11 @@ export default function BillingPage() {
                 <div key={contract.id} className="flex justify-between items-center border border-gray-100 rounded-lg p-3 bg-white text-sm">
                   <div>
                     <p className="font-medium text-gray-800">
-                      {contract.plan_name} — {contract.contract_length_months === 1 ? "Monthly" : `${contract.contract_length_months}-Month`}
+                      {contract.plan_name} â€” {contract.contract_length_months === 1 ? "Monthly" : `${contract.contract_length_months}-Month`}
                     </p>
-                    <p className="text-xs text-gray-400">{contract.start_date} → {contract.end_date} · {contract.payment_method}</p>
+                    <p className="text-xs text-gray-400">{contract.start_date} â†’ {contract.end_date} Â· {contract.payment_method}</p>
                     {contract.referral_code_used && (
-                      <p className="text-xs text-purple-600 mt-0.5">🎁 Referral code used: {contract.referral_code_used}</p>
+                      <p className="text-xs text-purple-600 mt-0.5">ðŸŽ Referral code used: {contract.referral_code_used}</p>
                     )}
                   </div>
                   <div className="text-right">
@@ -731,7 +731,7 @@ export default function BillingPage() {
 
       {activeTab === "referral" && (
         <div className="space-y-4">
-          <Section title="🎁 Redeem Referral Reward Code">
+          <Section title="ðŸŽ Redeem Referral Reward Code">
             <div className="space-y-4">
               <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700">
                 <p className="font-semibold mb-1">How it works:</p>
@@ -759,17 +759,17 @@ export default function BillingPage() {
 
               {!activeContract ? (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-sm text-yellow-700">
-                  ⚠️ You need an active subscription to redeem a referral code.
+                  âš ï¸ You need an active subscription to redeem a referral code.
                   <button onClick={() => setActiveTab("plans")} className="text-blue-600 hover:underline ml-1">
-                    View plans →
+                    View plans â†’
                   </button>
                 </div>
               ) : activeContract.referral_code_used ? (
                 <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 text-sm text-purple-700">
-                  <p className="font-semibold">✓ Referral code already applied!</p>
+                  <p className="font-semibold">âœ“ Referral code already applied!</p>
                   <p className="text-xs mt-1">Code used: <span className="font-mono font-bold">{activeContract.referral_code_used}</span></p>
                   {activeContract.freeze_start_date && (
-                    <p className="text-xs mt-1">Free months: {activeContract.freeze_start_date} → {activeContract.freeze_end_date}</p>
+                    <p className="text-xs mt-1">Free months: {activeContract.freeze_start_date} â†’ {activeContract.freeze_end_date}</p>
                   )}
                 </div>
               ) : (
@@ -788,7 +788,7 @@ export default function BillingPage() {
                     </p>
                   </div>
                   <Button onClick={handleRedeemCode} loading={redeemingCode} disabled={!referralCode.trim()}>
-                    🎁 Redeem Code
+                    ðŸŽ Redeem Code
                   </Button>
                 </div>
               )}
