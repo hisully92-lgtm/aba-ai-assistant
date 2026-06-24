@@ -117,7 +117,7 @@ const PLANS = [
 
 export default function PricingPage() {
   const [selectedTiers, setSelectedTiers] = useState<Record<string, number>>({
-    starter: 0, professional: 0, growth: 0, enterprise: 0, clinic: 0,
+    starter: 0, basic: 0, professional: 0, growth: 0, enterprise: 0, clinic: 0,
   });
 
   function setTier(planId: string, tierIndex: number) {
@@ -278,4 +278,5 @@ export default function PricingPage() {
     </div>
   );
 }
+
 
