@@ -44,7 +44,7 @@ const STATUS_FLOW = [
 ];
 
 function CMS1500Inner() {
-  const searchParams = useSearchParams();
+  const searchParams = useSearchParams()!;
   const [claims, setClaims] = useState<Claim[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
