@@ -5,14 +5,15 @@ const BASE_URL =
     : "https://connect.squareupsandbox.com";
 
 const PLAN_PRICES: Record<string, Record<number, number>> = {
-  starter:      { 1: 14900, 3: 14100, 6: 13400, 9: 12700, 12: 11900 },
-  professional: { 1: 29900, 3: 28400, 6: 26900, 9: 25400, 12: 23900 },
-  growth:       { 1: 39900, 3: 37900, 6: 35900, 9: 33900, 12: 31900 },
-  enterprise:   { 1: 54900, 3: 52100, 6: 49400, 9: 46700, 12: 43900 },
-  clinic:       { 1: 69900, 3: 66400, 6: 62900, 9: 59400, 12: 55900 },
+  starter:      { 1: 19900, 3: 18900, 6: 17900, 9: 16900, 12: 15900 },
+  basic:        { 1: 29900, 3: 28400, 6: 26900, 9: 25400, 12: 23900 },
+  professional: { 1: 44900, 3: 42700, 6: 40400, 9: 38200, 12: 35900 },
+  growth:       { 1: 64900, 3: 61700, 6: 58400, 9: 55200, 12: 51900 },
+  enterprise:   { 1: 84900, 3: 80700, 6: 76400, 9: 72200, 12: 67900 },
+  clinic:       { 1: 109900, 3: 104400, 6: 98900, 9: 93400, 12: 87900 },
 };
 
-const NONPROFIT_DISCOUNT = 0.20; // 20% off
+const NONPROFIT_DISCOUNT = 0.20;
 
 export async function createSquarePaymentLink(
   userId: string,
@@ -26,13 +27,13 @@ export async function createSquarePaymentLink(
   const pricePerMonth = planPrices[months] ?? planPrices[1];
   let totalAmount = pricePerMonth * months;
 
-  // Apply 20% nonprofit discount
   if (isNonprofit && nonprofitEin) {
     totalAmount = Math.round(totalAmount * (1 - NONPROFIT_DISCOUNT));
   }
 
   const planLabels: Record<string, string> = {
     starter: "Starter Plan",
+    basic: "Basic Plan",
     professional: "Professional Plan",
     growth: "Growth Plan",
     enterprise: "Enterprise Plan",

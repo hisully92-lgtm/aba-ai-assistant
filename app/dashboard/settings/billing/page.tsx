@@ -39,9 +39,9 @@ const PLANS = [
   {
     name: "Starter",
     type: "starter",
-    icon: "ðŸŒ±",
+    icon: "🌱",
     description: "Perfect for solo practitioners just getting started",
-    pricing: { 1: 149, 3: 141, 6: 134, 9: 127, 12: 119 },
+    pricing: { 1: 199, 3: 189, 6: 179, 9: 169, 12: 159 },
     features: [
       "1 clinician",
       "Up to 10 clients",
@@ -53,12 +53,28 @@ const PLANS = [
     ],
   },
   {
+    name: "Basic",
+    type: "basic",
+    icon: "⭐",
+    description: "For small practices with a growing client base",
+    pricing: { 1: 299, 3: 284, 6: 269, 9: 254, 12: 239 },
+    features: [
+      "Up to 3 clinicians",
+      "Up to 25 clients",
+      "1 location",
+      "All data collection tools",
+      "AI session notes",
+      "Parent portal",
+      "Priority support",
+    ],
+  },
+  {
     name: "Professional",
     type: "professional",
-    icon: "âš¡",
+    icon: "⚡",
     description: "For growing practices with multiple clinicians",
     popular: true,
-    pricing: { 1: 299, 3: 284, 6: 269, 9: 254, 12: 239 },
+    pricing: { 1: 449, 3: 427, 6: 404, 9: 382, 12: 359 },
     features: [
       "Up to 5 clinicians",
       "Unlimited clients",
@@ -75,9 +91,9 @@ const PLANS = [
   {
     name: "Growth",
     type: "growth",
-    icon: "ðŸ“ˆ",
+    icon: "📈",
     description: "For mid-size clinics with growing teams",
-    pricing: { 1: 399, 3: 379, 6: 359, 9: 339, 12: 319 },
+    pricing: { 1: 649, 3: 617, 6: 584, 9: 552, 12: 519 },
     features: [
       "Up to 25 clinicians",
       "Unlimited clients",
@@ -92,9 +108,9 @@ const PLANS = [
   {
     name: "Enterprise",
     type: "enterprise",
-    icon: "ðŸ¢",
+    icon: "🏢",
     description: "For large multi-location organizations",
-    pricing: { 1: 549, 3: 521, 6: 494, 9: 467, 12: 439 },
+    pricing: { 1: 849, 3: 807, 6: 764, 9: 722, 12: 679 },
     features: [
       "Up to 75 clinicians",
       "Unlimited clients",
@@ -110,9 +126,9 @@ const PLANS = [
   {
     name: "Clinic",
     type: "clinic",
-    icon: "ðŸ¥",
+    icon: "🏥",
     description: "For established clinics needing unlimited everything",
-    pricing: { 1: 699, 3: 664, 6: 629, 9: 594, 12: 559 },
+    pricing: { 1: 1099, 3: 1044, 6: 989, 9: 934, 12: 879 },
     features: [
       "Unlimited clinicians",
       "Unlimited clients",
@@ -140,7 +156,7 @@ export default function BillingPage() {
 
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [selectedMonths, setSelectedMonths] = useState<Record<string, number>>({
-    starter: 1, professional: 1, growth: 1, enterprise: 1, clinic: 1,
+    starter: 1, basic: 1, professional: 1, growth: 1, enterprise: 1, clinic: 1,
   });
   const [autoRenew, setAutoRenew] = useState(true);
   const [reminderDays, setReminderDays] = useState(30);
@@ -816,4 +832,7 @@ export default function BillingPage() {
     </div>
   );
 }
+
+
+
 
