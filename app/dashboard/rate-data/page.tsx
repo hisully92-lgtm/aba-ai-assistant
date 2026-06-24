@@ -36,7 +36,7 @@ export default function RateDataPage() {
   const [timerRunning, setTimerRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [showSetup, setShowSetup] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<any>(null);
 
   useEffect(() => { init(); }, []);
 

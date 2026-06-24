@@ -94,7 +94,7 @@ export default function SAFMEDSPage() {
   const [timeLeft, setTimeLeft] = useState(60);
   const [sessionActive, setSessionActive] = useState(false);
   const [sessionDone, setSessionDone] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<any>(null);
 
   // Create deck state
   const [newDeckName, setNewDeckName] = useState("");

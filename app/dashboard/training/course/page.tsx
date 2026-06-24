@@ -67,7 +67,7 @@ export default function TrainingCoursePage() {
   const [videoWatched, setVideoWatched] = useState(false);
   const [watchSeconds, setWatchSeconds] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const watchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const watchTimerRef = useRef<any>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => { init(); }, []);

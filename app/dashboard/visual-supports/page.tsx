@@ -93,7 +93,7 @@ export default function VisualSupportsPage() {
   const [timers, setTimers] = useState<Timer[]>([
     { id: 1, label: "Timer 1", hours: 0, minutes: 5, seconds: 0, remaining: 0, total: 0, running: false, paused: false, done: false, endTime: null }
   ]);
-  const tickRef = useRef<NodeJS.Timeout | null>(null);
+  const tickRef = useRef<any>(null);
 
   // CREATE
   const [createClient, setCreateClient] = useState("");

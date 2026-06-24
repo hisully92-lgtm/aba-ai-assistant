@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -52,7 +52,7 @@ export default function IntervalRecordingPage() {
   const [timeLeft, setTimeLeft] = useState(0);
   const [done, setDone] = useState(false);
   const [saving, setSaving] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<any>(null);
 
   useEffect(() => { init(); }, []);
 
@@ -210,7 +210,7 @@ export default function IntervalRecordingPage() {
           </div>
           <div className="mt-4">
             <Button onClick={startRecording} disabled={!clientId || !behaviorName}>
-              ▶ Start Recording
+              â–¶ Start Recording
             </Button>
           </div>
         </Section>
@@ -218,12 +218,12 @@ export default function IntervalRecordingPage() {
 
       {/* LIVE RECORDING */}
       {recording && (
-        <Section title={`Recording — Interval ${currentInterval + 1} of ${totalIntervals}`}>
+        <Section title={`Recording "” Interval ${currentInterval + 1} of ${totalIntervals}`}>
           <div className="text-center space-y-6 py-4">
             <div className="text-7xl font-bold text-blue-600">{timeLeft}</div>
             <p className="text-gray-500">seconds remaining in interval</p>
             <p className="text-sm font-medium text-gray-700">
-              {INTERVAL_TYPES.find((t) => t.value === intervalType)?.label} — {behaviorName}
+              {INTERVAL_TYPES.find((t) => t.value === intervalType)?.label} "” {behaviorName}
             </p>
             <div className="w-full bg-gray-100 rounded-full h-3">
               <div className="bg-blue-500 h-3 rounded-full transition-all"
@@ -232,11 +232,11 @@ export default function IntervalRecordingPage() {
             <div className="flex gap-4 justify-center">
               <button onClick={() => markInterval(true)}
                 className="w-36 h-20 bg-green-500 hover:bg-green-600 text-white text-lg font-bold rounded-2xl shadow-lg transition-transform active:scale-95">
-                ✓ Occurred
+                âœ“ Occurred
               </button>
               <button onClick={() => markInterval(false)}
                 className="w-36 h-20 bg-red-500 hover:bg-red-600 text-white text-lg font-bold rounded-2xl shadow-lg transition-transform active:scale-95">
-                ✗ Did Not
+                âœ— Did Not
               </button>
             </div>
             <div className="flex flex-wrap gap-2 justify-center mt-4">
@@ -307,7 +307,7 @@ export default function IntervalRecordingPage() {
                 <div>
                   <p className="font-semibold text-gray-800">{r.behavior_name}</p>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    {clientMap.get(r.client_id) ?? "Unknown"} · {r.session_date} · {INTERVAL_TYPES.find((t) => t.value === r.interval_type)?.label} · {r.interval_duration_seconds}s intervals
+                    {clientMap.get(r.client_id) ?? "Unknown"} Â· {r.session_date} Â· {INTERVAL_TYPES.find((t) => t.value === r.interval_type)?.label} Â· {r.interval_duration_seconds}s intervals
                   </p>
                 </div>
                 <span className={`text-xs px-2 py-1 rounded-full font-medium ${rate >= 80 ? "bg-red-100 text-red-700" : rate >= 50 ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}`}>
