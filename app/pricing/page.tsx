@@ -155,7 +155,7 @@ export default function PricingPage() {
           <p className="text-xs text-gray-400 mt-3">Extra locations beyond your plan limit: <strong>+$49/mo per location</strong></p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-6">
           {PLANS.map(plan => {
             const tierIndex = selectedTiers[plan.id] ?? 0;
             const tier = plan.tiers[tierIndex];
