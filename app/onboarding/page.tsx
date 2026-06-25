@@ -25,11 +25,18 @@ const PLANS = [
     features: ["Session notes", "Basic data collection", "Progress reports", "Email support"],
   },
   {
+    id: "basic",
+    label: "Basic",
+    price: 299,
+    desc: "Up to 3 clinicians · Up to 25 clients · 1 location",
+    features: ["Everything in Starter", "AI session notes", "Parent portal", "Priority support"],
+  },
+  {
     id: "professional",
     label: "Professional",
     price: 449,
     desc: "Up to 5 clinicians · Unlimited clients · 2 locations",
-    features: ["Everything in Starter", "AI session notes", "Insurance billing", "Priority support"],
+    features: ["Everything in Basic", "AI session notes", "Insurance billing", "Priority support"],
   },
   {
     id: "growth",
@@ -56,6 +63,7 @@ const PLANS = [
 
 const PLAN_TIERS: Record<string, Record<number, number>> = {
   starter:        { 1: 199, 3: 189, 6: 179, 9: 169, 12: 159 },
+  basic:          { 1: 299, 3: 284, 6: 269, 9: 254, 12: 239 },
   professional:   { 1: 449, 3: 427, 6: 404, 9: 382, 12: 359 },
   growth:         { 1: 649, 3: 617, 6: 584, 9: 552, 12: 519 },
   enterprise:     { 1: 849, 3: 807, 6: 764, 9: 722, 12: 679 },
