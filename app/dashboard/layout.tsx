@@ -117,6 +117,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       if (!companyUser) { router.replace("/onboarding"); return; }
 
+      if (companyUser.role === "parent") { router.replace("/dashboard/parent-portal"); return; }
+
       const adminRole = ["admin", "director", "clinical_director"].includes(companyUser.role ?? "");
       setIsAdmin(adminRole);
 
@@ -247,4 +249,5 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </TimerProvider>
   );
 }
+
 
