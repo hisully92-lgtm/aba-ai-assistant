@@ -135,6 +135,7 @@ export default function OnboardingPage() {
   const [copiedAdmin, setCopiedAdmin] = useState(false);
 
   const selectedRole = ROLES.find((r) => r.value === role);
+  const availableRoles = joinExisting ? ROLES.filter(r => !r.requiresCode) : ROLES;
 
   function handleProfileStep() {
     if (!name.trim()) { setError("Please enter your name."); return; }
@@ -741,7 +742,7 @@ export default function OnboardingPage() {
               <p className="mt-1 text-sm text-gray-500">Select your role.</p>
             </div>
             <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
-              {ROLES.map(r => (
+              {availableRoles.map(r => (
                 <button type="button" key={r.value} onClick={() => setRole(r.value)}
                   className={`w-full rounded-xl border p-4 text-left transition-all cursor-pointer ${role === r.value ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"}`}>
                   <div className="flex items-start justify-between">
@@ -869,6 +870,7 @@ export default function OnboardingPage() {
     </div>
   );
 }
+
 
 
 
