@@ -95,17 +95,15 @@ async function sendEmail(to: string, subject: string, body: string) {
 }
 
 export default function OnboardingPage() {
+  const [phone, setPhone] = useState("");
+  const [smsConsent, setSmsConsent] = useState(false);
   const [isNonprofit, setIsNonprofit] = useState(false);
   const [nonprofitEin, setNonprofitEin] = useState("");
-
-
   const router = useRouter();
-
   const [step, setStep] = useState<Step>("profile");
   const [loading, setLoading] = useState(false);
   const [verifyingCode, setVerifyingCode] = useState(false);
   const [error, setError] = useState("");
-
   const [name, setName] = useState("");
   const [clinicName, setClinicName] = useState("");
   const [clinicCode, setClinicCode] = useState("");
@@ -115,9 +113,7 @@ export default function OnboardingPage() {
   const [codeVerified, setCodeVerified] = useState(false);
   const [hipaaAccepted, setHipaaAccepted] = useState(false);
   const [hipaaSignature, setHipaaSignature] = useState("");
-
   const [locations, setLocations] = useState([{ name: "", address: "", city: "", state: "", zip: "" }]);
-
   const [selectedPlan, setSelectedPlan] = useState("professional");
   const [selectedMonths, setSelectedMonths] = useState(1);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -125,15 +121,12 @@ export default function OnboardingPage() {
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCvc, setCardCvc] = useState("");
   const [cardName, setCardName] = useState("");
-
   const [codePreference, setCodePreference] = useState<"profile" | "email" | "both" | "neither">("both");
   const [codeEmail, setCodeEmail] = useState("");
-
   const [generatedClinicCode, setGeneratedClinicCode] = useState("");
   const [generatedAdminCode, setGeneratedAdminCode] = useState("");
   const [copiedClinic, setCopiedClinic] = useState(false);
   const [copiedAdmin, setCopiedAdmin] = useState(false);
-
   const selectedRole = ROLES.find((r) => r.value === role);
   const availableRoles = joinExisting ? ROLES.filter(r => !r.requiresCode) : ROLES;
 
@@ -495,6 +488,19 @@ export default function OnboardingPage() {
                 onKeyDown={e => e.key === "Enter" && handleProfileStep()}
                 placeholder="First and last name" className={inputClass} />
             </div>
+            <div>
+  <label className="mb-1 block text-sm font-medium text-gray-700">Mobile Phone Number</label>
+  <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+    placeholder="+1 (555) 000-0000" className={inputClass} />
+  <p className="text-xs text-gray-400 mt-1">Used for session reminders and clinic notifications.</p>
+</div>
+<label className="flex items-start gap-3 cursor-pointer">
+  <input type="checkbox" checked={smsConsent} onChange={e => setSmsConsent(e.target.checked)}
+    className="mt-0.5 rounded border-gray-300 text-blue-600" />
+  <span className="text-xs text-gray-600">
+    I agree to receive SMS notifications from ABA AI Assistant including session reminders and clinic alerts. Message frequency varies. Msg & data rates may apply. Reply STOP to opt out. <a href="/privacy" className="text-blue-500 hover:underline">Privacy Policy</a>
+  </span>
+</label>
             <button type="button" onClick={handleProfileStep} className={btnPrimary}>
               Continue →
             </button>
