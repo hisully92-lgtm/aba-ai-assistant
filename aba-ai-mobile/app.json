@@ -18,7 +18,11 @@
       "bundleIdentifier": "com.abaai.mobile",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": ["remote-notification"],
+        "NSUserNotificationUsageDescription": "ABA AI uses notifications to alert you about session reminders and important updates."
+      },
+      "entitlements": {
+        "aps-environment": "production"
       }
     },
     "android": {
@@ -28,7 +32,12 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.abaai.mobile"
+      "package": "com.abaai.mobile",
+      "permissions": [
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -36,7 +45,15 @@
     "plugins": [
       "expo-secure-store",
       "expo-router",
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#ffffff",
+          "sounds": [],
+          "mode": "production"
+        }
+      ]
     ],
     "extra": {
       "eas": {
