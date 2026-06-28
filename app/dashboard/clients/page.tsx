@@ -43,7 +43,7 @@ const DIAGNOSES = [
 ];
 
 const emptyForm = {
-  full_name: "", date_of_birth: "", guardian_name: "", diagnosis: "", goals: "",
+  full_name: "", date_of_birth: "", guardian_name: "", guardian_email: "", diagnosis: "", goals: "",
 };
 
 function ClientSkeleton() {
@@ -545,6 +545,7 @@ export default function ClientsPage() {
     </div>
   );
 }
+
 
 
 
