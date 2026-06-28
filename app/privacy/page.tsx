@@ -110,7 +110,22 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-bold text-gray-900 mb-3">9. Changes to This Policy</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-3">9. SMS Communications</h2>
+
+              <p>ABA AI Assistant may send SMS text messages to users who have opted in to receive notifications. By opting in, you consent to receive text messages including session reminders, appointment alerts, and clinic notifications.</p>
+              <ul className="list-disc list-inside space-y-1 mt-2">
+                <li>We will never share or sell your mobile phone number to third parties</li>
+                <li>Message frequency varies based on your clinic activity</li>
+                <li>Message and data rates may apply</li>
+                <li>To opt out, reply STOP to any message</li>
+                <li>To get help, reply HELP to any message</li>
+                <li>You can also opt out by updating your notification settings in the platform</li>
+              </ul>
+
+            </section>
+
+            <section>
+              <h2 className="text-lg font-bold text-gray-900 mb-3">10. Changes to This Policy</h2>
             <p>We may update this Privacy Policy from time to time. We will notify you of significant changes via email or a prominent notice on the platform. Continued use of the platform after changes constitutes acceptance of the updated policy.</p>
           </section>
 
