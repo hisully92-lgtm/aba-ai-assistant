@@ -76,23 +76,36 @@ export default function ParentPortalPage() {
     setUserId(user.id);
 
     const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name")
-      .eq("id", user.id)
-      .single();
+  .from("profiles")
+  .select("full_name")
+  .eq("id", user.id)
+  .single();
 
-    setClientName(profile?.full_name ?? null);
+setClientName(profile?.full_name ?? null);
 
-    const [
-      { data: sessionData },
+// Find the client linked to this parent by guardian email
+const { data: linkedClient } = await supabase
+  .from("clients")
+  .select("id, full_name")
+  .ilike("guardian_email", user.email ?? "")
+  .maybeSingle();
+
+const clientId = linkedClient?.id ?? null;
+if (linkedClient?.full_name) setClientName(linkedClient.full_name);
+
+const [
+  { data: sessionData },
       { data: docData },
       { data: msgData },
       { data: reminderData },
     ] = await Promise.all([
-      supabase.from("sessions")
-        .select("id, created_at, date, notes, status, behaviors_observed, programs_targeted")
-        .order("created_at", { ascending: false })
-        .limit(20),
+      clientId
+  ? supabase.from("sessions")
+      .select("id, created_at, date, notes, status, behaviors_observed, programs_targeted")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false })
+      .limit(20)
+  : Promise.resolve({ data: [] }),
       supabase.from("documents")
         .select("id, name, file_url, file_type, created_at")
         .eq("visible_to_parent", true)
