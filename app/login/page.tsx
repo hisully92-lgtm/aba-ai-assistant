@@ -101,7 +101,7 @@ export default function LoginPage() {
 
           {timeoutMsg && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
-              â±ï¸ Your session expired after 30 minutes of inactivity. Please sign in again.
+              Your session expired after 30 minutes of inactivity. Please sign in again.
             </div>
           )}
 
@@ -128,11 +128,11 @@ export default function LoginPage() {
           <div className="flex gap-2 bg-gray-100 rounded-lg p-1">
             <button type="button" onClick={() => { setMethod("magic"); setError(null); }}
               className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${method === "magic" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
-              âœ‰ï¸ Magic Link
+              Magic Link
             </button>
             <button type="button" onClick={() => { setMethod("password"); setError(null); }}
               className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${method === "password" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
-              ðŸ”’ Password
+              Password
             </button>
           </div>
 
@@ -140,7 +140,7 @@ export default function LoginPage() {
 
           {sent ? (
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-700 text-center space-y-2">
-              <p className="text-2xl">ðŸ“§</p>
+              <p className="text-2xl">📧</p>
               <p className="font-semibold">Check your email!</p>
               <p>We sent a {mode === "signin" ? "magic link" : "verification link"} to <strong>{email}</strong></p>
               <p className="text-xs text-green-600">Click the link in your email to continue.</p>
@@ -179,44 +179,34 @@ export default function LoginPage() {
                       </p>
                       {mode === "signup" && (
                         <ul className="text-xs text-gray-400 mt-1 space-y-0.5">
-                          <li className={password.length >= 8 ? "text-green-500" : ""}>âœ“ At least 8 characters</li>
-                          <li className={/[A-Z]/.test(password) ? "text-green-500" : ""}>âœ“ One uppercase letter</li>
-                          <li className={/[0-9]/.test(password) ? "text-green-500" : ""}>âœ“ One number</li>
-                          <li className={/[^A-Za-z0-9]/.test(password) ? "text-green-500" : ""}>âœ“ One special character</li>
+                          <li className={password.length >= 8 ? "text-green-500" : ""}>✓ At least 8 characters</li>
+                          <li className={/[A-Z]/.test(password) ? "text-green-500" : ""}>✓ One uppercase letter</li>
+                          <li className={/[0-9]/.test(password) ? "text-green-500" : ""}>✓ One number</li>
+                          <li className={/[^A-Za-z0-9]/.test(password) ? "text-green-500" : ""}>✓ One special character</li>
                         </ul>
                       )}
                     </div>
-                  )}
-
-                  {mode === "signin" && (
-                    <button type="button"
-                      onClick={async () => {
-                        if (!email.trim()) { setError("Enter your email first."); return; }
-                        setLoading(true);
-                        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-                          redirectTo: `${window.location.origin}/auth/confirm`,
-                        });
-                        setLoading(false);
-                        if (resetError) { setError(resetError.message); return; }
-                        setError(null);
-                        setSent(true);
-                      }}
-                      className="text-xs text-blue-500 hover:underline mt-1 block text-right">
-                      Forgot password?
-                    </button>
                   )}
                 </div>
               )}
 
               {method === "magic" && (
                 <p className="text-xs text-gray-400 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-                  We&apos;ll email you a secure link â€” no password needed.
+                  We&apos;ll email you a secure link — no password needed.
+                </p>
+              )}
+
+              {mode === "signin" && (
+                <p className="text-xs text-right">
+                  <Link href="/forgot-password" className="text-blue-500 hover:underline">
+                    Forgot password?
+                  </Link>
                 </p>
               )}
 
               <button type="button" onClick={handleSubmit} disabled={loading}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg text-sm transition-colors disabled:opacity-50 cursor-pointer">
-                {loading ? "Please wait..." : method === "magic" ? (mode === "signin" ? "Send Magic Link" : "Create Account â†’") : (mode === "signin" ? "Sign In â†’" : "Create Account â†’")}
+                {loading ? "Please wait..." : method === "magic" ? (mode === "signin" ? "Send Magic Link" : "Create Account") : (mode === "signin" ? "Sign In" : "Create Account")}
               </button>
 
               {mode === "signin" && (
@@ -236,7 +226,6 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* FOOTER LINKS */}
       <div className="py-8 text-center space-y-3">
         <div className="flex flex-wrap justify-center gap-4 text-xs text-gray-400">
           <Link href="/" className="hover:text-gray-600 transition-colors">Home</Link>
@@ -250,9 +239,9 @@ export default function LoginPage() {
         </div>
         <div className="flex flex-wrap justify-center gap-4 text-xs text-gray-400">
           <a href="https://www.yelp.com/biz/aba-ai-assistant" target="_blank" rel="noopener noreferrer"
-            className="hover:text-red-500 transition-colors">â­ Review us on Yelp</a>
+            className="hover:text-red-500 transition-colors">Review us on Yelp</a>
           <a href="https://g.page/r/aba-ai-assistant/review" target="_blank" rel="noopener noreferrer"
-            className="hover:text-blue-500 transition-colors">â­ Review us on Google</a>
+            className="hover:text-blue-500 transition-colors">Review us on Google</a>
         </div>
         <p className="text-xs text-gray-300">
           Questions?{" "}
