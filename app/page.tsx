@@ -151,13 +151,13 @@ export default function HomePage() {
           <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-4 py-2 rounded-full text-sm font-medium mb-12">
             🎉 30-day free trial — card required but not charged until trial ends
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             {[
-              { name: "Starter", icon: "🌱", price: "$199", desc: "Solo practitioners", features: ["1 clinician", "10 clients", "1 location", "Session notes"], highlight: false },
-              { name: "Basic", icon: "⭐", price: "$299", desc: "Small practices", features: ["3 clinicians", "25 clients", "1 location", "AI notes"], highlight: false },{ name: "Professional", icon: "⚡", price: "$449", desc: "Growing practices", features: ["5 clinicians", "Unlimited clients", "2 locations", "AI features"], highlight: true },
-              { name: "Growth", icon: "📈", price: "$649", desc: "Mid-size clinics", features: ["25 clinicians", "Unlimited clients", "5 locations", "Advanced reports"], highlight: false },
-              { name: "Enterprise", icon: "🏢", price: "$849", desc: "Large organizations", features: ["75 clinicians", "Unlimited clients", "15 locations", "EDI claims"], highlight: false },
-              { name: "Clinic", icon: "🏥", price: "$1,099", desc: "Unlimited everything", features: ["Unlimited staff", "Unlimited clients", "Unlimited locations", "White-label"], highlight: false },
+              { name: "Starter", icon: "🌱", price: "$149", desc: "Solo practitioners", features: ["1 clinician", "10 clients", "1 location", "Session notes"], highlight: false },
+              { name: "Professional", icon: "⚡", price: "$299", desc: "Growing practices", features: ["5 clinicians", "Unlimited clients", "2 locations", "AI features"], highlight: true },
+              { name: "Growth", icon: "📈", price: "$399", desc: "Mid-size clinics", features: ["25 clinicians", "Unlimited clients", "5 locations", "Advanced reports"], highlight: false },
+              { name: "Enterprise", icon: "🏢", price: "$549", desc: "Large organizations", features: ["75 clinicians", "Unlimited clients", "15 locations", "EDI claims"], highlight: false },
+              { name: "Clinic", icon: "🏥", price: "$699", desc: "Unlimited everything", features: ["Unlimited staff", "Unlimited clients", "Unlimited locations", "White-label"], highlight: false },
             ].map(plan => (
               <div key={plan.name} className={`relative rounded-2xl border-2 p-6 text-left flex flex-col ${plan.highlight ? "border-blue-500 shadow-xl shadow-blue-100" : "border-gray-200"}`}>
                 {plan.highlight && (
@@ -263,6 +263,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-
-
