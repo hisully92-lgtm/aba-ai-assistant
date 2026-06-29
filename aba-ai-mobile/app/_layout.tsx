@@ -3,21 +3,22 @@ import { Stack, router } from "expo-router";
 import { supabase } from "../lib/supabase";
 import { TimerProvider } from "../lib/TimerContext";
 import { EVVProvider } from "../lib/EVVContext";
-import * as Notifications from "expo-notifications";
 import { prefetchForOffline, syncQueue } from "../lib/offline";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
-
-async function registerPushToken() {
+async function setupNotifications() {
   try {
+    const Notifications = await import("expo-notifications");
+    
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+
     const { status: existing } = await Notifications.getPermissionsAsync();
     let finalStatus = existing;
     if (existing !== "granted") {
@@ -57,7 +58,7 @@ async function registerPushToken() {
     }
     await syncQueue();
   } catch (e) {
-    console.log("Push token error:", e);
+    console.log("Notification setup error:", e);
   }
 }
 
@@ -66,7 +67,7 @@ export default function RootLayout() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         router.replace("/(tabs)/home");
-        registerPushToken();
+        setupNotifications();
       } else {
         router.replace("/(auth)/login");
       }
@@ -75,7 +76,7 @@ export default function RootLayout() {
     supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
         router.replace("/(tabs)/home");
-        registerPushToken();
+        setupNotifications();
       } else {
         router.replace("/(auth)/login");
       }
