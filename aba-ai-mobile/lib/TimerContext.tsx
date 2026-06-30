@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { Audio } from "expo-av";
+import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from "expo-audio";
 import * as Notifications from "expo-notifications";
 import { AppState, AppStateStatus } from "react-native";
 
@@ -44,23 +44,21 @@ const SOUND_FILES: Record<SoundOption, any> = {
 };
 
 // Audio mode is configured ONCE at module load / app start.
-// Re-calling setAudioModeAsync() mid-playback was the root cause of silent
-// alert sounds on iOS — it fights with the OS audio session arbitration
-// while another Sound object (the silent keep-alive loop) is actively playing.
+// expo-audio's setAudioModeAsync uses different option names than the old
+// expo-av API: playsInSilentMode (no iOS suffix), interruptionMode as a string.
 let audioModeConfigured = false;
 async function ensureAudioMode() {
   if (audioModeConfigured) return;
   try {
-    await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
-      shouldDuckAndroid: false,
-      interruptionModeIOS: 1, // DoNotMix — prevents other audio sessions from silently stealing playback
-      playThroughEarpieceAndroid: false,
+    await setAudioModeAsync({
+      playsInSilentMode: true,
+      shouldPlayInBackground: true,
+      interruptionMode: "doNotMix",
     });
     audioModeConfigured = true;
+    console.log("[audio] mode configured successfully");
   } catch (e) {
-    console.log("Audio mode setup error:", e);
+    console.log("[audio] mode setup error:", e);
   }
 }
 
@@ -68,7 +66,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   const [timers, setTimers] = useState<Timer[]>([]);
   const [sound, setSound] = useState<SoundOption>("chime");
   const soundRef = useRef<SoundOption>("chime");
-  const silentSoundRef = useRef<Audio.Sound | null>(null);
+  const silentPlayerRef = useRef<AudioPlayer | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const timersRef = useRef<Timer[]>([]);
 
@@ -79,44 +77,58 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     ensureAudioMode();
   }, []);
 
-  // The real alert sound. Pauses the silent keep-alive loop FIRST so the
-  // two Sound objects never fight for the same audio session simultaneously.
+  // The real alert sound. Pauses the silent keep-alive player FIRST so the
+  // two players never fight for the same audio session simultaneously —
+  // this was the root cause of silent alert sounds under expo-av.
   const playAlert = useCallback(async (soundOption: SoundOption) => {
+    console.log("[playAlert] called with:", soundOption);
     if (soundOption === "none") return;
     try {
       await ensureAudioMode();
 
-      // Pause (don't unload) the silent loop so it doesn't compete for the session
-      if (silentSoundRef.current) {
+      if (silentPlayerRef.current) {
         try {
-          await silentSoundRef.current.pauseAsync();
+          silentPlayerRef.current.pause();
+          console.log("[playAlert] silent loop paused");
         } catch (e) {
-          console.log("Pause silent loop before alert error:", e);
+          console.log("[playAlert] pause silent loop error:", e);
         }
       }
 
-      const { sound: alertSound } = await Audio.Sound.createAsync(
-        SOUND_FILES[soundOption],
-        { volume: 1.0, shouldPlay: false }
-      );
-      await alertSound.setVolumeAsync(1.0);
-      await alertSound.playAsync();
+      const alertPlayer = createAudioPlayer(SOUND_FILES[soundOption]);
+      alertPlayer.volume = 1.0;
+      console.log("[playAlert] player created, volume:", alertPlayer.volume, "playing...");
+      alertPlayer.play();
 
-      alertSound.setOnPlaybackStatusUpdate(async (status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          await alertSound.unloadAsync();
-          // Resume the silent loop after the real alert finishes
-          if (silentSoundRef.current) {
-            try {
-              await silentSoundRef.current.playAsync();
-            } catch (e) {
-              console.log("Resume silent loop after alert error:", e);
+      // expo-audio doesn't auto-reset or auto-unload; poll for completion
+      // then release and resume the silent loop.
+      const checkInterval = setInterval(() => {
+        if (alertPlayer.currentStatus?.didJustFinish || !alertPlayer.playing) {
+          if (alertPlayer.currentStatus?.didJustFinish) {
+            console.log("[playAlert] playback finished");
+            clearInterval(checkInterval);
+            alertPlayer.release();
+            if (silentPlayerRef.current) {
+              try {
+                silentPlayerRef.current.play();
+              } catch (e) {
+                console.log("[playAlert] resume silent loop error:", e);
+              }
             }
           }
         }
-      });
+      }, 200);
+
+      // Safety timeout in case didJustFinish never fires (matches typical
+      // alert sound lengths of 1-3s; clears interval and releases regardless)
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        try {
+          alertPlayer.release();
+        } catch {}
+      }, 5000);
     } catch (e) {
-      console.log("Play alert sound error:", e);
+      console.log("[playAlert] error:", e);
     }
   }, []);
 
@@ -131,27 +143,27 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   }, [timers]);
 
   async function startSilentLoop() {
-    if (silentSoundRef.current) return;
+    if (silentPlayerRef.current) return;
     try {
       await ensureAudioMode();
-      const { sound: silentSound } = await Audio.Sound.createAsync(
-        SOUND_FILES["chime"],
-        { isLooping: true, volume: 0.01, shouldPlay: true }
-      );
-      silentSoundRef.current = silentSound;
+      const player = createAudioPlayer(SOUND_FILES["chime"]);
+      player.loop = true;
+      player.volume = 0.01;
+      player.play();
+      silentPlayerRef.current = player;
     } catch (e) {
-      console.log("Silent loop error:", e);
+      console.log("[audio] silent loop start error:", e);
     }
   }
 
-  async function stopSilentLoop() {
-    if (!silentSoundRef.current) return;
+  function stopSilentLoop() {
+    if (!silentPlayerRef.current) return;
     try {
-      await silentSoundRef.current.stopAsync();
-      await silentSoundRef.current.unloadAsync();
-      silentSoundRef.current = null;
+      silentPlayerRef.current.pause();
+      silentPlayerRef.current.release();
+      silentPlayerRef.current = null;
     } catch (e) {
-      console.log("Stop silent loop error:", e);
+      console.log("[audio] silent loop stop error:", e);
     }
   }
 
