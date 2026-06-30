@@ -51,7 +51,12 @@
         {
           "icon": "./assets/icon.png",
           "color": "#ffffff",
-          "sounds": [],
+          "sounds": [
+            "./assets/sounds/mixkit-page-forward-single-chime-1107.wav",
+            "./assets/sounds/mixkit-happy-bells-notification-937.wav",
+            "./assets/sounds/mixkit-positive-notification-951.wav",
+            "./assets/sounds/mixkit-musical-reveal-961.wav"
+          ],
           "mode": "production"
         }
       ]
