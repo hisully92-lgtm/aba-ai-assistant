@@ -1,39 +1,24 @@
 ﻿{
   "cli": {
-    "version": ">= 10.0.0",
-    appVersionSource: "remote"
+    "version": ">= 20.1.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "ios": {
-        "simulator": false
+      "env": {
+        "EXPO_PUBLIC_USE_DEV_CONFIG": "true"
       }
     },
     "preview": {
-      "distribution": "internal",
-      "ios": {
-        "simulator": false
-      }
+      "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true,
-      "ios": {
-        "distribution": "store"
-      },
-      "android": {
-        "buildType": "app-bundle"
-      }
+      "autoIncrement": true
     }
   },
   "submit": {
-    "production": {
-      "ios": {
-        "appleId": "aba.ai.assistant@gmail.com",
-        "ascAppId": "6783136054",
-        "appleTeamId": "ZKUR38BG9T"
-      }
-    }
+    "production": {}
   }
 }
