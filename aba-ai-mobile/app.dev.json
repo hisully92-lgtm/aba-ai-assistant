@@ -1,4 +1,4 @@
-﻿{
+{
   "expo": {
     "name": "ABA AI Dev",
     "slug": "aba-ai-app",
@@ -45,6 +45,7 @@
     "plugins": [
       "expo-secure-store",
       "expo-router",
+      "expo-audio",
       [
         "expo-notifications",
         {
