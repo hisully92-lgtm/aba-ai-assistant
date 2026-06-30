@@ -407,10 +407,9 @@ export default function ABAGraphsPage() {
                   correct: dataSource === "program" ? d.data_value : undefined,
                   incorrect: dataSource === "behavior" ? d.data_value : undefined,
                 }))}
-                phaseChanges={phases.map(p => ({
-                  date: p.start_date,
+                phaseChanges={phases.map((p, i) => ({
+                  day: i * 7 + 1,
                   label: p.phase_name,
-                  color: p.phase_color,
                 }))}
                 goalLine={goals[0]?.goal_value}
                 title={`Standard Celeration Chart — ${selectedClientObj?.full_name ?? ""}`}
