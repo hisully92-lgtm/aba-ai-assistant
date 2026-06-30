@@ -10,15 +10,13 @@ type ChartTab =
   | 'daily'
   | 'weekly'
   | 'per_opportunity'
-  | 'duration'
-  | 'safmeds';
+;
 
 interface DataPoint {
   day: number;         // successive calendar day (1–140) or week (1–20)
   correct?: number;    // count per minute (or % for per_opportunity)
   error?: number;
   noOpp?: number;      // open circle: no opportunity
-  duration?: number;   // seconds (for duration chart)
 }
 
 interface PhaseChange {
@@ -88,8 +86,6 @@ const TABS: { id: ChartTab; label: string; shortLabel: string }[] = [
   { id: 'daily',          label: 'Daily (per minute)',    shortLabel: 'Daily/min' },
   { id: 'weekly',         label: 'Weekly (per minute)',   shortLabel: 'Weekly/min' },
   { id: 'per_opportunity', label: 'Per Opportunity (%)',  shortLabel: 'Per Opp' },
-  { id: 'duration',       label: 'Duration (seconds)',    shortLabel: 'Duration' },
-  { id: 'safmeds',        label: 'SAFMEDS',               shortLabel: 'SAFMEDS' },
 ];
 
 // ─────────────────────────────────────────────
@@ -142,10 +138,8 @@ function ChartSVG({
 }: ChartSVGProps) {
   const svgRef = useRef<SVGSVGElement>(null);
 
-  const isDuration = tab === 'duration';
   const isPerOpp   = tab === 'per_opportunity';
   const isWeekly   = tab === 'weekly';
-  const isSafmeds  = tab === 'safmeds';
 
   // X domain
   const xMax = isWeekly ? 20 : 140;
@@ -316,11 +310,7 @@ function ChartSVG({
       .text(xLabel);
 
     // ── Y Axis label ──
-    const yAxisLabel = isDuration
-      ? 'Duration (seconds per minute)'
-      : isPerOpp
-        ? 'Percent Correct (%)'
-        : 'Count per Minute';
+    const yAxisLabel = isPerOpp ? 'Percent Correct (%)' : 'Count per Minute';
 
     g.append('text')
       .attr('transform', 'rotate(-90)')
@@ -1008,7 +998,6 @@ export default function StandardCelerationChart({
     setActiveFloors(prev => prev.filter(f => f !== sec));
   };
 
-  const isDuration = activeTab === 'duration';
   const isPerOpp   = activeTab === 'per_opportunity';
 
   return (
@@ -1056,7 +1045,7 @@ export default function StandardCelerationChart({
         {/* Display toggles */}
         <div className="flex gap-2 items-center text-xs">
           <span className="text-gray-500 font-medium">Show:</span>
-          {!isDuration && !isPerOpp && (
+          {!isPerOpp && (
             <>
               <label className="flex items-center gap-1 cursor-pointer">
                 <input type="checkbox" checked={showCorrect} onChange={e => setShowCorrect(e.target.checked)} />
