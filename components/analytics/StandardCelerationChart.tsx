@@ -465,32 +465,6 @@ function ChartSVG({
     dataPoints.forEach(dp => {
       const x = xScale(dp.day);
 
-      // Duration chart: bar-like line from floor to value
-      if (isDuration && dp.duration != null) {
-        const yV = yScale(Math.max(dp.duration / 60, Y_MIN)); // convert sec to "per min" scale proxy
-        g.append('circle')
-          .attr('cx', x).attr('cy', yV)
-          .attr('r', 4)
-          .attr('fill', '#1a5ca8')
-          .attr('stroke', '#fff')
-          .attr('stroke-width', 1);
-        return;
-      }
-
-      // SAFMEDS: dots only (correct)
-      if (isSafmeds) {
-        if (showCorrect && dp.correct != null && dp.correct > 0) {
-          const yC = yScale(dp.correct);
-          g.append('circle')
-            .attr('cx', x).attr('cy', yC)
-            .attr('r', 4)
-            .attr('fill', '#1a5ca8')
-            .attr('stroke', '#fff')
-            .attr('stroke-width', 1);
-        }
-        return;
-      }
-
       // Per opportunity: percentage
       if (isPerOpp) {
         if (showCorrect && dp.correct != null) {
