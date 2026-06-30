@@ -671,7 +671,7 @@ function DataEntry({ tab, dataPoints, onAdd, onRemove }: DataEntryProps) {
       pt.noOpp    = parseFloat(noOpp)    || undefined;
     }
     onAdd(pt);
-    setDay(''); setCorrect(''); setError(''); setNoOpp(''); setDuration('');
+    setDay(''); setCorrect(''); setError(''); setNoOpp('');
   };
 
   return (
