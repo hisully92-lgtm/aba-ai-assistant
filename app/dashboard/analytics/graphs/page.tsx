@@ -401,19 +401,18 @@ export default function ABAGraphsPage() {
                 6-cycle semi-logarithmic Standard Celeration Chart. Dots = correct responses, X marks = errors.
                 The celeration line shows rate of behavior change over time.
               </p>
-              <StandardCelerationChart
-                data={filteredData.map((d) => ({
-                  date: d.data_date,
+                            <StandardCelerationChart
+                dataPoints={filteredData.map((d, i) => ({
+                  day: i + 1,
                   correct: dataSource === "program" ? d.data_value : undefined,
-                  incorrect: dataSource === "behavior" ? d.data_value : undefined,
+                  error: dataSource === "behavior" ? d.data_value : undefined,
                 }))}
                 phaseChanges={phases.map((p, i) => ({
                   day: i * 7 + 1,
                   label: p.phase_name,
                 }))}
-                goalLine={goals[0]?.goal_value}
-                title={`Standard Celeration Chart — ${selectedClientObj?.full_name ?? ""}`}
-                startDate={dateFrom}
+                aimStars={goals[0] ? [{ day: 140, value: goals[0].goal_value, label: goals[0].target_name }] : []}
+                showCeleration={true}
               />
               <div className="mt-2 flex gap-4 text-xs text-gray-400">
                 <span>Dots = correct responses</span>
