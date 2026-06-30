@@ -43,9 +43,15 @@ const SOUND_FILES: Record<SoundOption, any> = {
   none: null,
 };
 
-// Audio mode is configured ONCE at module load / app start.
-// expo-audio's setAudioModeAsync uses different option names than the old
-// expo-av API: playsInSilentMode (no iOS suffix), interruptionMode as a string.
+// iOS notification sound filenames (must match sounds registered in app.json)
+const NOTIFICATION_SOUND_FILES: Record<SoundOption, string> = {
+  chime: "mixkit-page-forward-single-chime-1107.wav",
+  bell: "mixkit-happy-bells-notification-937.wav",
+  ding: "mixkit-positive-notification-951.wav",
+  soft: "mixkit-musical-reveal-961.wav",
+  none: "default",
+};
+
 let audioModeConfigured = false;
 async function ensureAudioMode() {
   if (audioModeConfigured) return;
@@ -56,7 +62,6 @@ async function ensureAudioMode() {
       interruptionMode: "doNotMix",
     });
     audioModeConfigured = true;
-    console.log("[audio] mode configured successfully");
   } catch (e) {
     console.log("[audio] mode setup error:", e);
   }
@@ -77,11 +82,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     ensureAudioMode();
   }, []);
 
-  // The real alert sound. Pauses the silent keep-alive player FIRST so the
-  // two players never fight for the same audio session simultaneously —
-  // this was the root cause of silent alert sounds under expo-av.
   const playAlert = useCallback(async (soundOption: SoundOption) => {
-    console.log("[playAlert] called with:", soundOption);
     if (soundOption === "none") return;
     try {
       await ensureAudioMode();
@@ -89,7 +90,6 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
       if (silentPlayerRef.current) {
         try {
           silentPlayerRef.current.pause();
-          console.log("[playAlert] silent loop paused");
         } catch (e) {
           console.log("[playAlert] pause silent loop error:", e);
         }
@@ -97,15 +97,11 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
 
       const alertPlayer = createAudioPlayer(SOUND_FILES[soundOption]);
       alertPlayer.volume = 1.0;
-      console.log("[playAlert] player created, volume:", alertPlayer.volume, "playing...");
       alertPlayer.play();
 
-      // expo-audio doesn't auto-reset or auto-unload; poll for completion
-      // then release and resume the silent loop.
       const checkInterval = setInterval(() => {
         if (alertPlayer.currentStatus?.didJustFinish || !alertPlayer.playing) {
           if (alertPlayer.currentStatus?.didJustFinish) {
-            console.log("[playAlert] playback finished");
             clearInterval(checkInterval);
             alertPlayer.release();
             if (silentPlayerRef.current) {
@@ -119,13 +115,9 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
         }
       }, 200);
 
-      // Safety timeout in case didJustFinish never fires (matches typical
-      // alert sound lengths of 1-3s; clears interval and releases regardless)
       setTimeout(() => {
         clearInterval(checkInterval);
-        try {
-          alertPlayer.release();
-        } catch {}
+        try { alertPlayer.release(); } catch {}
       }, 5000);
     } catch (e) {
       console.log("[playAlert] error:", e);
@@ -191,8 +183,14 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
           if (elapsed === t.elapsed) return t;
           changed = true;
           if (t.durationSeconds !== null && t.durationSeconds - elapsed <= 0 && !t.alerted) {
-            playAlert(soundRef.current);
-            cancelTimerNotification(t.notificationId);
+            if (appStateRef.current === "active") {
+              // App is in foreground: play in-app chime and cancel the notification
+              // so users only hear their chosen sound, not a double alert
+              playAlert(soundRef.current);
+              cancelTimerNotification(t.notificationId);
+            }
+            // If app is in background/inactive: leave the notification scheduled
+            // so it fires with the user's chosen custom sound file
             return { ...t, elapsed, alerted: true };
           }
           return { ...t, elapsed };
@@ -212,7 +210,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
       running: true, elapsed: 0, alerted: false,
     };
     if (durationSeconds) {
-      scheduleTimerNotification(label, durationSeconds).then(notificationId => {
+      scheduleTimerNotification(label, durationSeconds, soundRef.current).then(notificationId => {
         if (notificationId) {
           setTimers(prev => prev.map(t => t.id === id ? { ...t, notificationId } : t));
         }
@@ -244,7 +242,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
       const newStartedAt = Date.now() - t.elapsed * 1000;
       const remaining = t.durationSeconds ? t.durationSeconds - t.elapsed : null;
       if (remaining && remaining > 0) {
-        scheduleTimerNotification(t.label, remaining).then(notificationId => {
+        scheduleTimerNotification(t.label, remaining, soundRef.current).then(notificationId => {
           if (notificationId) {
             setTimers(prev2 => prev2.map(t2 => t2.id === id ? { ...t2, notificationId } : t2));
           }
@@ -259,7 +257,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
       if (t.id !== id) return t;
       cancelTimerNotification(t.notificationId);
       if (t.durationSeconds) {
-        scheduleTimerNotification(t.label, t.durationSeconds).then(notifId => {
+        scheduleTimerNotification(t.label, t.durationSeconds, soundRef.current).then(notifId => {
           if (notifId) {
             setTimers(prev2 => prev2.map(t2 => t2.id === id ? { ...t2, notificationId: notifId } : t2));
           }
@@ -276,7 +274,11 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-async function scheduleTimerNotification(label: string, durationSeconds: number): Promise<string | undefined> {
+async function scheduleTimerNotification(
+  label: string,
+  durationSeconds: number,
+  soundOption: SoundOption = "chime"
+): Promise<string | undefined> {
   try {
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== "granted") return undefined;
@@ -284,7 +286,7 @@ async function scheduleTimerNotification(label: string, durationSeconds: number)
       content: {
         title: "Timer Complete",
         body: `${label} timer has finished!`,
-        sound: "default",
+        sound: NOTIFICATION_SOUND_FILES[soundOption],
         priority: Notifications.AndroidNotificationPriority.HIGH,
       },
       trigger: {
