@@ -1,24 +1,27 @@
 import { useEffect } from "react";
 import { Stack, router } from "expo-router";
+import * as Notifications from "expo-notifications";
 import { supabase } from "../lib/supabase";
 import { TimerProvider } from "../lib/TimerContext";
 import { EVVProvider } from "../lib/EVVContext";
 import { prefetchForOffline, syncQueue } from "../lib/offline";
 
+// Register the notification handler immediately at module load,
+// not buried inside an async function — this guarantees it's in place
+// before any notification could possibly arrive, including while the
+// app is in the foreground.
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
 async function setupNotifications() {
   try {
-    const Notifications = await import("expo-notifications");
-    
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
-    });
-
     const { status: existing } = await Notifications.getPermissionsAsync();
     let finalStatus = existing;
     if (existing !== "granted") {

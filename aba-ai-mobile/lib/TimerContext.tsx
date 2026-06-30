@@ -1,4 +1,4 @@
-﻿import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Audio } from "expo-av";
 import * as Notifications from "expo-notifications";
 import { AppState, AppStateStatus } from "react-native";
@@ -43,55 +43,24 @@ const SOUND_FILES: Record<SoundOption, any> = {
   none: null,
 };
 
-async function playAlert(soundOption: SoundOption) {
-  if (soundOption === "none") return;
+// Audio mode is configured ONCE at module load / app start.
+// Re-calling setAudioModeAsync() mid-playback was the root cause of silent
+// alert sounds on iOS — it fights with the OS audio session arbitration
+// while another Sound object (the silent keep-alive loop) is actively playing.
+let audioModeConfigured = false;
+async function ensureAudioMode() {
+  if (audioModeConfigured) return;
   try {
     await Audio.setAudioModeAsync({
       playsInSilentModeIOS: true,
       staysActiveInBackground: true,
       shouldDuckAndroid: false,
+      interruptionModeIOS: 1, // DoNotMix — prevents other audio sessions from silently stealing playback
+      playThroughEarpieceAndroid: false,
     });
-    const { sound } = await Audio.Sound.createAsync(SOUND_FILES[soundOption]);
-    await sound.playAsync();
-    sound.setOnPlaybackStatusUpdate(status => {
-      if (status.isLoaded && status.didJustFinish) {
-        sound.unloadAsync();
-      }
-    });
+    audioModeConfigured = true;
   } catch (e) {
-    console.log("Sound error:", e);
-  }
-}
-
-async function scheduleTimerNotification(label: string, durationSeconds: number): Promise<string | undefined> {
-  try {
-    const { status } = await Notifications.getPermissionsAsync();
-    if (status !== "granted") return undefined;
-    const notificationId = await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "Timer Complete",
-        body: `${label} timer has finished!`,
-        sound: true,
-        priority: Notifications.AndroidNotificationPriority.HIGH,
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-        seconds: durationSeconds,
-      },
-    });
-    return notificationId;
-  } catch (e) {
-    console.log("Schedule notification error:", e);
-    return undefined;
-  }
-}
-
-async function cancelTimerNotification(notificationId?: string) {
-  if (!notificationId) return;
-  try {
-    await Notifications.cancelScheduledNotificationAsync(notificationId);
-  } catch (e) {
-    console.log("Cancel notification error:", e);
+    console.log("Audio mode setup error:", e);
   }
 }
 
@@ -107,11 +76,48 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { timersRef.current = timers; }, [timers]);
 
   useEffect(() => {
-    Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
-      shouldDuckAndroid: false,
-    });
+    ensureAudioMode();
+  }, []);
+
+  // The real alert sound. Pauses the silent keep-alive loop FIRST so the
+  // two Sound objects never fight for the same audio session simultaneously.
+  const playAlert = useCallback(async (soundOption: SoundOption) => {
+    if (soundOption === "none") return;
+    try {
+      await ensureAudioMode();
+
+      // Pause (don't unload) the silent loop so it doesn't compete for the session
+      if (silentSoundRef.current) {
+        try {
+          await silentSoundRef.current.pauseAsync();
+        } catch (e) {
+          console.log("Pause silent loop before alert error:", e);
+        }
+      }
+
+      const { sound: alertSound } = await Audio.Sound.createAsync(
+        SOUND_FILES[soundOption],
+        { volume: 1.0, shouldPlay: false }
+      );
+      await alertSound.setVolumeAsync(1.0);
+      await alertSound.playAsync();
+
+      alertSound.setOnPlaybackStatusUpdate(async (status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          await alertSound.unloadAsync();
+          // Resume the silent loop after the real alert finishes
+          if (silentSoundRef.current) {
+            try {
+              await silentSoundRef.current.playAsync();
+            } catch (e) {
+              console.log("Resume silent loop after alert error:", e);
+            }
+          }
+        }
+      });
+    } catch (e) {
+      console.log("Play alert sound error:", e);
+    }
   }, []);
 
   useEffect(() => {
@@ -127,11 +133,11 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   async function startSilentLoop() {
     if (silentSoundRef.current) return;
     try {
+      await ensureAudioMode();
       const { sound: silentSound } = await Audio.Sound.createAsync(
         SOUND_FILES["chime"],
-        { isLooping: true, volume: 0.001 }
+        { isLooping: true, volume: 0.01, shouldPlay: true }
       );
-      await silentSound.playAsync();
       silentSoundRef.current = silentSound;
     } catch (e) {
       console.log("Silent loop error:", e);
@@ -183,7 +189,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
       });
     }, 500);
     return () => clearInterval(interval);
-  }, []);
+  }, [playAlert]);
 
   const addTimer = useCallback((label: string, durationSeconds?: number): string => {
     const id = `timer-${Date.now()}`;
@@ -256,4 +262,36 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
       {children}
     </TimerContext.Provider>
   );
+}
+
+async function scheduleTimerNotification(label: string, durationSeconds: number): Promise<string | undefined> {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== "granted") return undefined;
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "Timer Complete",
+        body: `${label} timer has finished!`,
+        sound: "default",
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds: durationSeconds,
+      },
+    });
+    return notificationId;
+  } catch (e) {
+    console.log("Schedule notification error:", e);
+    return undefined;
+  }
+}
+
+async function cancelTimerNotification(notificationId?: string) {
+  if (!notificationId) return;
+  try {
+    await Notifications.cancelScheduledNotificationAsync(notificationId);
+  } catch (e) {
+    console.log("Cancel notification error:", e);
+  }
 }
