@@ -657,18 +657,13 @@ function DataEntry({ tab, dataPoints, onAdd, onRemove }: DataEntryProps) {
   const [correct, setCorrect] = useState('');
   const [error, setError] = useState('');
   const [noOpp, setNoOpp] = useState('');
-  const [duration, setDuration] = useState('');
-
-  const isDuration = tab === 'duration';
   const isPerOpp   = tab === 'per_opportunity';
 
   const handleAdd = () => {
     const d = parseInt(day);
     if (!d || d < 1) return;
     const pt: DataPoint = { day: d };
-    if (isDuration) {
-      pt.duration = parseFloat(duration) || undefined;
-    } else if (isPerOpp) {
+    if (isPerOpp) {
       pt.correct = parseFloat(correct) || undefined;
     } else {
       pt.correct  = parseFloat(correct)  || undefined;
@@ -691,16 +686,7 @@ function DataEntry({ tab, dataPoints, onAdd, onRemove }: DataEntryProps) {
             placeholder="1"
           />
         </div>
-        {isDuration ? (
-          <div className="flex flex-col gap-0.5">
-            <label className="text-xs text-gray-500">Duration (sec)</label>
-            <input
-              type="number" value={duration} onChange={e => setDuration(e.target.value)}
-              className="w-24 text-xs border rounded px-1 py-1"
-              placeholder="0"
-            />
-          </div>
-        ) : isPerOpp ? (
+        {isPerOpp ? (
           <div className="flex flex-col gap-0.5">
             <label className="text-xs text-gray-500">% Correct</label>
             <input
@@ -751,10 +737,8 @@ function DataEntry({ tab, dataPoints, onAdd, onRemove }: DataEntryProps) {
             <thead>
               <tr className="text-gray-500 text-left border-b">
                 <th className="pr-3">{tab === 'weekly' ? 'Wk' : 'Day'}</th>
-                {isDuration
-                  ? <th>Duration (s)</th>
-                  : isPerOpp
-                    ? <th>% Correct</th>
+                {isPerOpp
+                  ? <th>% Correct</th>
                     : <><th>Correct</th><th>Error</th><th>NoOpp</th></>
                 }
                 <th></th>
@@ -764,10 +748,8 @@ function DataEntry({ tab, dataPoints, onAdd, onRemove }: DataEntryProps) {
               {[...dataPoints].sort((a, b) => a.day - b.day).map(dp => (
                 <tr key={dp.day} className="border-b border-gray-100">
                   <td className="pr-3 py-0.5">{dp.day}</td>
-                  {isDuration
-                    ? <td>{dp.duration ?? '—'}</td>
-                    : isPerOpp
-                      ? <td>{dp.correct ?? '—'}</td>
+                  {isPerOpp
+                    ? <td>{dp.correct ?? '—'}</td>
                       : <>
                           <td>{dp.correct ?? '—'}</td>
                           <td>{dp.error ?? '—'}</td>
