@@ -886,8 +886,6 @@ const TAB_DESCRIPTIONS: Record<ChartTab, string> = {
   daily: 'Standard Daily per Minute chart (DPmin) — the most common SCC. Plots count per minute over 140 successive calendar days on a 6-cycle log scale. Used for most ABA/PT data. Dots (●) = correct, × = errors, ○ = no opportunity.',
   weekly: 'Weekly per Minute chart — summarizes data by week (20 weeks on X-axis). Useful for longer-term trend analysis. Same 6-cycle log scale as the daily chart.',
   per_opportunity: 'Per Opportunity (%) chart — used when behavior is measured as percentage correct across discrete trials. X-axis is 140 days; Y-axis is percent (log scale, 0.1–100%). Common for discrete trial teaching (DTT).',
-  duration: 'Duration chart — tracks how long a behavior lasts (in seconds) rather than how often it occurs. Useful for behaviors like on-task time, tantrum duration, or engagement. Plotted on a log scale.',
-  safmeds: 'SAFMEDS (Say All Fast a Minute Every Day Shuffled) — flashcard fluency measurement. Plots correct card responses per minute. Same axes as daily chart. Used widely in Precision Teaching for academic skills.',
 };
 
 // ─────────────────────────────────────────────
