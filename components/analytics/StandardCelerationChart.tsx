@@ -10,13 +10,15 @@ type ChartTab =
   | 'daily'
   | 'weekly'
   | 'per_opportunity'
-;
+  | 'duration'
+  | 'safmeds';
 
 interface DataPoint {
   day: number;         // successive calendar day (1–140) or week (1–20)
   correct?: number;    // count per minute (or % for per_opportunity)
   error?: number;
   noOpp?: number;      // open circle: no opportunity
+  duration?: number;   // seconds (for duration chart)
 }
 
 interface PhaseChange {
@@ -86,6 +88,8 @@ const TABS: { id: ChartTab; label: string; shortLabel: string }[] = [
   { id: 'daily',          label: 'Daily (per minute)',    shortLabel: 'Daily/min' },
   { id: 'weekly',         label: 'Weekly (per minute)',   shortLabel: 'Weekly/min' },
   { id: 'per_opportunity', label: 'Per Opportunity (%)',  shortLabel: 'Per Opp' },
+  { id: 'duration',       label: 'Duration (seconds)',    shortLabel: 'Duration' },
+  { id: 'safmeds',        label: 'SAFMEDS',               shortLabel: 'SAFMEDS' },
 ];
 
 // ─────────────────────────────────────────────
@@ -138,8 +142,10 @@ function ChartSVG({
 }: ChartSVGProps) {
   const svgRef = useRef<SVGSVGElement>(null);
 
+  const isDuration = tab === 'duration';
   const isPerOpp   = tab === 'per_opportunity';
   const isWeekly   = tab === 'weekly';
+  const isSafmeds  = tab === 'safmeds';
 
   // X domain
   const xMax = isWeekly ? 20 : 140;
@@ -310,7 +316,11 @@ function ChartSVG({
       .text(xLabel);
 
     // ── Y Axis label ──
-    const yAxisLabel = isPerOpp ? 'Percent Correct (%)' : 'Count per Minute';
+    const yAxisLabel = isDuration
+      ? 'Duration (seconds per minute)'
+      : isPerOpp
+        ? 'Percent Correct (%)'
+        : 'Count per Minute';
 
     g.append('text')
       .attr('transform', 'rotate(-90)')
@@ -464,6 +474,32 @@ function ChartSVG({
     // ── Data points ──
     dataPoints.forEach(dp => {
       const x = xScale(dp.day);
+
+      // Duration chart: bar-like line from floor to value
+      if (isDuration && dp.duration != null) {
+        const yV = yScale(Math.max(dp.duration / 60, Y_MIN)); // convert sec to "per min" scale proxy
+        g.append('circle')
+          .attr('cx', x).attr('cy', yV)
+          .attr('r', 4)
+          .attr('fill', '#1a5ca8')
+          .attr('stroke', '#fff')
+          .attr('stroke-width', 1);
+        return;
+      }
+
+      // SAFMEDS: dots only (correct)
+      if (isSafmeds) {
+        if (showCorrect && dp.correct != null && dp.correct > 0) {
+          const yC = yScale(dp.correct);
+          g.append('circle')
+            .attr('cx', x).attr('cy', yC)
+            .attr('r', 4)
+            .attr('fill', '#1a5ca8')
+            .attr('stroke', '#fff')
+            .attr('stroke-width', 1);
+        }
+        return;
+      }
 
       // Per opportunity: percentage
       if (isPerOpp) {
@@ -657,13 +693,18 @@ function DataEntry({ tab, dataPoints, onAdd, onRemove }: DataEntryProps) {
   const [correct, setCorrect] = useState('');
   const [error, setError] = useState('');
   const [noOpp, setNoOpp] = useState('');
+  const [duration, setDuration] = useState('');
+
+  const isDuration = tab === 'duration';
   const isPerOpp   = tab === 'per_opportunity';
 
   const handleAdd = () => {
     const d = parseInt(day);
     if (!d || d < 1) return;
     const pt: DataPoint = { day: d };
-    if (isPerOpp) {
+    if (isDuration) {
+      pt.duration = parseFloat(duration) || undefined;
+    } else if (isPerOpp) {
       pt.correct = parseFloat(correct) || undefined;
     } else {
       pt.correct  = parseFloat(correct)  || undefined;
@@ -671,7 +712,7 @@ function DataEntry({ tab, dataPoints, onAdd, onRemove }: DataEntryProps) {
       pt.noOpp    = parseFloat(noOpp)    || undefined;
     }
     onAdd(pt);
-    setDay(''); setCorrect(''); setError(''); setNoOpp('');
+    setDay(''); setCorrect(''); setError(''); setNoOpp(''); setDuration('');
   };
 
   return (
@@ -686,7 +727,16 @@ function DataEntry({ tab, dataPoints, onAdd, onRemove }: DataEntryProps) {
             placeholder="1"
           />
         </div>
-        {isPerOpp ? (
+        {isDuration ? (
+          <div className="flex flex-col gap-0.5">
+            <label className="text-xs text-gray-500">Duration (sec)</label>
+            <input
+              type="number" value={duration} onChange={e => setDuration(e.target.value)}
+              className="w-24 text-xs border rounded px-1 py-1"
+              placeholder="0"
+            />
+          </div>
+        ) : isPerOpp ? (
           <div className="flex flex-col gap-0.5">
             <label className="text-xs text-gray-500">% Correct</label>
             <input
@@ -737,8 +787,10 @@ function DataEntry({ tab, dataPoints, onAdd, onRemove }: DataEntryProps) {
             <thead>
               <tr className="text-gray-500 text-left border-b">
                 <th className="pr-3">{tab === 'weekly' ? 'Wk' : 'Day'}</th>
-                {isPerOpp
-                  ? <th>% Correct</th>
+                {isDuration
+                  ? <th>Duration (s)</th>
+                  : isPerOpp
+                    ? <th>% Correct</th>
                     : <><th>Correct</th><th>Error</th><th>NoOpp</th></>
                 }
                 <th></th>
@@ -748,8 +800,10 @@ function DataEntry({ tab, dataPoints, onAdd, onRemove }: DataEntryProps) {
               {[...dataPoints].sort((a, b) => a.day - b.day).map(dp => (
                 <tr key={dp.day} className="border-b border-gray-100">
                   <td className="pr-3 py-0.5">{dp.day}</td>
-                  {isPerOpp
-                    ? <td>{dp.correct ?? '—'}</td>
+                  {isDuration
+                    ? <td>{dp.duration ?? '—'}</td>
+                    : isPerOpp
+                      ? <td>{dp.correct ?? '—'}</td>
                       : <>
                           <td>{dp.correct ?? '—'}</td>
                           <td>{dp.error ?? '—'}</td>
@@ -886,6 +940,8 @@ const TAB_DESCRIPTIONS: Record<ChartTab, string> = {
   daily: 'Standard Daily per Minute chart (DPmin) — the most common SCC. Plots count per minute over 140 successive calendar days on a 6-cycle log scale. Used for most ABA/PT data. Dots (●) = correct, × = errors, ○ = no opportunity.',
   weekly: 'Weekly per Minute chart — summarizes data by week (20 weeks on X-axis). Useful for longer-term trend analysis. Same 6-cycle log scale as the daily chart.',
   per_opportunity: 'Per Opportunity (%) chart — used when behavior is measured as percentage correct across discrete trials. X-axis is 140 days; Y-axis is percent (log scale, 0.1–100%). Common for discrete trial teaching (DTT).',
+  duration: 'Duration chart — tracks how long a behavior lasts (in seconds) rather than how often it occurs. Useful for behaviors like on-task time, tantrum duration, or engagement. Plotted on a log scale.',
+  safmeds: 'SAFMEDS (Say All Fast a Minute Every Day Shuffled) — flashcard fluency measurement. Plots correct card responses per minute. Same axes as daily chart. Used widely in Precision Teaching for academic skills.',
 };
 
 // ─────────────────────────────────────────────
@@ -952,6 +1008,7 @@ export default function StandardCelerationChart({
     setActiveFloors(prev => prev.filter(f => f !== sec));
   };
 
+  const isDuration = activeTab === 'duration';
   const isPerOpp   = activeTab === 'per_opportunity';
 
   return (
@@ -999,7 +1056,7 @@ export default function StandardCelerationChart({
         {/* Display toggles */}
         <div className="flex gap-2 items-center text-xs">
           <span className="text-gray-500 font-medium">Show:</span>
-          {!isPerOpp && (
+          {!isDuration && !isPerOpp && (
             <>
               <label className="flex items-center gap-1 cursor-pointer">
                 <input type="checkbox" checked={showCorrect} onChange={e => setShowCorrect(e.target.checked)} />
