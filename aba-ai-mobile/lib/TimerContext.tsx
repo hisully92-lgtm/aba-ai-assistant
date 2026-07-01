@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from "expo-audio";
+import { Audio } from "expo-av";
 import * as Notifications from "expo-notifications";
 import { AppState, AppStateStatus } from "react-native";
 
@@ -52,18 +52,24 @@ const NOTIFICATION_SOUND_FILES: Record<SoundOption, string> = {
   none: "default",
 };
 
-let audioModeConfigured = false;
-async function ensureAudioMode() {
-  if (audioModeConfigured) return;
+async function playAlert(soundOption: SoundOption) {
+  if (soundOption === "none") return;
   try {
-    await setAudioModeAsync({
-      playsInSilentMode: true,
-      shouldPlayInBackground: true,
-      interruptionMode: "doNotMix",
+    await Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: false,
     });
-    audioModeConfigured = true;
+    const { sound } = await Audio.Sound.createAsync(SOUND_FILES[soundOption]);
+    await sound.setVolumeAsync(1.0);
+    await sound.playAsync();
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (status.isLoaded && status.didJustFinish) {
+        sound.unloadAsync();
+      }
+    });
   } catch (e) {
-    console.log("[audio] mode setup error:", e);
+    console.log("Play alert sound error:", e);
   }
 }
 
@@ -71,7 +77,6 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   const [timers, setTimers] = useState<Timer[]>([]);
   const [sound, setSound] = useState<SoundOption>("chime");
   const soundRef = useRef<SoundOption>("chime");
-  const silentPlayerRef = useRef<AudioPlayer | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const timersRef = useRef<Timer[]>([]);
 
@@ -79,85 +84,12 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { timersRef.current = timers; }, [timers]);
 
   useEffect(() => {
-    ensureAudioMode();
+    Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: false,
+    });
   }, []);
-
-  const playAlert = useCallback(async (soundOption: SoundOption) => {
-    if (soundOption === "none") return;
-    try {
-      await ensureAudioMode();
-
-      if (silentPlayerRef.current) {
-        try {
-          silentPlayerRef.current.pause();
-        } catch (e) {
-          console.log("[playAlert] pause silent loop error:", e);
-        }
-      }
-
-      const alertPlayer = createAudioPlayer(SOUND_FILES[soundOption]);
-      alertPlayer.volume = 1.0;
-      alertPlayer.play();
-
-      const checkInterval = setInterval(() => {
-        if (alertPlayer.currentStatus?.didJustFinish || !alertPlayer.playing) {
-          if (alertPlayer.currentStatus?.didJustFinish) {
-            clearInterval(checkInterval);
-            alertPlayer.release();
-            if (silentPlayerRef.current) {
-              try {
-                silentPlayerRef.current.play();
-              } catch (e) {
-                console.log("[playAlert] resume silent loop error:", e);
-              }
-            }
-          }
-        }
-      }, 200);
-
-      setTimeout(() => {
-        clearInterval(checkInterval);
-        try { alertPlayer.release(); } catch {}
-      }, 5000);
-    } catch (e) {
-      console.log("[playAlert] error:", e);
-    }
-  }, []);
-
-  useEffect(() => {
-    const hasRunningTimers = timers.some(t => t.running && t.durationSeconds !== null);
-    if (hasRunningTimers) {
-      startSilentLoop();
-    } else {
-      stopSilentLoop();
-    }
-    return () => { stopSilentLoop(); };
-  }, [timers]);
-
-  async function startSilentLoop() {
-    if (silentPlayerRef.current) return;
-    try {
-      await ensureAudioMode();
-      const player = createAudioPlayer(SOUND_FILES["chime"]);
-      player.loop = true;
-      player.volume = 0.01;
-      player.play();
-      silentPlayerRef.current = player;
-    } catch (e) {
-      console.log("[audio] silent loop start error:", e);
-    }
-  }
-
-  function stopSilentLoop() {
-    if (!silentPlayerRef.current) return;
-    try {
-      silentPlayerRef.current.pause();
-      silentPlayerRef.current.release();
-      silentPlayerRef.current = null;
-    } catch (e) {
-      console.log("[audio] silent loop stop error:", e);
-    }
-  }
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
@@ -184,13 +116,9 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
           changed = true;
           if (t.durationSeconds !== null && t.durationSeconds - elapsed <= 0 && !t.alerted) {
             if (appStateRef.current === "active") {
-              // App is in foreground: play in-app chime and cancel the notification
-              // so users only hear their chosen sound, not a double alert
               playAlert(soundRef.current);
               cancelTimerNotification(t.notificationId);
             }
-            // If app is in background/inactive: leave the notification scheduled
-            // so it fires with the user's chosen custom sound file
             return { ...t, elapsed, alerted: true };
           }
           return { ...t, elapsed };
@@ -199,7 +127,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
       });
     }, 500);
     return () => clearInterval(interval);
-  }, [playAlert]);
+  }, []);
 
   const addTimer = useCallback((label: string, durationSeconds?: number): string => {
     const id = `timer-${Date.now()}`;
