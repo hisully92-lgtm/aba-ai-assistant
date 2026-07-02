@@ -160,7 +160,7 @@ export default function ClientsPage() {
       // Fetch all staff in the company with their profiles
       const { data: staffData } = await supabase
         .from("company_users")
-        .select("user_id, role, profiles(full_name), auth_users:user_id(email)")
+        .select("user_id, role, profiles(full_name, email)")
         .eq("company_id", cid)
         .eq("status", "active");
 
@@ -168,7 +168,7 @@ export default function ClientsPage() {
         user_id: s.user_id,
         role: s.role,
         full_name: s.profiles?.full_name ?? "",
-        email: s.auth_users?.email ?? "",
+        email: s.profiles?.email ?? "",
       }));
       setStaffMembers(staff);
 
@@ -475,7 +475,7 @@ export default function ClientsPage() {
                   <div className="flex flex-wrap gap-1 mt-2">
                     {assignments.slice(0, 3).map(a => (
                       <span key={a.id} className={`text-xs px-2 py-0.5 rounded-full border ${ROLE_COLORS[a.role] ?? "bg-gray-50 text-gray-700 border-gray-200"}`}>
-                        {a.role.replace("_", " ")}: {getDisplayName(a).split(" ")[0]}
+                        {a.role.replace("_", " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}: {getDisplayName(a).split(" ")[0]}
                       </span>
                     ))}
                     {assignments.length > 3 && (
@@ -591,7 +591,7 @@ export default function ClientsPage() {
                     ).map(([role, members]) => (
                       <div key={role} className="bg-gray-50 rounded-xl p-3">
                         <p className="text-xs font-semibold text-gray-500 mb-2 capitalize">
-                          {role.replace("_", " ")}
+                          {role.replace("_", " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}
                         </p>
                         <div className="space-y-1.5">
                           {members.map(m => (
@@ -636,7 +636,7 @@ export default function ClientsPage() {
                       <option value="">Select staff member...</option>
                       {getAvailableStaff(assigningClientId).map(s => (
                         <option key={s.user_id} value={s.user_id}>
-                          {s.full_name || s.email} — {s.role.replace("_", " ")}
+                          {s.full_name || s.email} — {s.role.replace("_", " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}
                         </option>
                       ))}
                     </select>
