@@ -1,5 +1,4 @@
-﻿"use client";
-
+"use client";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -9,6 +8,7 @@ type Message = {
   message: string; sender_name: string | null;
   sender_role: string | null; created_at: string;
 };
+type AssignedStaff = { full_name: string; role: string };
 
 const QUICK_MESSAGES = [
   "Session started", "Session ended", "Running late",
@@ -24,9 +24,10 @@ export default function FloatingChat() {
   const [userId, setUserId] = useState("");
   const [userName, setUserName] = useState("");
   const [userRole, setUserRole] = useState("");
+  const [companyId, setCompanyId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [unread, setUnread] = useState(0);
-  const [assignedStaff, setAssignedStaff] = useState<{full_name: string; role: string}[]>([]);
+  const [assignedStaff, setAssignedStaff] = useState<AssignedStaff[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -61,24 +62,56 @@ export default function FloatingChat() {
     const user = auth?.user;
     if (!user) return;
     setUserId(user.id);
+
     const [{ data: profile }, { data: cu }] = await Promise.all([
       supabase.from("profiles").select("full_name, role").eq("id", user.id).single(),
       supabase.from("company_users").select("company_id, role")
         .eq("user_id", user.id).eq("status", "active").limit(1).maybeSingle(),
     ]);
+
     setUserName(profile?.full_name ?? "");
     setUserRole(cu?.role ?? profile?.role ?? "");
+    setCompanyId(cu?.company_id ?? null);
+
     const { data } = await supabase.from("clients")
-      .select("id, full_name").eq("company_id", cu?.company_id).order("full_name");
+      .select("id, full_name").order("full_name");
     setClients(data ?? []);
   }
 
   async function selectClient(client: Client) {
     setSelectedClient(client);
+
     const { data } = await supabase.from("client_team_messages")
       .select("*").eq("client_id", client.id)
       .order("created_at", { ascending: true }).limit(50);
     setMessages(data ?? []);
+
+    // Fetch assigned staff using get_company_team RPC (bypasses RLS)
+    try {
+      const { data: caData } = await supabase
+        .from("client_assignments")
+        .select("user_id, role")
+        .eq("client_id", client.id);
+
+      if (caData && caData.length > 0 && companyId) {
+        const { data: teamData } = await supabase
+          .rpc("get_company_team", { company_uuid: companyId });
+
+        setAssignedStaff(
+          caData.map((s: any) => {
+            const member = (teamData ?? []).find((t: any) => t.user_id === s.user_id);
+            return {
+              role: s.role,
+              full_name: member?.full_name ?? "Staff",
+            };
+          })
+        );
+      } else {
+        setAssignedStaff([]);
+      }
+    } catch {
+      setAssignedStaff([]);
+    }
   }
 
   async function handleSend(msg?: string) {
@@ -108,25 +141,29 @@ export default function FloatingChat() {
     return "#6b7280";
   }
 
+  function getStaffSubtitle() {
+    if (!selectedClient) return `${clients.length} clients`;
+    if (assignedStaff.length === 0) return "Team chat";
+    return assignedStaff.map(s => s.full_name.split(" ")[0]).join(", ");
+  }
+
   return (
     <div className="fixed bottom-20 right-4 z-50 flex flex-col items-end gap-2">
-      {/* CHAT PANEL */}
       {open && (
         <div className="w-80 bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden"
           style={{ height: "480px" }}>
-          {/* HEADER */}
           <div className="bg-[#1a2234] px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               {selectedClient && (
-                <button onClick={() => { setSelectedClient(null); setMessages([]); }}
+                <button onClick={() => { setSelectedClient(null); setMessages([]); setAssignedStaff([]); }}
                   className="text-gray-400 hover:text-white text-lg leading-none">←</button>
               )}
               <div>
                 <p className="text-white font-bold text-sm">
                   {selectedClient ? selectedClient.full_name : "Team Chat"}
                 </p>
-                <p className="text-gray-400 text-xs">
-                  {selectedClient ? "Team chat" : `${clients.length} clients`}
+                <p className="text-gray-400 text-xs truncate max-w-[180px]">
+                  {getStaffSubtitle()}
                 </p>
               </div>
             </div>
@@ -134,7 +171,6 @@ export default function FloatingChat() {
           </div>
 
           {!selectedClient ? (
-            /* CLIENT LIST */
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
               {clients.map(client => (
                 <button key={client.id} onClick={() => selectClient(client)}
@@ -149,7 +185,6 @@ export default function FloatingChat() {
             </div>
           ) : (
             <>
-              {/* QUICK MESSAGES */}
               <div className="flex gap-1 p-2 overflow-x-auto border-b border-gray-100">
                 {QUICK_MESSAGES.map(msg => (
                   <button key={msg} onClick={() => handleSend(msg)}
@@ -159,7 +194,6 @@ export default function FloatingChat() {
                 ))}
               </div>
 
-              {/* MESSAGES */}
               <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-gray-50">
                 {messages.length === 0 && (
                   <div className="text-center py-8">
@@ -190,7 +224,6 @@ export default function FloatingChat() {
                 <div ref={bottomRef} />
               </div>
 
-              {/* INPUT */}
               <div className="flex gap-2 p-2 border-t border-gray-100">
                 <input type="text" value={input}
                   onChange={e => setInput(e.target.value)}
@@ -207,7 +240,6 @@ export default function FloatingChat() {
         </div>
       )}
 
-      {/* BUBBLE BUTTON */}
       <button onClick={() => setOpen(o => !o)}
         className="w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg flex items-center justify-center text-2xl transition-all relative">
         {open ? "✕" : "💬"}
