@@ -10,8 +10,8 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data?.user) { router.replace("/app"); return; }
+    supabase.auth.getUser().then((result: any) => {
+      if (!result?.data?.user) { router.replace("/app"); return; }
       setChecked(true);
     });
   }, [router]);
