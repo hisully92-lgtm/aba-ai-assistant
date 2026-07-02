@@ -157,19 +157,29 @@ export default function ClientsPage() {
     setClients(clientData ?? []);
 
     if (cid) {
-      // Fetch all staff in the company with their profiles
+      // Fetch all staff in the company
       const { data: staffData } = await supabase
         .from("company_users")
-        .select("user_id, role, profiles(full_name, email)")
+        .select("user_id, role")
         .eq("company_id", cid)
         .eq("status", "active");
 
-      const staff: StaffMember[] = (staffData ?? []).map((s: any) => ({
-        user_id: s.user_id,
-        role: s.role,
-        full_name: s.profiles?.full_name ?? "",
-        email: s.profiles?.email ?? "",
-      }));
+      // Fetch profiles separately
+      const userIds = (staffData ?? []).map((s: any) => s.user_id);
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", userIds);
+
+      const staff: StaffMember[] = (staffData ?? []).map((s: any) => {
+        const profile = (profileData ?? []).find((p: any) => p.id === s.user_id);
+        return {
+          user_id: s.user_id,
+          role: s.role,
+          full_name: profile?.full_name ?? "",
+          email: profile?.email ?? "",
+        };
+      });
       setStaffMembers(staff);
 
       // Fetch all client_assignments for this company
