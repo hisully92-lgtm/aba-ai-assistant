@@ -1,0 +1,110 @@
+"use client";
+
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import { supabase } from "@/lib/supabase/client";
+
+/* ---------------- TIMERS ---------------- */
+type Timer = { id: string; label: string; elapsed: number; running: boolean; durationSeconds: number | null };
+type TimerContextType = {
+  timers: Timer[];
+  addTimer: (label: string, durationSeconds: number | null) => void;
+  pauseTimer: (id: string) => void;
+  resumeTimer: (id: string) => void;
+  resetTimer: (id: string) => void;
+  removeTimer: (id: string) => void;
+};
+const TimerContext = createContext<TimerContextType | null>(null);
+
+export function TimerProvider({ children }: { children: React.ReactNode }) {
+  const [timers, setTimers] = useState<Timer[]>([]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimers(prev => prev.map(t => t.running ? { ...t, elapsed: t.elapsed + 1 } : t));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const addTimer = useCallback((label: string, durationSeconds: number | null) => {
+    setTimers(prev => [...prev, { id: crypto.randomUUID(), label, elapsed: 0, running: true, durationSeconds }]);
+  }, []);
+  const pauseTimer = useCallback((id: string) => setTimers(prev => prev.map(t => t.id === id ? { ...t, running: false } : t)), []);
+  const resumeTimer = useCallback((id: string) => setTimers(prev => prev.map(t => t.id === id ? { ...t, running: true } : t)), []);
+  const resetTimer = useCallback((id: string) => setTimers(prev => prev.map(t => t.id === id ? { ...t, elapsed: 0 } : t)), []);
+  const removeTimer = useCallback((id: string) => setTimers(prev => prev.filter(t => t.id !== id)), []);
+
+  return (
+    <TimerContext.Provider value={{ timers, addTimer, pauseTimer, resumeTimer, resetTimer, removeTimer }}>
+      {children}
+    </TimerContext.Provider>
+  );
+}
+export function useTimers() {
+  const ctx = useContext(TimerContext);
+  if (!ctx) throw new Error("useTimers must be used within TimerProvider");
+  return ctx;
+}
+
+/* ---------------- EVV / ACTIVE SESSION ---------------- */
+type ActiveSession = { id: string; client_name: string; location_name: string | null; clock_in: string } | null;
+type EVVContextType = {
+  activeSession: ActiveSession;
+  elapsed: number;
+  refreshSession: () => void;
+};
+const EVVContext = createContext<EVVContextType | null>(null);
+
+export function EVVProvider({ children }: { children: React.ReactNode }) {
+  const [activeSession, setActiveSession] = useState<ActiveSession>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const tickRef = useRef<any>(null);
+
+  const refreshSession = useCallback(async () => {
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth?.user;
+    if (!user) return;
+
+    const { data: entry } = await supabase
+      .from("time_entries")
+      .select("id, clock_in, client_id, location_name")
+      .eq("created_by", user.id)
+      .is("clock_out", null)
+      .limit(1)
+      .maybeSingle();
+
+    if (!entry) { setActiveSession(null); return; }
+
+    const { data: client } = await supabase.from("clients").select("full_name").eq("id", entry.client_id).limit(1).maybeSingle();
+
+    setActiveSession({
+      id: entry.id,
+      client_name: client?.full_name ?? "Client",
+      location_name: entry.location_name,
+      clock_in: entry.clock_in,
+    });
+  }, []);
+
+  useEffect(() => { refreshSession(); }, [refreshSession]);
+
+  useEffect(() => {
+    if (tickRef.current) clearInterval(tickRef.current);
+    if (activeSession) {
+      const start = new Date(activeSession.clock_in).getTime();
+      tickRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+    } else {
+      setElapsed(0);
+    }
+    return () => clearInterval(tickRef.current);
+  }, [activeSession]);
+
+  return (
+    <EVVContext.Provider value={{ activeSession, elapsed, refreshSession }}>
+      {children}
+    </EVVContext.Provider>
+  );
+}
+export function useEVV() {
+  const ctx = useContext(EVVContext);
+  if (!ctx) throw new Error("useEVV must be used within EVVProvider");
+  return ctx;
+}

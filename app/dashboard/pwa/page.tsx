@@ -6,7 +6,7 @@ import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
 
-const PWA_URL = "https://aba-ai-assistant.com/dashboard/pwa";
+const PWA_URL = "https://aba-ai-assistant.com/app";
 
 export default function PWAPage() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
