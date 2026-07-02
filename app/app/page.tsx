@@ -76,7 +76,7 @@ export default function AppLoginPage() {
         email: email.trim(), password,
       });
       if (signInError) { setError(signInError.message); setLoading(false); return; }
-      window.location.href = "/dashboard";
+      window.location.href = "/app/home";
       return;
     }
   }
