@@ -1,7 +1,7 @@
 ﻿/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, use } from "react";
 import { supabase } from "@/lib/supabase/client";
 import Button from "@/components/ui/Button";
 import Section from "@/components/ui/Section";
@@ -60,8 +60,9 @@ type Intake = {
   medications: string;
 };
 
-export default function ClientDetailPage({ params }: { params: { id: string } }) {
-  const clientId = params.id;
+export default function ClientDetailPage({ params }: { params: any }) {
+  const resolvedParams = typeof params?.then === "function" ? use(params) : params;
+  const clientId = resolvedParams?.id;
 
   const [client, setClient] = useState<Client | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
