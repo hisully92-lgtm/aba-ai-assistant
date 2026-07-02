@@ -119,8 +119,7 @@ export default function ClientsPage() {
   const { canAddClient, clientCount, limits } = usePlanGate();
 
   // Only admin, clinical_director, bcba, supervisor can manage assignments
-  const canManageAssignments = isAdmin || isSupervisor ||
-    role === "bcba" || role === "clinical_director";
+  const canManageAssignments = isAdmin || isSupervisor || ["bcba", "clinical_director"].includes(role as string);
   const canAddClients = isAdmin || isSupervisor;
   const clientGate = canAddClient();
 
