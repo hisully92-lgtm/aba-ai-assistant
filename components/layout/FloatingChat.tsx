@@ -26,6 +26,7 @@ export default function FloatingChat() {
   const [userRole, setUserRole] = useState("");
   const [sending, setSending] = useState(false);
   const [unread, setUnread] = useState(0);
+  const [assignedStaff, setAssignedStaff] = useState<{full_name: string; role: string}[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
