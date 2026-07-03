@@ -46,7 +46,7 @@ export default function ChatPage() {
     if (mode === "team" && selectedClient) {
       const channel = supabase.channel(`chat-${selectedClient.id}`)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "client_team_messages", filter: `client_id=eq.${selectedClient.id}` },
-          payload => { setMessages(prev => [...prev, payload.new as Message]); setTimeout(scrollToEnd, 100); })
+          (payload: any) => { setMessages(prev => [...prev, payload.new as Message]); setTimeout(scrollToEnd, 100); })
         .subscribe();
       return () => { supabase.removeChannel(channel); };
     }
