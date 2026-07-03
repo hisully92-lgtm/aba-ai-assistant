@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import AppShell from "@/components/app/AppShell";
+import { subscribeToPush, unsubscribeFromPush } from "@/lib/pushClient";
 
 type Profile = { full_name: string; role: string; email: string };
 
@@ -122,7 +123,15 @@ export default function ProfilePage() {
                 <p className="text-sm font-semibold text-gray-900">Push Notifications</p>
                 <p className="text-xs text-gray-400 mt-0.5">Enable all push notifications</p>
               </div>
-              <Toggle checked={pushEnabled} onChange={setPushEnabled} activeColor="#2563eb" />
+              <Toggle checked={pushEnabled} onChange={async (v) => {
+  setPushEnabled(v);
+  if (v) {
+    const result = await subscribeToPush();
+    if (!result.success) { alert(result.error ?? "Could not enable notifications."); setPushEnabled(false); }
+  } else {
+    await unsubscribeFromPush();
+  }
+}} activeColor="#2563eb" />
             </div>
 
             {pushEnabled && (
