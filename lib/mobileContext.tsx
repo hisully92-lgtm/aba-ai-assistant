@@ -4,9 +4,31 @@ import { createContext, useContext, useEffect, useState, useCallback, useRef } f
 import { supabase } from "@/lib/supabase/client";
 
 /* ---------------- TIMERS ---------------- */
-type Timer = { id: string; label: string; elapsed: number; running: boolean; durationSeconds: number | null };
+export type SoundOption = "chime" | "bell" | "ding" | "soft" | "none";
+
+const SOUND_FILES: Record<Exclude<SoundOption, "none">, string> = {
+  chime: "/sounds/mixkit-page-forward-single-chime-1107.wav",
+  bell: "/sounds/mixkit-happy-bells-notification-937.wav",
+  ding: "/sounds/mixkit-positive-notification-951.wav",
+  soft: "/sounds/mixkit-musical-reveal-961.wav",
+};
+
+function playAlert(sound: SoundOption) {
+  if (sound === "none") return;
+  try {
+    const audio = new Audio(SOUND_FILES[sound]);
+    audio.volume = 1.0;
+    audio.play().catch(e => console.log("Audio play blocked:", e));
+  } catch (e) {
+    console.log("Play alert sound error:", e);
+  }
+}
+
+type Timer = { id: string; label: string; elapsed: number; running: boolean; durationSeconds: number | null; alerted: boolean };
 type TimerContextType = {
   timers: Timer[];
+  sound: SoundOption;
+  setSound: (s: SoundOption) => void;
   addTimer: (label: string, durationSeconds: number | null) => void;
   pauseTimer: (id: string) => void;
   resumeTimer: (id: string) => void;
@@ -17,24 +39,36 @@ const TimerContext = createContext<TimerContextType | null>(null);
 
 export function TimerProvider({ children }: { children: React.ReactNode }) {
   const [timers, setTimers] = useState<Timer[]>([]);
+  const [sound, setSound] = useState<SoundOption>("chime");
+  const soundRef = useRef<SoundOption>("chime");
+
+  useEffect(() => { soundRef.current = sound; }, [sound]);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setTimers(prev => prev.map(t => t.running ? { ...t, elapsed: t.elapsed + 1 } : t));
+      setTimers(prev => prev.map(t => {
+        if (!t.running) return t;
+        const newElapsed = t.elapsed + 1;
+        if (t.durationSeconds !== null && t.durationSeconds - newElapsed <= 0 && !t.alerted) {
+          playAlert(soundRef.current);
+          return { ...t, elapsed: newElapsed, alerted: true };
+        }
+        return { ...t, elapsed: newElapsed };
+      }));
     }, 1000);
     return () => clearInterval(interval);
   }, []);
 
   const addTimer = useCallback((label: string, durationSeconds: number | null) => {
-    setTimers(prev => [...prev, { id: crypto.randomUUID(), label, elapsed: 0, running: true, durationSeconds }]);
+    setTimers(prev => [...prev, { id: crypto.randomUUID(), label, elapsed: 0, running: true, durationSeconds, alerted: false }]);
   }, []);
   const pauseTimer = useCallback((id: string) => setTimers(prev => prev.map(t => t.id === id ? { ...t, running: false } : t)), []);
   const resumeTimer = useCallback((id: string) => setTimers(prev => prev.map(t => t.id === id ? { ...t, running: true } : t)), []);
-  const resetTimer = useCallback((id: string) => setTimers(prev => prev.map(t => t.id === id ? { ...t, elapsed: 0 } : t)), []);
+  const resetTimer = useCallback((id: string) => setTimers(prev => prev.map(t => t.id === id ? { ...t, elapsed: 0, alerted: false, running: true } : t)), []);
   const removeTimer = useCallback((id: string) => setTimers(prev => prev.filter(t => t.id !== id)), []);
 
   return (
-    <TimerContext.Provider value={{ timers, addTimer, pauseTimer, resumeTimer, resetTimer, removeTimer }}>
+    <TimerContext.Provider value={{ timers, sound, setSound, addTimer, pauseTimer, resumeTimer, resetTimer, removeTimer }}>
       {children}
     </TimerContext.Provider>
   );

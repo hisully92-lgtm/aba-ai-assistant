@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useTimers } from "@/lib/mobileContext";
+import { useTimers, SoundOption } from "@/lib/mobileContext";
 import AppShell from "@/components/app/AppShell";
 
 function fmt(seconds: number): string {
@@ -13,7 +13,15 @@ function fmt(seconds: number): string {
 }
 
 export default function TimersPage() {
-  const { timers, addTimer, removeTimer, pauseTimer, resumeTimer, resetTimer } = useTimers();
+  const { timers, addTimer, removeTimer, pauseTimer, resumeTimer, resetTimer, sound, setSound } = useTimers();
+  const [showSound, setShowSound] = useState(false);
+  const SOUND_OPTIONS: { value: SoundOption; label: string; desc: string }[] = [
+    { value: "chime", label: "🎵 Chime", desc: "Three ascending notes" },
+    { value: "bell", label: "🔔 Bell", desc: "Long resonant tone" },
+    { value: "ding", label: "✨ Ding", desc: "Short bright tone" },
+    { value: "soft", label: "🌊 Soft", desc: "Low gentle tone" },
+    { value: "none", label: "🔇 Silent", desc: "No sound" },
+  ];
   const [label, setLabel] = useState("");
   const [hrs, setHrs] = useState("");
   const [mins, setMins] = useState("");
@@ -29,6 +37,28 @@ export default function TimersPage() {
 
   return (
     <AppShell title="Timers">
+      <div className="flex justify-end px-4 pt-3">
+        <button onClick={() => setShowSound(s => !s)} className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ backgroundColor: "#1a2234", color: "#94a3b8" }}>
+          🔔 Sound
+        </button>
+      </div>
+
+      {showSound && (
+        <div className="mx-4 mt-2 bg-white rounded-2xl p-4 shadow-md">
+          <p className="text-base font-bold text-gray-900 mb-3">Timer Sound</p>
+          {SOUND_OPTIONS.map(opt => (
+            <button key={opt.value} onClick={() => { setSound(opt.value); setShowSound(false); }} className="w-full flex items-center justify-between py-3 border-b border-gray-100 text-left">
+              <div>
+                <p className="text-sm font-semibold text-gray-700">{opt.label}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{opt.desc}</p>
+              </div>
+              {sound === opt.value && <span className="text-lg font-bold" style={{ color: "#2563eb" }}>✓</span>}
+            </button>
+          ))}
+          <button onClick={() => setShowSound(false)} className="w-full text-center pt-3 text-gray-500 text-sm">Close</button>
+        </div>
+      )}
+
       <div className="pb-10">
         {/* NEW TIMER */}
         <div className="m-4 bg-white rounded-2xl p-4 shadow-sm">
