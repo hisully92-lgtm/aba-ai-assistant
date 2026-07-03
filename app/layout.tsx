@@ -10,6 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  manifest: "/manifest.json",
   title: {
     default: "ABA AI Assistant — ABA Therapy Documentation Platform",
     template: "%s | ABA AI Assistant",
@@ -50,7 +51,7 @@ export const metadata: Metadata = {
     description: "Write session notes, track goals, manage authorizations, and generate progress reports. HIPAA compliant.",
     images: ["/og-image.png"],
   },
-  manifest: "/manifest.json",
+  
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -85,8 +86,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#2563eb" />
+                <meta name="theme-color" content="#2563eb" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="ABA AI" />
