@@ -123,7 +123,7 @@ export default function ProfilePage() {
                 <p className="text-sm font-semibold text-gray-900">Push Notifications</p>
                 <p className="text-xs text-gray-400 mt-0.5">Enable all push notifications</p>
               </div>
-              <Toggle checked={pushEnabled} onChange={async (v) => {
+             <Toggle checked={pushEnabled} onChange={async (v) => {
   setPushEnabled(v);
   if (v) {
     const result = await subscribeToPush();
@@ -133,6 +133,25 @@ export default function ProfilePage() {
   }
 }} activeColor="#2563eb" />
             </div>
+
+            {pushEnabled && (
+              <div className="px-3.5 pb-3.5">
+                <button
+                  onClick={async () => {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const res = await fetch("/api/push/test", {
+                      method: "POST",
+                      headers: { Authorization: `Bearer ${session?.access_token}` },
+                    });
+                    alert(res.ok ? "Test sent — check for a notification!" : "Failed to send test.");
+                  }}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-full"
+                  style={{ backgroundColor: "#eff6ff", color: "#2563eb" }}
+                >
+                  🔔 Send Test Notification
+                </button>
+              </div>
+            )}
 
             {pushEnabled && (
               <>

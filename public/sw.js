@@ -124,8 +124,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title ?? "ABA AI", {
       body: data.body ?? "You have a new notification",
-      icon: "/login-banner.jpg",
-      badge: "/login-banner.jpg",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
       data: { url: data.url ?? "/dashboard/notifications" },
     })
   );
