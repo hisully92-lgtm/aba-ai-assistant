@@ -141,8 +141,16 @@ export default function OnboardingPage() {
 
   function handleClinicStep() {
 if (!joinExisting && !clinicName.trim()) { setError("Please enter your clinic name."); return; }
-if (!joinExisting && verificationType === "ein" && !businessEin.trim()) { setError("Please enter your EIN, or switch to BCBA certification."); return; }
-if (!joinExisting && verificationType === "bcba" && !bcbaCertNumber.trim()) { setError("Please enter your BCBA certification number, or switch to EIN."); return; }
+if (!joinExisting && verificationType === "ein") {
+  const einPattern = /^\d{2}-?\d{7}$/;
+  if (!businessEin.trim()) { setError("Please enter your EIN, or switch to BCBA certification."); return; }
+  if (!einPattern.test(businessEin.trim())) { setError("EIN must be in the format 12-3456789 (9 digits)."); return; }
+}
+if (!joinExisting && verificationType === "bcba") {
+  const bcbaPattern = /^\d{1,2}-\d{4,6}$/;
+  if (!bcbaCertNumber.trim()) { setError("Please enter your BCBA certification number, or switch to EIN."); return; }
+  if (!bcbaPattern.test(bcbaCertNumber.trim())) { setError("Please enter a valid BCBA certification number (e.g. 1-23-4567)."); return; }
+}
 if (joinExisting && !clinicCode.trim()) { setError("Please enter your clinic code."); return; }
 setError("");
 setStep(joinExisting ? "role" : "hipaa");
