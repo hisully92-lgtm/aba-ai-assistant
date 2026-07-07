@@ -18,9 +18,9 @@ export default function LoginScreen() {
     if (!email.trim()) { Alert.alert("Please enter your email."); return; }
     setLoading(true);
     const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: "exp://192.168.1.160:8082/--/auth/confirm" },
-    });
+  email: email.trim(),
+  options: { emailRedirectTo: "exp://192.168.1.160:8082/--/auth/confirm", shouldCreateUser: false },
+});
     setLoading(false);
     if (error) { Alert.alert("Error", error.message); return; }
     setSent(true);
