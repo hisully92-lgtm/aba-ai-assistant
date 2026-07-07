@@ -99,6 +99,9 @@ export default function OnboardingPage() {
   const [smsConsent, setSmsConsent] = useState(false);
   const [isNonprofit, setIsNonprofit] = useState(false);
   const [nonprofitEin, setNonprofitEin] = useState("");
+  const [verificationType, setVerificationType] = useState<"ein" | "bcba">("ein");
+  const [businessEin, setBusinessEin] = useState("");
+  const [bcbaCertNumber, setBcbaCertNumber] = useState("");
   const router = useRouter();
   const [step, setStep] = useState<Step>("profile");
   const [loading, setLoading] = useState(false);
@@ -137,11 +140,13 @@ export default function OnboardingPage() {
   }
 
   function handleClinicStep() {
-    if (!joinExisting && !clinicName.trim()) { setError("Please enter your clinic name."); return; }
-    if (joinExisting && !clinicCode.trim()) { setError("Please enter your clinic code."); return; }
-    setError("");
-    setStep(joinExisting ? "role" : "hipaa");
-  }
+if (!joinExisting && !clinicName.trim()) { setError("Please enter your clinic name."); return; }
+if (!joinExisting && verificationType === "ein" && !businessEin.trim()) { setError("Please enter your EIN, or switch to BCBA certification."); return; }
+if (!joinExisting && verificationType === "bcba" && !bcbaCertNumber.trim()) { setError("Please enter your BCBA certification number, or switch to EIN."); return; }
+if (joinExisting && !clinicCode.trim()) { setError("Please enter your clinic code."); return; }
+setError("");
+setStep(joinExisting ? "role" : "hipaa");
+}
 
   function handleHipaaStep() {
     if (!hipaaAccepted || !hipaaSignature.trim()) {
@@ -242,6 +247,9 @@ export default function OnboardingPage() {
           locations,
           codePreference,
           codeEmail,
+          verificationType,
+          businessEin,
+          bcbaCertNumber,
           isNonprofit,
           nonprofitEin,
           joinExisting,
@@ -532,6 +540,33 @@ export default function OnboardingPage() {
                   <input type="text" value={clinicName} onChange={e => setClinicName(e.target.value)}
                     placeholder="e.g. Sunshine ABA Therapy" className={inputClass} />
                 </div>
+                <div className="border border-gray-200 rounded-xl p-4 bg-blue-50 space-y-3">
+  <div>
+    <p className="text-sm font-semibold text-gray-700">Business Verification</p>
+    <p className="text-xs text-gray-500">
+      ABA AI is built for licensed ABA providers and clinics. We ask for one of the below to confirm you&apos;re setting up a professional practice, not a personal account.
+    </p>
+  </div>
+  <div className="grid grid-cols-2 gap-2">
+    <button type="button" onClick={() => setVerificationType("ein")}
+      className={`rounded-xl border p-3 text-sm font-medium transition-all cursor-pointer ${verificationType === "ein" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-blue-300"}`}>
+      🏢 I have an EIN
+    </button>
+    <button type="button" onClick={() => setVerificationType("bcba")}
+      className={`rounded-xl border p-3 text-sm font-medium transition-all cursor-pointer ${verificationType === "bcba" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-blue-300"}`}>
+      🎓 I&apos;m a solo BCBA
+    </button>
+  </div>
+  {verificationType === "ein" ? (
+    <input type="text" placeholder="Business EIN (e.g. 12-3456789)"
+      value={businessEin} onChange={e => setBusinessEin(e.target.value)}
+      className={inputClass} />
+  ) : (
+    <input type="text" placeholder="BCBA Certification Number"
+      value={bcbaCertNumber} onChange={e => setBcbaCertNumber(e.target.value)}
+      className={inputClass} />
+  )}
+</div>
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <label className="text-sm font-medium text-gray-700">Locations</label>

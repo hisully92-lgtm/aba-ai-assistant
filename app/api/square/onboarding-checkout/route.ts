@@ -16,7 +16,17 @@ export async function POST(req: Request) {
       name, clinicName, planType, planLabel, months, pricePerMonth,
       role, hipaaSignature, locations, codePreference, codeEmail,
       isNonprofit, nonprofitEin, joinExisting, clinicCode, verificationCode,
+      verificationType, businessEin, bcbaCertNumber,
     } = body;
+
+    // Server-side enforcement: new clinics must provide an EIN or BCBA cert — can't be bypassed by calling this API directly
+    if (!joinExisting) {
+      const hasEin = verificationType === "ein" && businessEin?.trim();
+      const hasBcba = verificationType === "bcba" && bcbaCertNumber?.trim();
+      if (!hasEin && !hasBcba) {
+        return NextResponse.json({ error: "Business EIN or BCBA certification number is required to create a new clinic." }, { status: 400 });
+      }
+    }
 
     // Apply nonprofit discount to stored price if applicable
     const NONPROFIT_DISCOUNT = 0.20;
