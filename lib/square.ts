@@ -23,6 +23,42 @@ type SquareLinkOptions = {
   extraMetadata?: Record<string, string>;
 };
 
+export async function createLocationSubscriptionLink(
+  userId: string,
+  companyId: string,
+  locationPaymentId: string,
+  redirectUrl: string
+) {
+  const res = await fetch(`${BASE_URL}/v2/online-checkout/payment-links`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${SQUARE_ACCESS_TOKEN}`,
+    },
+    body: JSON.stringify({
+      idempotency_key: crypto.randomUUID(),
+      checkout_options: {
+        subscription_plan_id: process.env.SQUARE_LOCATION_PLAN_VARIATION_ID,
+        redirect_url: redirectUrl,
+      },
+      metadata: {
+        userId,
+        companyId,
+        locationPaymentId,
+        paymentType: "location_addon",
+      },
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    console.error("Square subscription checkout error:", JSON.stringify(data));
+    throw new Error(JSON.stringify(data));
+  }
+  console.log("Square subscription checkout success:", JSON.stringify(data));
+  return data;
+}
+
 export async function createSquarePaymentLink(
   userId: string,
   planType: string = "professional",
@@ -91,3 +127,4 @@ export async function createSquarePaymentLink(
   console.log("Square API success:", JSON.stringify(data));
   return data;
 }
+

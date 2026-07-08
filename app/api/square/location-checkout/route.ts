@@ -1,6 +1,6 @@
 ﻿import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { createSquarePaymentLink, LOCATION_ADDON_PRICE_CENTS } from "@/lib/square";
+import { createLocationSubscriptionLink } from "@/lib/square";
 
 export async function POST(req: Request) {
   try {
@@ -62,32 +62,18 @@ export async function POST(req: Request) {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://aba-ai-assistant.com";
     const redirectUrl = `${siteUrl}/dashboard/admin/locations?location_success=true`;
 
-    const result = await createSquarePaymentLink(
-      user.id,
-      "location_addon",
-      1,
-      redirectUrl,
-      false,
-      "",
-      {
-        priceOverrideCents: LOCATION_ADDON_PRICE_CENTS,
-        nameOverride: `Additional Location — ${locationName}`,
-        extraMetadata: {
-          paymentType: "location_addon",
-          locationPaymentId: pending.id,
-          companyId,
-        },
-      }
-    );
+    const result = await createLocationSubscriptionLink(user.id, companyId, pending.id, redirectUrl);
 
-    const url = result?.payment_link?.url ?? result?.paymentLink?.url;
+    const url = result?.payment_link?.url;
+    const orderId = result?.payment_link?.order_id ?? result?.related_resources?.orders?.[0]?.id ?? null;
+
     if (!url) {
       return NextResponse.json({ error: "Failed to create payment link" }, { status: 500 });
     }
 
     await supabaseAdmin
       .from("pending_location_payments")
-      .update({ payment_link_url: url })
+      .update({ payment_link_url: url, order_id: orderId })
       .eq("id", pending.id);
 
     return NextResponse.json({ url });
