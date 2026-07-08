@@ -102,7 +102,128 @@ export async function POST(req: Request) {
       created_at: new Date().toISOString(),
     });
 
-    // PAYMENT SUCCESS
+    // LOCATION ADD-ON PAYMENT (first charge — matches by metadata OR order_id)
+    // Must run BEFORE the generic PAYMENT SUCCESS block below, since both
+    // listen for overlapping event types (payment.updated, invoice.payment_made, etc.)
+    // and location payments must never fall through into the plan-renewal logic.
+    let locationPaymentId: string | null =
+      payment?.metadata?.paymentType === "location_addon"
+        ? payment.metadata.locationPaymentId
+        : null;
+
+    if (!locationPaymentId && payment?.order_id) {
+      const { data: byOrder } = await supabaseAdmin
+        .from("pending_location_payments")
+        .select("id")
+        .eq("order_id", payment.order_id)
+        .eq("status", "pending")
+        .maybeSingle();
+      if (byOrder) locationPaymentId = byOrder.id;
+    }
+
+    if (locationPaymentId) {
+      const { data: pending } = await supabaseAdmin
+        .from("pending_location_payments")
+        .select("*")
+        .eq("id", locationPaymentId)
+        .maybeSingle();
+
+      if (pending && pending.status === "pending") {
+        const { data: newLocation } = await supabaseAdmin
+          .from("locations")
+          .insert({
+            company_id: pending.company_id,
+            name: pending.location_name,
+            address: pending.address,
+            city: pending.city,
+            state: pending.state,
+            zip: pending.zip,
+            phone: pending.phone,
+            lat: pending.lat,
+            lng: pending.lng,
+            radius: pending.radius ?? 300,
+            is_active: true,
+            payment_status: "active",
+            subscription_id: payment?.subscription_id ?? payment?.id ?? null,
+            created_by: pending.user_id,
+          })
+          .select()
+          .single();
+
+        await supabaseAdmin
+          .from("pending_location_payments")
+          .update({
+            status: "completed",
+            square_subscription_id: payment?.subscription_id ?? null,
+          })
+          .eq("id", locationPaymentId);
+
+        await safe(logBillingAudit, {
+          userId: pending.user_id,
+          action: "location_addon_activated",
+          resource: "square",
+          metadata: { eventId, eventType, payment_id: payment?.id, subscriptionId: payment?.subscription_id ?? null, locationId: newLocation?.id },
+          ip,
+        });
+
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://aba-ai-assistant.com";
+        await safe(fetch, `${siteUrl}/api/email/send`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: pending.admin_email,
+            subject: "New Location Activated",
+            body: `
+              <h2>New Location Activated</h2>
+              <p><strong>Location:</strong> ${pending.location_name}</p>
+              <p><strong>Company:</strong> ${pending.company_name}</p>
+              <p><strong>Billing:</strong> ${pending.billing_type === "addon" ? "Added to existing subscription" : "Separate Square payment"} — $49/mo, billed monthly</p>
+              <p>This location is now active and ready to use.</p>
+            `,
+          }),
+        });
+      }
+
+      return NextResponse.json({ received: true });
+    }
+
+    // RECURRING SUBSCRIPTION CHARGE (month 2+ for location add-ons)
+    // Also must run before PAYMENT SUCCESS, since it shares the invoice.payment_made event type.
+    if (eventType === "invoice.payment_made") {
+      const invoice = body?.data?.object?.invoice;
+      const subId = invoice?.subscription_id;
+      if (subId) {
+        const { data: loc } = await supabaseAdmin
+          .from("locations")
+          .select("id, name, company_id")
+          .eq("subscription_id", subId)
+          .maybeSingle();
+
+        if (loc) {
+          await safe(logBillingAudit, {
+            userId: "system",
+            action: "location_recurring_charge",
+            resource: "square",
+            metadata: { eventId, eventType, subscriptionId: subId, locationId: loc.id, matched: true },
+            ip,
+          });
+          return NextResponse.json({ received: true });
+        }
+
+        // Subscription ID didn't match any location — log for debugging, then
+        // fall through to the generic handler below in case this was actually
+        // a main-plan invoice rather than a location add-on.
+        await safe(logBillingAudit, {
+          userId: "system",
+          action: "location_recurring_charge_unmatched",
+          resource: "square",
+          metadata: { eventId, eventType, subscriptionId: subId },
+          ip,
+        });
+      }
+    }
+
+    // PAYMENT SUCCESS (main plan subscriptions)
     if (
       eventType === "payment.created" ||
       eventType === "payment.updated" ||
@@ -169,74 +290,6 @@ export async function POST(req: Request) {
         metadata: { eventType, eventId, payment_id: payment?.id },
         ip,
       });
-
-      return NextResponse.json({ received: true });
-    }
-
-// LOCATION ADD-ON PAYMENT
-    if (payment?.metadata?.paymentType === "location_addon") {
-      const locationPaymentId = payment.metadata.locationPaymentId;
-
-      if (locationPaymentId) {
-        const { data: pending } = await supabaseAdmin
-          .from("pending_location_payments")
-          .select("*")
-          .eq("id", locationPaymentId)
-          .maybeSingle();
-
-        if (pending && pending.status === "pending") {
-          const { data: newLocation } = await supabaseAdmin
-            .from("locations")
-            .insert({
-              company_id: pending.company_id,
-              name: pending.location_name,
-              address: pending.address,
-              city: pending.city,
-              state: pending.state,
-              zip: pending.zip,
-              phone: pending.phone,
-              lat: pending.lat,
-              lng: pending.lng,
-              radius: pending.radius ?? 300,
-              is_active: true,
-              payment_status: "active",
-              subscription_id: payment?.id ?? null,
-              created_by: pending.user_id,
-            })
-            .select()
-            .single();
-
-          await supabaseAdmin
-            .from("pending_location_payments")
-            .update({ status: "completed" })
-            .eq("id", locationPaymentId);
-
-          await safe(logBillingAudit, {
-            userId: pending.user_id,
-            action: "location_addon_activated",
-            resource: "square",
-            metadata: { eventId, eventType, payment_id: payment?.id, locationId: newLocation?.id },
-            ip,
-          });
-
-          const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://aba-ai-assistant.com";
-          await safe(fetch, `${siteUrl}/api/email/send`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              to: pending.admin_email,
-              subject: "New Location Activated",
-              body: `
-                <h2>New Location Activated</h2>
-                <p><strong>Location:</strong> ${pending.location_name}</p>
-                <p><strong>Company:</strong> ${pending.company_name}</p>
-                <p><strong>Billing:</strong> ${pending.billing_type === "addon" ? "Added to existing subscription" : "Separate Square payment"} â€” $49/mo</p>
-                <p>This location is now active and ready to use.</p>
-              `,
-            }),
-          });
-        }
-      }
 
       return NextResponse.json({ received: true });
     }
