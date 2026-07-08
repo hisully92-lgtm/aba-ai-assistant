@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -61,8 +61,16 @@ export default function LocationsPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const { canAddLocation, limits, planName } = usePlanGate();
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [urlMessage, setUrlMessage] = useState<string | null>(null);
 
   useEffect(() => { init(); }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("location_success") === "true") {
+      setUrlMessage("Payment received! Your new location will show as active within a few seconds — refresh if it's not showing yet.");
+    }
+  }, []);
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
@@ -122,7 +130,6 @@ export default function LocationsPage() {
     if (!companyId || !form.name) return;
     setProcessingPayment(true);
 
-    const { data: auth } = await supabase.auth.getUser();
     const token = (await supabase.auth.getSession()).data.session?.access_token;
 
     const res = await fetch("/api/square/location-checkout", {
@@ -135,6 +142,14 @@ export default function LocationsPage() {
         companyId,
         locationName: form.name,
         billingType,
+        address: form.address,
+        city: form.city,
+        state: form.state,
+        zip: form.zip,
+        phone: form.phone,
+        lat: form.lat,
+        lng: form.lng,
+        radius: form.radius,
       }),
     });
 
@@ -334,6 +349,12 @@ export default function LocationsPage() {
           {showForm ? "Cancel" : "+ Add Location"}
         </Button>
       </PageHeader>
+
+      {urlMessage && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700">
+          {urlMessage}
+        </div>
+      )}
 
       {(() => {
         const gate = canAddLocation();
@@ -605,4 +626,3 @@ export default function LocationsPage() {
     </div>
   );
 }
-
