@@ -37,6 +37,14 @@ export async function createLocationSubscriptionLink(
     },
     body: JSON.stringify({
       idempotency_key: crypto.randomUUID(),
+      quick_pay: {
+        name: "Additional Location",
+        price_money: {
+          amount: 4900,
+          currency: "USD",
+        },
+        location_id: process.env.SQUARE_LOCATION_ID,
+      },
       checkout_options: {
         subscription_plan_id: process.env.SQUARE_LOCATION_PLAN_VARIATION_ID,
         redirect_url: redirectUrl,
@@ -127,4 +135,5 @@ export async function createSquarePaymentLink(
   console.log("Square API success:", JSON.stringify(data));
   return data;
 }
+
 
