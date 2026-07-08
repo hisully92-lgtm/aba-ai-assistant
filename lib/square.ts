@@ -13,7 +13,15 @@ const PLAN_PRICES: Record<string, Record<number, number>> = {
   clinic:       { 1: 109900, 3: 104400, 6: 98900, 9: 93400, 12: 87900 },
 };
 
+export const LOCATION_ADDON_PRICE_CENTS = 4900;
+
 const NONPROFIT_DISCOUNT = 0.20;
+
+type SquareLinkOptions = {
+  priceOverrideCents?: number;
+  nameOverride?: string;
+  extraMetadata?: Record<string, string>;
+};
 
 export async function createSquarePaymentLink(
   userId: string,
@@ -21,13 +29,14 @@ export async function createSquarePaymentLink(
   months: number = 1,
   redirectUrl: string = "",
   isNonprofit: boolean = false,
-  nonprofitEin: string = ""
+  nonprofitEin: string = "",
+  options?: SquareLinkOptions
 ) {
   const planPrices = PLAN_PRICES[planType] ?? PLAN_PRICES.professional;
   const pricePerMonth = planPrices[months] ?? planPrices[1];
-  let totalAmount = pricePerMonth * months;
+  let totalAmount = options?.priceOverrideCents ?? pricePerMonth * months;
 
-  if (isNonprofit && nonprofitEin) {
+  if (isNonprofit && nonprofitEin && !options?.priceOverrideCents) {
     totalAmount = Math.round(totalAmount * (1 - NONPROFIT_DISCOUNT));
   }
 
@@ -42,6 +51,7 @@ export async function createSquarePaymentLink(
 
   const contractLabel = months === 1 ? "Monthly" : `${months}-Month Contract`;
   const nonprofitLabel = isNonprofit ? " (Nonprofit 20% Discount)" : "";
+  const name = options?.nameOverride ?? `${planLabels[planType] ?? "ABA AI Plan"} — ${contractLabel}${nonprofitLabel}`;
 
   const res = await fetch(`${BASE_URL}/v2/online-checkout/payment-links`, {
     method: "POST",
@@ -52,7 +62,7 @@ export async function createSquarePaymentLink(
     body: JSON.stringify({
       idempotency_key: crypto.randomUUID(),
       quick_pay: {
-        name: `${planLabels[planType] ?? "ABA AI Plan"} — ${contractLabel}${nonprofitLabel}`,
+        name,
         price_money: {
           amount: totalAmount,
           currency: "USD",
@@ -68,17 +78,16 @@ export async function createSquarePaymentLink(
         months: String(months),
         isNonprofit: String(isNonprofit),
         nonprofitEin,
+        ...(options?.extraMetadata ?? {}),
       },
     }),
   });
 
   const data = await res.json();
-
   if (!res.ok) {
     console.error("Square API error:", JSON.stringify(data));
     throw new Error(JSON.stringify(data));
   }
-
   console.log("Square API success:", JSON.stringify(data));
   return data;
 }

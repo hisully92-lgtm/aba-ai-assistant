@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/observability/logAudit";
@@ -169,6 +169,74 @@ export async function POST(req: Request) {
         metadata: { eventType, eventId, payment_id: payment?.id },
         ip,
       });
+
+      return NextResponse.json({ received: true });
+    }
+
+// LOCATION ADD-ON PAYMENT
+    if (payment?.metadata?.paymentType === "location_addon") {
+      const locationPaymentId = payment.metadata.locationPaymentId;
+
+      if (locationPaymentId) {
+        const { data: pending } = await supabaseAdmin
+          .from("pending_location_payments")
+          .select("*")
+          .eq("id", locationPaymentId)
+          .maybeSingle();
+
+        if (pending && pending.status === "pending") {
+          const { data: newLocation } = await supabaseAdmin
+            .from("locations")
+            .insert({
+              company_id: pending.company_id,
+              name: pending.location_name,
+              address: pending.address,
+              city: pending.city,
+              state: pending.state,
+              zip: pending.zip,
+              phone: pending.phone,
+              lat: pending.lat,
+              lng: pending.lng,
+              radius: pending.radius ?? 300,
+              is_active: true,
+              payment_status: "active",
+              subscription_id: payment?.id ?? null,
+              created_by: pending.user_id,
+            })
+            .select()
+            .single();
+
+          await supabaseAdmin
+            .from("pending_location_payments")
+            .update({ status: "completed" })
+            .eq("id", locationPaymentId);
+
+          await safe(logBillingAudit, {
+            userId: pending.user_id,
+            action: "location_addon_activated",
+            resource: "square",
+            metadata: { eventId, eventType, payment_id: payment?.id, locationId: newLocation?.id },
+            ip,
+          });
+
+          const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://aba-ai-assistant.com";
+          await safe(fetch, `${siteUrl}/api/email/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              to: pending.admin_email,
+              subject: "New Location Activated",
+              body: `
+                <h2>New Location Activated</h2>
+                <p><strong>Location:</strong> ${pending.location_name}</p>
+                <p><strong>Company:</strong> ${pending.company_name}</p>
+                <p><strong>Billing:</strong> ${pending.billing_type === "addon" ? "Added to existing subscription" : "Separate Square payment"} â€” $49/mo</p>
+                <p>This location is now active and ready to use.</p>
+              `,
+            }),
+          });
+        }
+      }
 
       return NextResponse.json({ received: true });
     }
