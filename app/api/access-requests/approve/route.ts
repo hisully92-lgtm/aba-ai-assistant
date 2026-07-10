@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendGeneralEmail } from "@/lib/email";
 import { verifyToken } from "@/lib/access-tokens";
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
   });
 
-  const redirectUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${inviteToken}`;
+  const redirectUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/invite/${inviteToken}`;
 
   let paymentUrl = "";
   try {
@@ -93,5 +93,5 @@ export async function GET(req: NextRequest) {
     `,
   });
 
-  return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/admin/approved`);
+  return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL}/admin/approved`);
 }

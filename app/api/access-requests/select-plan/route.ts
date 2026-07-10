@@ -9,10 +9,10 @@ const supabaseAdmin = createClient(
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
-  if (!token) return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/request-access/error`);
+  if (!token) return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL}/request-access/error`);
 
   const payload = verifyToken(token);
-  if (!payload) return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/request-access/error`);
+  if (!payload) return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL}/request-access/error`);
 
   const [requestId, plan] = payload.split(":");
 
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     .select()
     .single();
 
-  if (!request) return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/request-access/error`);
+  if (!request) return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL}/request-access/error`);
 
-  return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/request-access/confirm?token=${token}`);
+  return NextResponse.redirect(`${process.env.NEXT_PUBLIC_SITE_URL}/request-access/confirm?token=${token}`);
 }

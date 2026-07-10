@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendGeneralEmail } from "@/lib/email";
 import { signToken } from "@/lib/access-tokens";
@@ -44,13 +44,13 @@ export async function POST(req: NextRequest) {
 
   const planLinks = PLANS.map((plan) => {
     const token = signToken(`${request.id}:${plan.id}`);
-    const url = `${process.env.NEXT_PUBLIC_APP_URL}/api/access-requests/select-plan?token=${token}`;
-    return `<a href="${url}" style="display:block;padding:14px 20px;margin:8px 0;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:8px;font-family:sans-serif;">${plan.label} — ${plan.price}</a>`;
+    const url = `${process.env.NEXT_PUBLIC_SITE_URL}/api/access-requests/select-plan?token=${token}`;
+    return `<a href="${url}" style="display:block;padding:14px 20px;margin:8px 0;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:8px;font-family:sans-serif;">${plan.label} â€” ${plan.price}</a>`;
   }).join("");
 
   await sendGeneralEmail({
     to: contactEmail,
-    subject: "Choose your plan — ABA AI Assistant",
+    subject: "Choose your plan â€” ABA AI Assistant",
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;">
         <h2>Thanks for your interest, ${contactName}!</h2>

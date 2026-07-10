@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendGeneralEmail } from "@/lib/email";
 import { verifyToken } from "@/lib/access-tokens";
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
         <p>Thank you for your interest in ABA AI Assistant. After review, we're not able to move forward with your request at this time.</p>
         ${reason ? `<p><b>Reason:</b> ${reason}</p>` : ""}
         <p>If you have questions or believe this was in error, feel free to reply to this email.</p>
-        <p>— The ABA AI Assistant Team</p>
+        <p>â€” The ABA AI Assistant Team</p>
       </div>
     `,
   });
