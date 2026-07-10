@@ -353,6 +353,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
         { label: "Billing Setup", href: "/dashboard/admin/billing-setup" },
         { label: "Approved Billing", href: "/dashboard/billing/approved" },
         { label: "Admin Panel", href: "/dashboard/admin" },
+        { label: "Send Invite", href: "/dashboard/admin/send-invite" },
         { label: "Analytics", href: "/dashboard/analytics" },
         { label: "Audit Logs", href: "/dashboard/admin/logs" },
         { label: "BIP Plans", href: "/dashboard/bip" },
@@ -741,6 +742,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
     </div>
   );
 }
+
 
 
 
