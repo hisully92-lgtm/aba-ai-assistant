@@ -21,7 +21,7 @@ export default function HomePage() {
             <Link href="/login" className="text-sm text-gray-600 hover:text-gray-800 font-medium">Sign In</Link>
             <Link href="/request-access"
               className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">
-              Get Started
+              Request Access
             </Link>
           </div>
         </div>
@@ -102,7 +102,7 @@ export default function HomePage() {
       <section className="px-6 py-24 bg-white">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">Up and running in minutes</h2>
-          <p className="text-gray-500 mb-16">No onboarding calls. No IT setup. Just sign up and go.</p>
+          <p className="text-gray-500 mb-16">Quick approval process. No IT setup required.</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
             {[
               { step: "1", title: "Create your clinic", desc: "Sign up, name your clinic, and sign the HIPAA BAA electronically. Takes under 2 minutes." },
@@ -263,4 +263,5 @@ export default function HomePage() {
     </div>
   );
 }
+
 
