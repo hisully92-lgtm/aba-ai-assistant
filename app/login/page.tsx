@@ -5,34 +5,12 @@ import { supabase } from "@/lib/supabase/client";
 import Image from "next/image";
 import Link from "next/link";
 
-function getPasswordStrength(password: string): { score: number; label: string; color: string } {
-  let score = 0;
-  if (password.length >= 8) score++;
-  if (password.length >= 12) score++;
-  if (/[A-Z]/.test(password)) score++;
-  if (/[0-9]/.test(password)) score++;
-  if (/[^A-Za-z0-9]/.test(password)) score++;
-  if (score <= 1) return { score, label: "Weak", color: "bg-red-500" };
-  if (score <= 2) return { score, label: "Fair", color: "bg-yellow-500" };
-  if (score <= 3) return { score, label: "Good", color: "bg-blue-500" };
-  return { score, label: "Strong", color: "bg-green-500" };
-}
-
-function validatePassword(password: string): string | null {
-  if (password.length < 8) return "Password must be at least 8 characters.";
-  if (!/[A-Z]/.test(password)) return "Password must contain at least one uppercase letter.";
-  if (!/[0-9]/.test(password)) return "Password must contain at least one number.";
-  if (!/[^A-Za-z0-9]/.test(password)) return "Password must contain at least one special character (!@#$%^&*).";
-  return null;
-}
-
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [method, setMethod] = useState<"magic" | "password">("magic");
   const [timeoutMsg, setTimeoutMsg] = useState(false);
 
@@ -41,16 +19,9 @@ export default function LoginPage() {
     if (params.get("reason") === "timeout") setTimeoutMsg(true);
   }, []);
 
-  const strength = method === "password" && mode === "signup" ? getPasswordStrength(password) : null;
-
   async function handleSubmit() {
     if (!email.trim()) { setError("Please enter your email."); return; }
     if (method === "password" && !password.trim()) { setError("Please enter your password."); return; }
-
-    if (method === "password" && mode === "signup") {
-      const validationError = validatePassword(password);
-      if (validationError) { setError(validationError); return; }
-    }
 
     setLoading(true);
     setError(null);
@@ -58,7 +29,7 @@ export default function LoginPage() {
     if (method === "magic") {
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
-        options: { emailRedirectTo: `https://aba-ai-assistant.com/auth/confirm`, shouldCreateUser: mode === "signup" },
+        options: { emailRedirectTo: "https://aba-ai-assistant.com/auth/confirm", shouldCreateUser: false },
       });
       if (otpError) { setError(otpError.message); setLoading(false); return; }
       setSent(true);
@@ -66,19 +37,7 @@ export default function LoginPage() {
       return;
     }
 
-    if (method === "password" && mode === "signup") {
-      const { error: signUpError } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
-      });
-      if (signUpError) { setError(signUpError.message); setLoading(false); return; }
-      setSent(true);
-      setLoading(false);
-      return;
-    }
-
-    if (method === "password" && mode === "signin") {
+    if (method === "password") {
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(), password,
       });
@@ -105,24 +64,9 @@ export default function LoginPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => { setMode("signin"); setError(null); setSent(false); }}
-              className={`py-2.5 rounded-lg text-sm font-medium transition-colors ${mode === "signin" ? "bg-blue-600 text-white" : "border border-gray-300 text-gray-600 hover:bg-gray-50"}`}>
-              Sign In
-            </button>
-            <button type="button" onClick={() => { setMode("signup"); setError(null); setSent(false); }}
-              className={`py-2.5 rounded-lg text-sm font-medium transition-colors ${mode === "signup" ? "bg-blue-600 text-white" : "border border-gray-300 text-gray-600 hover:bg-gray-50"}`}>
-              Create Account
-            </button>
-          </div>
-
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">
-              {mode === "signin" ? "Welcome back" : "Create your account"}
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">
-              {mode === "signin" ? "Sign in with a magic link or your password." : "Create your account with a magic link or password."}
-            </p>
+            <h2 className="text-2xl font-bold text-gray-800">Welcome back</h2>
+            <p className="text-sm text-gray-500 mt-1">Sign in with a magic link or your password.</p>
           </div>
 
           <div className="flex gap-2 bg-gray-100 rounded-lg p-1">
@@ -142,7 +86,7 @@ export default function LoginPage() {
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-700 text-center space-y-2">
               <p className="text-2xl">📧</p>
               <p className="font-semibold">Check your email!</p>
-              <p>We sent a {mode === "signin" ? "magic link" : "verification link"} to <strong>{email}</strong></p>
+              <p>We sent a magic link to <strong>{email}</strong></p>
               <p className="text-xs text-green-600">Click the link in your email to continue.</p>
               <button type="button" onClick={() => { setSent(false); setEmail(""); setPassword(""); setError(null); }}
                 className="text-xs text-green-600 underline mt-2">
@@ -164,29 +108,8 @@ export default function LoginPage() {
                   <label className="text-sm font-medium text-gray-700 mb-1 block">Password</label>
                   <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-                    placeholder={mode === "signup" ? "Min 8 chars, uppercase, number, symbol" : "Your password"}
+                    placeholder="Your password"
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-
-                  {mode === "signup" && password && strength && (
-                    <div className="mt-2">
-                      <div className="flex gap-1 mb-1">
-                        {[1,2,3,4].map((i) => (
-                          <div key={i} className={`h-1 flex-1 rounded-full ${i <= strength.score ? strength.color : "bg-gray-200"}`} />
-                        ))}
-                      </div>
-                      <p className={`text-xs ${strength.score <= 1 ? "text-red-500" : strength.score <= 2 ? "text-yellow-500" : strength.score <= 3 ? "text-blue-500" : "text-green-600"}`}>
-                        {strength.label} password
-                      </p>
-                      {mode === "signup" && (
-                        <ul className="text-xs text-gray-400 mt-1 space-y-0.5">
-                          <li className={password.length >= 8 ? "text-green-500" : ""}>✓ At least 8 characters</li>
-                          <li className={/[A-Z]/.test(password) ? "text-green-500" : ""}>✓ One uppercase letter</li>
-                          <li className={/[0-9]/.test(password) ? "text-green-500" : ""}>✓ One number</li>
-                          <li className={/[^A-Za-z0-9]/.test(password) ? "text-green-500" : ""}>✓ One special character</li>
-                        </ul>
-                      )}
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -196,31 +119,21 @@ export default function LoginPage() {
                 </p>
               )}
 
-              {mode === "signin" && (
-                <p className="text-xs text-right">
-                  <Link href="/forgot-password" className="text-blue-500 hover:underline">
-                    Forgot password?
-                  </Link>
-                </p>
-              )}
+              <p className="text-xs text-right">
+                <Link href="/forgot-password" className="text-blue-500 hover:underline">
+                  Forgot password?
+                </Link>
+              </p>
 
               <button type="button" onClick={handleSubmit} disabled={loading}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg text-sm transition-colors disabled:opacity-50 cursor-pointer">
-                {loading ? "Please wait..." : method === "magic" ? (mode === "signin" ? "Send Magic Link" : "Create Account") : (mode === "signin" ? "Sign In" : "Create Account")}
+                {loading ? "Please wait..." : method === "magic" ? "Send Magic Link" : "Sign In"}
               </button>
 
-              {mode === "signin" && (
-                <p className="text-xs text-center text-gray-400">
-                  Don&apos;t have an account?{" "}
-                  <button type="button" onClick={() => setMode("signup")} className="text-blue-500 hover:underline">Create one</button>
-                </p>
-              )}
-              {mode === "signup" && (
-                <p className="text-xs text-center text-gray-400">
-                  Already have an account?{" "}
-                  <button type="button" onClick={() => setMode("signin")} className="text-blue-500 hover:underline">Sign in</button>
-                </p>
-              )}
+              <p className="text-xs text-center text-gray-400">
+                Don&apos;t have an account?{" "}
+                <Link href="/request-access" className="text-blue-500 hover:underline">Request Access</Link>
+              </p>
             </div>
           )}
         </div>
