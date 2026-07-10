@@ -35,11 +35,12 @@ export default function PublicNav() {
             Sign In
           </Link>
           <Link href="/request-access" className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">
-            Get Started
+            Request Access
           </Link>
         </div>
       </div>
     </nav>
   );
 }
+
 
