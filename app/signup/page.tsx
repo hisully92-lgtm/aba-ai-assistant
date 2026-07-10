@@ -1,11 +1,5 @@
-"use client";
-
-import { useEffect } from "react";
+﻿import { redirect } from "next/navigation";
 
 export default function SignupPage() {
-  useEffect(() => {
-    window.location.href = "/onboarding";
-  }, []);
-
-  return null;
+  redirect("/request-access");
 }
