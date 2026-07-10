@@ -10,11 +10,12 @@ const supabaseAdmin = createClient(
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const PLANS = [
-  { id: "starter", label: "Starter", price: "$149/mo" },
-  { id: "professional", label: "Professional", price: "$299/mo" },
-  { id: "growth", label: "Growth", price: "$399/mo" },
-  { id: "enterprise", label: "Enterprise", price: "$549/mo" },
-  { id: "clinic", label: "Clinic", price: "$699/mo" },
+  { id: "starter", label: "Starter", price: "$199/mo" },
+  { id: "basic", label: "Basic", price: "$299/mo" },
+  { id: "professional", label: "Professional", price: "$449/mo" },
+  { id: "growth", label: "Growth", price: "$649/mo" },
+  { id: "enterprise", label: "Enterprise", price: "$849/mo" },
+  { id: "clinic", label: "Clinic", price: "$1,099/mo" },
 ];
 
 export async function POST(req: NextRequest) {
