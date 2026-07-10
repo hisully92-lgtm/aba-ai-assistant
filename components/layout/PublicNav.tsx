@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -34,7 +34,7 @@ export default function PublicNav() {
           <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
             Sign In
           </Link>
-          <Link href="/onboarding" className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">
+          <Link href="/request-access" className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">
             Get Started
           </Link>
         </div>
@@ -42,3 +42,4 @@ export default function PublicNav() {
     </nav>
   );
 }
+
