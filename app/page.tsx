@@ -19,7 +19,7 @@ export default function HomePage() {
             <Link href="/about" className="text-sm text-gray-500 hover:text-gray-800 hidden sm:block">About</Link>
             <Link href="/contact" className="text-sm text-gray-500 hover:text-gray-800 hidden sm:block">Contact</Link>
             <Link href="/login" className="text-sm text-gray-600 hover:text-gray-800 font-medium">Sign In</Link>
-            <Link href="/onboarding"
+            <Link href="/request-access"
               className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">
               Get Started
             </Link>
@@ -42,9 +42,9 @@ export default function HomePage() {
             manage authorizations, and generate progress reports — all in one place.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href="/onboarding"
+            <Link href="/request-access"
               className="bg-blue-600 text-white px-8 py-3 rounded-xl font-semibold text-base hover:bg-blue-700 transition-colors">
-              Start Free →
+              Request Access →
             </Link>
             <Link href="/contact"
               className="border border-gray-200 text-gray-700 px-8 py-3 rounded-xl font-semibold text-base hover:bg-gray-50 transition-colors">
@@ -199,9 +199,9 @@ export default function HomePage() {
           <h2 className="text-3xl font-bold text-white mb-4">Ready to simplify your documentation?</h2>
           <p className="text-blue-100 mb-8">Join ABA clinics already using ABA AI to save hours every week.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href="/onboarding"
+            <Link href="/request-access"
               className="bg-white text-blue-600 px-8 py-3 rounded-xl font-semibold text-base hover:bg-blue-50 transition-colors inline-block">
-              Get Started Free →
+              Request Access →
             </Link>
             <Link href="/contact"
               className="border border-white/30 text-white px-8 py-3 rounded-xl font-semibold text-base hover:bg-white/10 transition-colors inline-block">
@@ -231,7 +231,7 @@ export default function HomePage() {
                   <Link href="#features" className="block hover:text-white transition-colors">Features</Link>
                   <Link href="/pricing" className="block hover:text-white transition-colors">Pricing</Link>
                   <Link href="/login" className="block hover:text-white transition-colors">Sign In</Link>
-                  <Link href="/onboarding" className="block hover:text-white transition-colors">Get Started</Link>
+                  <Link href="/request-access" className="block hover:text-white transition-colors">Request Access</Link>
                 </div>
               </div>
               <div>
@@ -263,3 +263,4 @@ export default function HomePage() {
     </div>
   );
 }
+
