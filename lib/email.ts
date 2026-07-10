@@ -27,7 +27,9 @@ export async function sendLocationConfirmationEmail({
     await transporter.sendMail({
       from: "ABA AI Assistant <noreply@aba-ai-assistant.com>",
       to: adminEmail,
-      subject: `New Location Added - ${locationName}`,
+      subject: "New Location Added - " + locationName,
+      encoding: "utf-8",
+      headers: { "Content-Type": "text/html; charset=UTF-8" },
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #1a2234;">New Location Confirmed</h2>
@@ -65,6 +67,8 @@ export async function sendGeneralEmail({
       from: "ABA AI Assistant <noreply@aba-ai-assistant.com>",
       to,
       subject,
+      encoding: "utf-8",
+      headers: { "Content-Type": "text/html; charset=UTF-8" },
       html,
     });
   } catch (err) {
