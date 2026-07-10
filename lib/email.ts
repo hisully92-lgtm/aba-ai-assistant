@@ -1,6 +1,14 @@
-﻿import { Resend } from "resend";
+﻿import nodemailer from "nodemailer";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true,
+  auth: {
+    user: process.env.GMAIL_SENDER_EMAIL,
+    pass: process.env.GMAIL_APP_PASSWORD,
+  },
+});
 
 export async function sendLocationConfirmationEmail({
   adminEmail,
@@ -16,10 +24,10 @@ export async function sendLocationConfirmationEmail({
   locationAddress: string;
 }) {
   try {
-    await resend.emails.send({
+    await transporter.sendMail({
       from: "ABA AI Assistant <noreply@aba-ai-assistant.com>",
       to: adminEmail,
-      subject: `New Location Added — ${locationName}`,
+      subject: `New Location Added - ${locationName}`,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #1a2234;">New Location Confirmed</h2>
@@ -32,7 +40,7 @@ export async function sendLocationConfirmationEmail({
           </div>
           <p>You can manage your locations and assign staff at any time from your Admin Panel.</p>
           <p style="color: #64748b; font-size: 12px; margin-top: 32px;">
-            ABA AI Assistant · aba-ai-assistant.com<br/>
+            ABA AI Assistant - aba-ai-assistant.com<br/>
             This is an automated confirmation email.
           </p>
         </div>
@@ -53,7 +61,7 @@ export async function sendGeneralEmail({
   html: string;
 }) {
   try {
-    await resend.emails.send({
+    await transporter.sendMail({
       from: "ABA AI Assistant <noreply@aba-ai-assistant.com>",
       to,
       subject,
