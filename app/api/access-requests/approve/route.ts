@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { Resend } from "resend";
+import { sendGeneralEmail } from "@/lib/email";
 import { verifyToken } from "@/lib/access-tokens";
 import { createSquarePaymentLink } from "@/lib/square";
 import crypto from "crypto";
@@ -9,7 +9,6 @@ const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
@@ -79,8 +78,7 @@ export async function GET(req: NextRequest) {
     .update({ status: "approved", company_id: company.id, decided_at: new Date().toISOString() })
     .eq("id", requestId);
 
-  await resend.emails.send({
-    from: "hello@aba-ai-assistant.com",
+  await sendGeneralEmail({
     to: request.contact_email,
     subject: "You're approved! Complete your ABA AI Assistant setup",
     html: `

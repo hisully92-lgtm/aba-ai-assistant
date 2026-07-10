@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { Resend } from "resend";
+import { sendGeneralEmail } from "@/lib/email";
 import { verifyToken } from "@/lib/access-tokens";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: NextRequest) {
   const { token, reason } = await req.json();
@@ -26,8 +25,7 @@ export async function POST(req: NextRequest) {
 
   if (!request) return NextResponse.json({ error: "Request not found" }, { status: 400 });
 
-  await resend.emails.send({
-    from: "hello@aba-ai-assistant.com",
+  await sendGeneralEmail({
     to: request.contact_email,
     subject: `Update on your ABA AI Assistant request`,
     html: `

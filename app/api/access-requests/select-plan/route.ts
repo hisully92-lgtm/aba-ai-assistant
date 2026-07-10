@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { Resend } from "resend";
+import { sendGeneralEmail } from "@/lib/email";
 import { signToken, verifyToken } from "@/lib/access-tokens";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
@@ -32,9 +31,8 @@ export async function GET(req: NextRequest) {
   const approveUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/access-requests/approve?token=${approveToken}`;
   const rejectUrl = `${process.env.NEXT_PUBLIC_APP_URL}/request-access/reject?token=${rejectToken}`;
 
-  await resend.emails.send({
-    from: "hello@aba-ai-assistant.com",
-    to: "hello@aba-ai-assistant.com", // your inbox
+  await sendGeneralEmail({
+    to: "hello@aba-ai-assistant.com",
     subject: `New clinic request: ${request.org_name} (${plan})`,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;">

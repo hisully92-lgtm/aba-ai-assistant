@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { Resend } from "resend";
+import { sendGeneralEmail } from "@/lib/email";
 import { signToken } from "@/lib/access-tokens";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 const PLANS = [
   { id: "starter", label: "Starter", price: "$199/mo" },
@@ -49,8 +48,7 @@ export async function POST(req: NextRequest) {
     return `<a href="${url}" style="display:block;padding:14px 20px;margin:8px 0;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:8px;font-family:sans-serif;">${plan.label} — ${plan.price}</a>`;
   }).join("");
 
-  await resend.emails.send({
-    from: "hello@aba-ai-assistant.com",
+  await sendGeneralEmail({
     to: contactEmail,
     subject: "Choose your plan — ABA AI Assistant",
     html: `
