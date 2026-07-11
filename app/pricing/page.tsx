@@ -8,7 +8,7 @@ const PLANS = [
   {
     id: "starter",
     name: "Starter",
-    icon: "ðŸŒ±",
+    icon: "🌱",
     desc: "Perfect for solo practitioners just getting started",
     monthly: 129,
     tiers: [
@@ -25,7 +25,7 @@ const PLANS = [
   {
     id: "professional",
     name: "Professional",
-    icon: "âš¡",
+    icon: "⚡",
     desc: "For growing practices with multiple clinicians",
     monthly: 249,
     tiers: [
@@ -42,7 +42,7 @@ const PLANS = [
   {
     id: "growth",
     name: "Growth",
-    icon: "ðŸ“ˆ",
+    icon: "📈",
     desc: "For mid-size clinics with growing teams",
     monthly: 349,
     tiers: [
@@ -59,7 +59,7 @@ const PLANS = [
   {
     id: "enterprise",
     name: "Enterprise",
-    icon: "ðŸ¢",
+    icon: "🏢",
     desc: "For large multi-location organizations",
     monthly: 499,
     tiers: [
@@ -76,7 +76,7 @@ const PLANS = [
   {
     id: "clinic",
     name: "Clinic",
-    icon: "ðŸ¥",
+    icon: "🏥",
     desc: "For established clinics needing unlimited everything",
     monthly: 599,
     tiers: [
@@ -110,7 +110,7 @@ export default function PricingPage() {
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Simple, honest pricing</h1>
           <p className="text-gray-500 text-lg max-w-xl mx-auto">Start with a 30-day free trial. No charge until your trial ends.</p>
           <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-4 py-2 rounded-full text-sm font-medium mt-4">
-            ðŸŽ‰ First month free â€” card required but not charged until trial ends
+            First month free, card required but not charged until trial ends
           </div>
           <p className="text-xs text-gray-400 mt-3">Extra locations beyond your plan limit: <strong>+$49/mo per location</strong></p>
         </div>
@@ -134,20 +134,20 @@ export default function PricingPage() {
                   <select value={tierIndex} onChange={e => setTier(plan.id, parseInt(e.target.value))}
                     className="w-full border border-gray-300 rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300">
                     {plan.tiers.map((t, i) => (
-                      <option key={i} value={i}>{t.label} â€” ${t.price}/mo{t.savings > 0 ? ` (Save $${t.savings})` : ""}</option>
+                      <option key={i} value={i}>{t.label} - ${t.price}/mo{t.savings > 0 ? ` (Save $${t.savings})` : ""}</option>
                     ))}
                   </select>
                 </div>
                 <div className="mb-6">
                   <span className="text-3xl font-extrabold text-blue-600">${tier.price}</span>
                   <span className="text-gray-400 text-sm">/mo</span>
-                  {tier.savings > 0 && <p className="text-xs text-green-600 font-medium mt-1">ðŸ’° Save ${tier.savings} total vs monthly</p>}
+                  {tier.savings > 0 && <p className="text-xs text-green-600 font-medium mt-1">Save ${tier.savings} total vs monthly</p>}
                   {tier.months > 1 && <p className="text-xs text-gray-400 mt-0.5">Billed as ${tier.price * tier.months} every {tier.months} months</p>}
                 </div>
                 <ul className="space-y-2 mb-8 flex-1">
                   {plan.features.map(f => (
                     <li key={f} className="flex items-start gap-2 text-xs text-gray-600">
-                      <span className="text-blue-500 shrink-0 mt-0.5">âœ“</span> {f}
+                      <span className="text-blue-500 shrink-0 mt-0.5">+</span> {f}
                     </li>
                   ))}
                 </ul>
@@ -174,20 +174,20 @@ export default function PricingPage() {
                 { label: "Clinicians", values: ["1", "Up to 5", "Up to 25", "Up to 75", "Unlimited"] },
                 { label: "Clients", values: ["Up to 10", "Unlimited", "Unlimited", "Unlimited", "Unlimited"] },
                 { label: "Locations", values: ["1", "2", "5", "15", "Unlimited"] },
-                { label: "Session Notes", values: ["âœ“", "âœ“", "âœ“", "âœ“", "âœ“"] },
-                { label: "AI Features", values: ["â€”", "âœ“", "âœ“", "âœ“", "âœ“"] },
-                { label: "Insurance Billing", values: ["â€”", "âœ“", "âœ“", "âœ“", "âœ“"] },
-                { label: "EDI 837 Claims", values: ["â€”", "â€”", "â€”", "âœ“", "âœ“"] },
-                { label: "Custom Branding", values: ["â€”", "â€”", "â€”", "âœ“", "âœ“"] },
-                { label: "White-Label", values: ["â€”", "â€”", "â€”", "â€”", "âœ“"] },
-                { label: "API Access", values: ["â€”", "â€”", "â€”", "â€”", "âœ“"] },
+                { label: "Session Notes", values: ["Yes", "Yes", "Yes", "Yes", "Yes"] },
+                { label: "AI Features", values: ["No", "Yes", "Yes", "Yes", "Yes"] },
+                { label: "Insurance Billing", values: ["No", "Yes", "Yes", "Yes", "Yes"] },
+                { label: "EDI 837 Claims", values: ["No", "No", "No", "Yes", "Yes"] },
+                { label: "Custom Branding", values: ["No", "No", "No", "Yes", "Yes"] },
+                { label: "White-Label", values: ["No", "No", "No", "No", "Yes"] },
+                { label: "API Access", values: ["No", "No", "No", "No", "Yes"] },
                 { label: "Monthly Price", values: ["$149", "$299", "$399", "$549", "$699"] },
                 { label: "Annual Price", values: ["$119/mo", "$239/mo", "$319/mo", "$439/mo", "$559/mo"] },
               ].map((row, i) => (
                 <tr key={row.label} className={i % 2 === 0 ? "bg-gray-50" : "bg-white"}>
                   <td className="py-3 px-4 text-gray-600 font-medium">{row.label}</td>
                   {row.values.map((v, j) => (
-                    <td key={j} className={`py-3 px-4 text-center ${v === "â€”" ? "text-gray-300" : "text-gray-800"}`}>{v}</td>
+                    <td key={j} className={`py-3 px-4 text-center ${v === "No" ? "text-gray-300" : "text-gray-800"}`}>{v}</td>
                   ))}
                 </tr>
               ))}
@@ -199,13 +199,13 @@ export default function PricingPage() {
           <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">Frequently Asked Questions</h2>
           <div className="space-y-4">
             {[
-              { q: "Is there a free trial?", a: "Yes â€” every plan starts with a 30-day free trial. Your card is required but not charged until the trial ends." },
+              { q: "Is there a free trial?", a: "Yes, every plan starts with a 30-day free trial. Your card is required but not charged until the trial ends." },
               { q: "Can I change my plan later?", a: "Yes, you can upgrade or downgrade at any time from your billing settings." },
               { q: "What happens if I cancel?", a: "You can cancel anytime. Your data remains accessible until the end of your billing period." },
-              { q: "Do you offer a BAA for HIPAA compliance?", a: "Yes â€” a Business Associate Agreement (BAA) is included with all plans." },
+              { q: "Do you offer a BAA for HIPAA compliance?", a: "Yes, a Business Associate Agreement (BAA) is included with all plans." },
               { q: "What if I need more locations than my plan allows?", a: "You can add extra locations for $49/mo per location beyond your plan limit, or upgrade to a higher plan." },
               { q: "Are there setup fees?", a: "No setup fees. Sign up and be running in minutes." },
-              { q: "Do you offer nonprofit discounts?", a: "Yes â€” contact us for nonprofit pricing options." },
+              { q: "Do you offer nonprofit discounts?", a: "Yes, contact us for nonprofit pricing options." },
               { q: "What payment methods do you accept?", a: "We accept all major credit cards through our secure payment processor." },
             ].map(faq => (
               <div key={faq.q} className="border border-gray-100 rounded-xl p-5">
@@ -220,7 +220,7 @@ export default function PricingPage() {
           <h3 className="text-xl font-bold text-gray-900 mb-2">Not sure which plan is right for you?</h3>
           <p className="text-gray-500 text-sm mb-4">Contact us and we&apos;ll help you find the best fit.</p>
           <Link href="/contact" className="inline-block bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold text-sm hover:bg-blue-700 transition-colors">
-            Talk to Us â†’
+            Talk to Us
           </Link>
         </div>
       </div>
@@ -233,7 +233,7 @@ export default function PricingPage() {
           <Link href="/privacy" className="hover:text-gray-600">Privacy</Link>
           <Link href="/hipaa" className="hover:text-gray-600">HIPAA</Link>
         </div>
-        <p>Â© {new Date().getFullYear()} ABA AI Assistant. All rights reserved.</p>
+        <p>ABA AI Assistant. All rights reserved.</p>
       </footer>
     </div>
   );
