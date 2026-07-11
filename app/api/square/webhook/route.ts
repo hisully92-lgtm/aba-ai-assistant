@@ -25,6 +25,26 @@ function verifySquareSignature(
   return crypto.timingSafeEqual(hashBuf, sigBuf);
 }
 
+async function createInvoice(fields: {
+  companyId: string;
+  eventId: string;
+  description: string;
+  amountCents: number | null | undefined;
+  fallbackCents: number;
+  squarePaymentId?: string | null;
+}) {
+  try {
+    await supabaseAdmin.from("company_invoices").insert({
+      company_id: fields.companyId,
+      invoice_number: "INV-" + fields.eventId,
+      description: fields.description,
+      amount: (fields.amountCents ?? fields.fallbackCents) / 100,
+      status: "paid",
+      square_payment_id: fields.squarePaymentId ?? null,
+    });
+  } catch {}
+}
+
 export async function POST(req: Request) {
   let bodyText = "";
   let userId = "unknown";
@@ -50,12 +70,10 @@ export async function POST(req: Request) {
 
     const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
 
-    // RATE LIMIT
-    const rateKey = `webhook:${eventId || "no-event"}:${ip}`;
+    const rateKey = "webhook:" + (eventId || "no-event") + ":" + ip;
     const allowed = await rateLimit(rateKey, 1, 60_000);
     if (!allowed) return NextResponse.json({ received: true });
 
-    // SIGNATURE VERIFICATION
     const signature = req.headers.get("x-square-hmacsha256-signature") || "";
     const webhookUrl = "https://aba-ai-assistant.com/api/square/webhook";
 
@@ -83,7 +101,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
-    // IDEMPOTENCY CHECK
     const { data: existing } = await supabaseAdmin
       .from("billing_events")
       .select("event_id")
@@ -94,7 +111,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true });
     }
 
-    // LOG EVENT
     await supabaseAdmin.from("billing_events").insert({
       event_id: eventId,
       event_type: eventType,
@@ -102,10 +118,6 @@ export async function POST(req: Request) {
       created_at: new Date().toISOString(),
     });
 
-    // LOCATION ADD-ON PAYMENT (first charge — matches by metadata OR order_id)
-    // Must run BEFORE the generic PAYMENT SUCCESS block below, since both
-    // listen for overlapping event types (payment.updated, invoice.payment_made, etc.)
-    // and location payments must never fall through into the plan-renewal logic.
     let locationPaymentId: string | null =
       payment?.metadata?.paymentType === "location_addon"
         ? payment.metadata.locationPaymentId
@@ -158,6 +170,15 @@ export async function POST(req: Request) {
           })
           .eq("id", locationPaymentId);
 
+        await createInvoice({
+          companyId: pending.company_id,
+          eventId,
+          description: "Additional Location: " + pending.location_name,
+          amountCents: payment?.amount_money?.amount,
+          fallbackCents: 4900,
+          squarePaymentId: payment?.id,
+        });
+
         await safe(logBillingAudit, {
           userId: pending.user_id,
           action: "location_addon_activated",
@@ -167,19 +188,13 @@ export async function POST(req: Request) {
         });
 
         const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://aba-ai-assistant.com";
-        await safe(fetch, `${siteUrl}/api/email/send`, {
+        await safe(fetch, siteUrl + "/api/email/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             to: pending.admin_email,
             subject: "New Location Activated",
-            body: `
-              <h2>New Location Activated</h2>
-              <p><strong>Location:</strong> ${pending.location_name}</p>
-              <p><strong>Company:</strong> ${pending.company_name}</p>
-              <p><strong>Billing:</strong> ${pending.billing_type === "addon" ? "Added to existing subscription" : "Separate Square payment"} — $49/mo, billed monthly</p>
-              <p>This location is now active and ready to use.</p>
-            `,
+            body: "<h2>New Location Activated</h2><p><strong>Location:</strong> " + pending.location_name + "</p><p><strong>Company:</strong> " + pending.company_name + "</p><p><strong>Billing:</strong> " + (pending.billing_type === "addon" ? "Added to existing subscription" : "Separate Square payment") + " - $49/mo, billed monthly</p><p>This location is now active and ready to use.</p>",
           }),
         });
       }
@@ -187,8 +202,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true });
     }
 
-    // RECURRING SUBSCRIPTION CHARGE (month 2+ for location add-ons)
-    // Also must run before PAYMENT SUCCESS, since it shares the invoice.payment_made event type.
     if (eventType === "invoice.payment_made") {
       const invoice = body?.data?.object?.invoice;
       const subId = invoice?.subscription_id;
@@ -200,6 +213,15 @@ export async function POST(req: Request) {
           .maybeSingle();
 
         if (loc) {
+          await createInvoice({
+            companyId: loc.company_id,
+            eventId,
+            description: "Additional Location (recurring): " + loc.name,
+            amountCents: payment?.amount_money?.amount,
+            fallbackCents: 4900,
+            squarePaymentId: payment?.id,
+          });
+
           await safe(logBillingAudit, {
             userId: "system",
             action: "location_recurring_charge",
@@ -210,9 +232,6 @@ export async function POST(req: Request) {
           return NextResponse.json({ received: true });
         }
 
-        // Subscription ID didn't match any location — log for debugging, then
-        // fall through to the generic handler below in case this was actually
-        // a main-plan invoice rather than a location add-on.
         await safe(logBillingAudit, {
           userId: "system",
           action: "location_recurring_charge_unmatched",
@@ -223,7 +242,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // PAYMENT SUCCESS (main plan subscriptions)
     if (
       eventType === "payment.created" ||
       eventType === "payment.updated" ||
@@ -243,7 +261,7 @@ export async function POST(req: Request) {
 
       const { data: latestContract } = await supabaseAdmin
         .from("subscription_contracts")
-        .select("id, contract_length_months")
+        .select("id, contract_length_months, plan_name, company_id")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -259,6 +277,25 @@ export async function POST(req: Request) {
             end_date: endDate.toISOString().split("T")[0],
           })
           .eq("id", latestContract.id);
+
+        const { data: companyUser } = await supabaseAdmin
+          .from("company_users")
+          .select("company_id")
+          .eq("user_id", userId)
+          .eq("status", "active")
+          .limit(1)
+          .maybeSingle();
+
+        if (companyUser?.company_id) {
+          await createInvoice({
+            companyId: companyUser.company_id,
+            eventId,
+            description: (latestContract.plan_name ?? "Plan") + " subscription payment",
+            amountCents: payment?.amount_money?.amount,
+            fallbackCents: 0,
+            squarePaymentId: payment?.id,
+          });
+        }
       } else {
         await supabaseAdmin.from("subscription_contracts").insert({
           user_id: userId,
@@ -294,7 +331,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true });
     }
 
-    // PAYMENT FAILED
     if (eventType === "payment.failed") {
       if (userId && userId !== "unknown") {
         await supabaseAdmin
@@ -318,7 +354,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true });
     }
 
-    // CANCELLATION / GRACE
     if (
       eventType === "subscription.canceled" ||
       eventType === "payment.declined"
@@ -345,7 +380,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true });
     }
 
-    // UNRECOGNIZED EVENT
     await safe(logAudit, {
       userId,
       action: "webhook_unrecognized_event",
