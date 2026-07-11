@@ -32,6 +32,7 @@ async function createInvoice(fields: {
   amountCents: number | null | undefined;
   fallbackCents: number;
   squarePaymentId?: string | null;
+  status?: "paid" | "pending" | "failed";
 }) {
   try {
     await supabaseAdmin.from("company_invoices").insert({
@@ -39,10 +40,21 @@ async function createInvoice(fields: {
       invoice_number: "INV-" + fields.eventId,
       description: fields.description,
       amount: (fields.amountCents ?? fields.fallbackCents) / 100,
-      status: "paid",
+      status: fields.status ?? "paid",
       square_payment_id: fields.squarePaymentId ?? null,
     });
   } catch {}
+}
+
+async function getCompanyIdForUser(userId: string): Promise<string | null> {
+  const { data: companyUser } = await supabaseAdmin
+    .from("company_users")
+    .select("company_id")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+  return companyUser?.company_id ?? null;
 }
 
 export async function POST(req: Request) {
@@ -278,22 +290,17 @@ export async function POST(req: Request) {
           })
           .eq("id", latestContract.id);
 
-        const { data: companyUser } = await supabaseAdmin
-          .from("company_users")
-          .select("company_id")
-          .eq("user_id", userId)
-          .eq("status", "active")
-          .limit(1)
-          .maybeSingle();
+        const companyId = await getCompanyIdForUser(userId);
 
-        if (companyUser?.company_id) {
+        if (companyId) {
           await createInvoice({
-            companyId: companyUser.company_id,
+            companyId,
             eventId,
             description: (latestContract.plan_name ?? "Plan") + " subscription payment",
             amountCents: payment?.amount_money?.amount,
             fallbackCents: 0,
             squarePaymentId: payment?.id,
+            status: "paid",
           });
         }
       } else {
@@ -337,6 +344,39 @@ export async function POST(req: Request) {
           .from("profiles")
           .update({ subscription_status: "past_due" })
           .eq("id", userId);
+
+        const companyId = await getCompanyIdForUser(userId);
+        if (companyId) {
+          const { data: contract } = await supabaseAdmin
+            .from("subscription_contracts")
+            .select("plan_name")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          await createInvoice({
+            companyId,
+            eventId,
+            description: (contract?.plan_name ?? "Plan") + " payment failed",
+            amountCents: payment?.amount_money?.amount,
+            fallbackCents: 0,
+            squarePaymentId: payment?.id,
+            status: "failed",
+          });
+
+          const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://aba-ai-assistant.com";
+          await safe(fetch, siteUrl + "/api/email/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              to: "hello@aba-ai-assistant.com",
+              subject: "Payment failed for a clinic",
+              body: "<h2>Payment Failed</h2><p><strong>Company ID:</strong> " + companyId + "</p><p><strong>Plan:</strong> " + (contract?.plan_name ?? "Unknown") + "</p><p>Their account has been marked past due. You may want to reach out.</p>",
+            }),
+          });
+        }
+
         await safe(logAudit, {
           userId,
           action: "payment_failed",
@@ -363,6 +403,28 @@ export async function POST(req: Request) {
           .from("profiles")
           .update({ subscription_status: "grace_period" })
           .eq("id", userId);
+
+        const companyId = await getCompanyIdForUser(userId);
+        if (companyId) {
+          const { data: contract } = await supabaseAdmin
+            .from("subscription_contracts")
+            .select("plan_name")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          await createInvoice({
+            companyId,
+            eventId,
+            description: (contract?.plan_name ?? "Plan") + " - " + (eventType === "subscription.canceled" ? "subscription canceled" : "payment declined"),
+            amountCents: payment?.amount_money?.amount,
+            fallbackCents: 0,
+            squarePaymentId: payment?.id,
+            status: "failed",
+          });
+        }
+
         await safe(logAudit, {
           userId,
           action: "subscription_grace_period",
