@@ -51,7 +51,7 @@ export default function HomePage() {
               Request More Info
             </Link>
           </div>
-          <p className="text-xs text-gray-400 mt-4">Quick approval process · HIPAA compliant · Free to start</p>
+          <p className="text-xs text-gray-400 mt-4">Quick approval process · HIPAA compliant · Request access to get started</p>
         </div>
       </section>
 
@@ -261,6 +261,7 @@ export default function HomePage() {
     </div>
   );
 }
+
 
 
 
