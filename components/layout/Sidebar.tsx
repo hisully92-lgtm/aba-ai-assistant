@@ -351,9 +351,11 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
       children: sortChildren([
         { label: "Session Review", href: "/dashboard/session-review" },
         { label: "Billing Setup", href: "/dashboard/admin/billing-setup" },
+        { label: "Invoices", href: "/dashboard/invoices" },
         { label: "Approved Billing", href: "/dashboard/billing/approved" },
         { label: "Admin Panel", href: "/dashboard/admin" },
         { label: "Send Invite", href: "/dashboard/admin/send-invite" },
+        { label: "All Invoices", href: "/dashboard/admin/invoices" },
         { label: "Analytics", href: "/dashboard/analytics" },
         { label: "Audit Logs", href: "/dashboard/admin/logs" },
         { label: "BIP Plans", href: "/dashboard/bip" },
@@ -742,6 +744,8 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
     </div>
   );
 }
+
+
 
 
 
