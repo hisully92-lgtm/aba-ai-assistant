@@ -8,7 +8,7 @@ const PLANS = [
   {
     id: "starter",
     name: "Starter",
-    icon: "🌱",
+    icon: "1",
     desc: "Perfect for solo practitioners just getting started",
     monthly: 129,
     tiers: [
@@ -23,9 +23,26 @@ const PLANS = [
     cta: "Select Starter",
   },
   {
+    id: "basic",
+    name: "Basic",
+    icon: "2",
+    desc: "For small practices with a growing client base",
+    monthly: 199,
+    tiers: [
+      { label: "Monthly", months: 1, price: 299, savings: 0 },
+      { label: "3 Months", months: 3, price: 284, savings: 45 },
+      { label: "6 Months", months: 6, price: 269, savings: 180 },
+      { label: "9 Months", months: 9, price: 254, savings: 405 },
+      { label: "12 Months (Annual)", months: 12, price: 239, savings: 720 },
+    ],
+    features: ["Up to 3 clinicians", "Up to 25 clients", "1 location", "All data collection tools", "AI session notes", "Parent portal", "Priority support", "HIPAA BAA included"],
+    highlight: false,
+    cta: "Select Basic",
+  },
+  {
     id: "professional",
     name: "Professional",
-    icon: "⚡",
+    icon: "3",
     desc: "For growing practices with multiple clinicians",
     monthly: 249,
     tiers: [
@@ -42,7 +59,7 @@ const PLANS = [
   {
     id: "growth",
     name: "Growth",
-    icon: "📈",
+    icon: "4",
     desc: "For mid-size clinics with growing teams",
     monthly: 349,
     tiers: [
@@ -59,7 +76,7 @@ const PLANS = [
   {
     id: "enterprise",
     name: "Enterprise",
-    icon: "🏢",
+    icon: "5",
     desc: "For large multi-location organizations",
     monthly: 499,
     tiers: [
@@ -76,7 +93,7 @@ const PLANS = [
   {
     id: "clinic",
     name: "Clinic",
-    icon: "🏥",
+    icon: "6",
     desc: "For established clinics needing unlimited everything",
     monthly: 599,
     tiers: [
@@ -108,10 +125,7 @@ export default function PricingPage() {
       <div className="max-w-7xl mx-auto px-6 py-20">
         <div className="text-center mb-16">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Simple, honest pricing</h1>
-          <p className="text-gray-500 text-lg max-w-xl mx-auto">Start with a 30-day free trial. No charge until your trial ends.</p>
-          <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-4 py-2 rounded-full text-sm font-medium mt-4">
-            First month free, card required but not charged until trial ends
-          </div>
+          <p className="text-gray-500 text-lg max-w-xl mx-auto">Contracts of 3 months or longer include a free first month. No charge until your trial ends.</p>
           <p className="text-xs text-gray-400 mt-3">Extra locations beyond your plan limit: <strong>+$49/mo per location</strong></p>
         </div>
 
@@ -120,13 +134,12 @@ export default function PricingPage() {
             const tierIndex = selectedTiers[plan.id] ?? 0;
             const tier = plan.tiers[tierIndex];
             return (
-              <div key={plan.id} className={`relative rounded-2xl border-2 p-6 flex flex-col ${plan.highlight ? "border-blue-500 shadow-xl shadow-blue-100" : "border-gray-200"}`}>
+              <div key={plan.id} className={"relative rounded-2xl border-2 p-6 flex flex-col " + (plan.highlight ? "border-blue-500 shadow-xl shadow-blue-100" : "border-gray-200")}>
                 {plan.highlight && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2">
                     <span className="bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-full whitespace-nowrap">Most Popular</span>
                   </div>
                 )}
-                <div className="text-3xl mb-3">{plan.icon}</div>
                 <h2 className="text-lg font-bold text-gray-900 mb-1">{plan.name}</h2>
                 <p className="text-xs text-gray-500 mb-4">{plan.desc}</p>
                 <div className="mb-4">
@@ -134,7 +147,7 @@ export default function PricingPage() {
                   <select value={tierIndex} onChange={e => setTier(plan.id, parseInt(e.target.value))}
                     className="w-full border border-gray-300 rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300">
                     {plan.tiers.map((t, i) => (
-                      <option key={i} value={i}>{t.label} - ${t.price}/mo{t.savings > 0 ? ` (Save $${t.savings})` : ""}</option>
+                      <option key={i} value={i}>{t.label} - ${t.price}/mo{t.savings > 0 ? " (Save $" + t.savings + ")" : ""}</option>
                     ))}
                   </select>
                 </div>
@@ -152,7 +165,7 @@ export default function PricingPage() {
                   ))}
                 </ul>
                 <Link href="/request-access"
-                  className={`block text-center py-2.5 rounded-xl font-semibold text-sm transition-colors ${plan.highlight ? "bg-blue-600 text-white hover:bg-blue-700" : "border-2 border-blue-600 text-blue-600 hover:bg-blue-50"}`}>
+                  className={"block text-center py-2.5 rounded-xl font-semibold text-sm transition-colors " + (plan.highlight ? "bg-blue-600 text-white hover:bg-blue-700" : "border-2 border-blue-600 text-blue-600 hover:bg-blue-50")}>
                   {plan.cta}
                 </Link>
               </div>
@@ -160,51 +173,16 @@ export default function PricingPage() {
           })}
         </div>
 
-        <div className="mt-20 overflow-x-auto">
-          <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">Plan Comparison</h2>
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 text-gray-500 font-medium">Feature</th>
-                {PLANS.map(p => <th key={p.id} className="text-center py-3 px-4 font-bold text-gray-800">{p.name}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { label: "Clinicians", values: ["1", "Up to 5", "Up to 25", "Up to 75", "Unlimited"] },
-                { label: "Clients", values: ["Up to 10", "Unlimited", "Unlimited", "Unlimited", "Unlimited"] },
-                { label: "Locations", values: ["1", "2", "5", "15", "Unlimited"] },
-                { label: "Session Notes", values: ["Yes", "Yes", "Yes", "Yes", "Yes"] },
-                { label: "AI Features", values: ["No", "Yes", "Yes", "Yes", "Yes"] },
-                { label: "Insurance Billing", values: ["No", "Yes", "Yes", "Yes", "Yes"] },
-                { label: "EDI 837 Claims", values: ["No", "No", "No", "Yes", "Yes"] },
-                { label: "Custom Branding", values: ["No", "No", "No", "Yes", "Yes"] },
-                { label: "White-Label", values: ["No", "No", "No", "No", "Yes"] },
-                { label: "API Access", values: ["No", "No", "No", "No", "Yes"] },
-                { label: "Monthly Price", values: ["$149", "$299", "$399", "$549", "$699"] },
-                { label: "Annual Price", values: ["$119/mo", "$239/mo", "$319/mo", "$439/mo", "$559/mo"] },
-              ].map((row, i) => (
-                <tr key={row.label} className={i % 2 === 0 ? "bg-gray-50" : "bg-white"}>
-                  <td className="py-3 px-4 text-gray-600 font-medium">{row.label}</td>
-                  {row.values.map((v, j) => (
-                    <td key={j} className={`py-3 px-4 text-center ${v === "No" ? "text-gray-300" : "text-gray-800"}`}>{v}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
         <div className="mt-20 max-w-2xl mx-auto">
           <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">Frequently Asked Questions</h2>
           <div className="space-y-4">
             {[
-              { q: "Is there a free trial?", a: "Yes, every plan starts with a 30-day free trial. Your card is required but not charged until the trial ends." },
-              { q: "Can I change my plan later?", a: "Yes, you can upgrade or downgrade at any time from your billing settings." },
+              { q: "Is there a free trial?", a: "Contracts of 3 months or longer include a free first month. Month-to-month plans do not include a free trial." },
+              { q: "Can I change my plan later?", a: "Yes, you can upgrade at any time from your billing settings." },
               { q: "What happens if I cancel?", a: "You can cancel anytime. Your data remains accessible until the end of your billing period." },
               { q: "Do you offer a BAA for HIPAA compliance?", a: "Yes, a Business Associate Agreement (BAA) is included with all plans." },
               { q: "What if I need more locations than my plan allows?", a: "You can add extra locations for $49/mo per location beyond your plan limit, or upgrade to a higher plan." },
-              { q: "Are there setup fees?", a: "No setup fees. Sign up and be running in minutes." },
+              { q: "Are there setup fees?", a: "No setup fees." },
               { q: "Do you offer nonprofit discounts?", a: "Yes, contact us for nonprofit pricing options." },
               { q: "What payment methods do you accept?", a: "We accept all major credit cards through our secure payment processor." },
             ].map(faq => (
