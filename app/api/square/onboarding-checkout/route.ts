@@ -1,16 +1,13 @@
 ﻿import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { createSquarePaymentLink } from "@/lib/square";
-
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get("Authorization");
     const token = authHeader?.replace("Bearer ", "");
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const body = await req.json();
     const {
       name, clinicName, planType, planLabel, months, pricePerMonth,
@@ -18,8 +15,6 @@ export async function POST(req: Request) {
       isNonprofit, nonprofitEin, joinExisting, clinicCode, verificationCode,
       verificationType, businessEin, bcbaCertNumber,
     } = body;
-
-    // Server-side enforcement: new clinics must provide an EIN or BCBA cert — can't be bypassed by calling this API directly
     if (!joinExisting) {
       const hasEin = verificationType === "ein" && businessEin?.trim();
       const hasBcba = verificationType === "bcba" && bcbaCertNumber?.trim();
@@ -27,12 +22,12 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Business EIN or BCBA certification number is required to create a new clinic." }, { status: 400 });
       }
     }
-
-    // Apply nonprofit discount to stored price if applicable
     const NONPROFIT_DISCOUNT = 0.20;
     const effectivePrice = isNonprofit && nonprofitEin
       ? Math.round(pricePerMonth * (1 - NONPROFIT_DISCOUNT))
       : pricePerMonth;
+
+    const isEligibleForFreeTrial = months > 1;
 
     const { data: pending, error: pendingError } = await supabaseAdmin
       .from("pending_onboarding")
@@ -59,10 +54,10 @@ export async function POST(req: Request) {
         clinic_code: clinicCode,
         verification_code: verificationCode,
         status: "pending_payment",
+        is_free_trial: isEligibleForFreeTrial,
       }, { onConflict: "user_id" })
       .select()
       .maybeSingle();
-
     if (pendingError) {
       return NextResponse.json({ error: pendingError.message }, { status: 500 });
     }
@@ -71,16 +66,15 @@ export async function POST(req: Request) {
       user.id,
       planType,
       months,
-      `${process.env.NEXT_PUBLIC_SITE_URL}/onboarding/complete?success=true`,
+      process.env.NEXT_PUBLIC_SITE_URL + "/onboarding/complete?success=true",
       isNonprofit,
-      nonprofitEin
+      nonprofitEin,
+      isEligibleForFreeTrial ? { priceOverrideCents: 0, nameOverride: planLabel + " - Free First Month" } : undefined
     );
-
     const url = result?.payment_link?.url ?? result?.paymentLink?.url;
     if (!url) {
       return NextResponse.json({ error: "Failed to create payment link" }, { status: 500 });
     }
-
     return NextResponse.json({ url, pendingId: pending?.id });
   } catch (err: any) {
     console.error("Onboarding checkout error:", err);
