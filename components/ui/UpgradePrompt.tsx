@@ -21,6 +21,7 @@ export default function UpgradePrompt({ reason, upgradeTo, feature, inline = fal
       const user = auth?.user;
       let companyId = "";
       let companyName = "Your clinic";
+      let contactName = "";
 
       if (user) {
         const { data: companyUser } = await supabase
@@ -40,6 +41,13 @@ export default function UpgradePrompt({ reason, upgradeTo, feature, inline = fal
             .single();
           companyName = company?.name || "Your clinic";
         }
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", user.id)
+          .maybeSingle();
+        contactName = profile?.full_name || "";
       }
 
       await fetch("/api/request-upgrade", {
@@ -51,6 +59,8 @@ export default function UpgradePrompt({ reason, upgradeTo, feature, inline = fal
           currentPlan: "current",
           requestedPlan: upgradeTo || "next tier",
           resourceType: feature || reason,
+          contactEmail: user?.email || "",
+          contactName,
         }),
       });
       setSent(true);

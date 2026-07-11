@@ -89,6 +89,7 @@ export default function BillingPage() {
   const [requestSending, setRequestSending] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
   const [companyInfo, setCompanyInfo] = useState<{ id: string; name: string } | null>(null);
+  const [contactInfo, setContactInfo] = useState<{ email: string; name: string } | null>(null);
 
   const [referralCode, setReferralCode] = useState("");
   const [redeemingCode, setRedeemingCode] = useState(false);
@@ -126,6 +127,9 @@ export default function BillingPage() {
       if (company) setCompanyInfo({ id: company.id, name: company.name });
     }
 
+    const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
+    setContactInfo({ email: user.email || "", name: profile?.full_name || "" });
+
     const { data } = await supabase
       .from("subscription_contracts")
       .select("*")
@@ -160,6 +164,8 @@ export default function BillingPage() {
           currentPlan: activeContract?.plan_type ?? "none",
           requestedPlan: planType,
           resourceType: "plan change (" + selectedMonths[planType] + " month contract)",
+          contactEmail: contactInfo?.email ?? "",
+          contactName: contactInfo?.name ?? "",
         }),
       });
       setRequestSent(true);
@@ -596,3 +602,4 @@ export default function BillingPage() {
     </div>
   );
 }
+

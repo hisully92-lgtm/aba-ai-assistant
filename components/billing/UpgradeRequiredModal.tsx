@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useState } from "react";
+import { supabase } from "@/lib/supabase/client";
 import { PLAN_LIMITS, PLAN_NAMES, PlanType } from "@/lib/hooks/usePlanGate";
 
 const PLAN_ORDER: PlanType[] = ["starter", "basic", "professional", "growth", "enterprise", "clinic"];
@@ -32,10 +33,31 @@ export default function UpgradeRequiredModal({
   async function handleRequest(plan: PlanType) {
     setSending(true);
     try {
+      const { data: auth } = await supabase.auth.getUser();
+      const user = auth?.user;
+      let contactName = "";
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", user.id)
+          .maybeSingle();
+        contactName = profile?.full_name || "";
+      }
+
       await fetch("/api/request-upgrade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, companyName, currentPlan, requestedPlan: plan, resourceType }),
+        body: JSON.stringify({
+          companyId,
+          companyName,
+          currentPlan,
+          requestedPlan: plan,
+          resourceType,
+          contactEmail: user?.email || "",
+          contactName,
+        }),
       });
       setSent(true);
     } finally {
