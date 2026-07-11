@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -60,7 +60,7 @@ export default function ChatPage() {
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [showManageMembers, setShowManageMembers] = useState(false);
 
-  const isPrivileged = PRIVILEGED_ROLES.includes(userRole);
+  const isPrivileged = true; // All roles can create and manage groups
 
   useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -135,7 +135,7 @@ export default function ChatPage() {
     setTimeout(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }), 100);
   }
 
-  // ── GROUPS ──────────────────────────────────────────────
+  // â”€â”€ GROUPS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async function loadStaffList() {
     const { data } = await supabase
@@ -308,7 +308,7 @@ export default function ChatPage() {
           ))}
         </div>
 
-        {/* TEAM CHAT — client selector */}
+        {/* TEAM CHAT â€” client selector */}
         {mode === "team" && !selectedClient && (
           <div className="p-4">
             <p className="text-sm text-gray-500 mb-4 font-medium">Select a client to view team chat</p>
@@ -316,13 +316,13 @@ export default function ChatPage() {
               <button key={c.id} onClick={() => selectClient(c)} className="w-full flex items-center gap-3 bg-white rounded-xl p-3.5 mb-2 shadow-sm text-left">
                 <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style={{ backgroundColor: "#2563eb" }}>{c.full_name.charAt(0)}</div>
                 <span className="flex-1 text-[15px] font-semibold text-gray-900">{c.full_name}</span>
-                <span className="text-xl text-gray-300">›</span>
+                <span className="text-xl text-gray-300">â€º</span>
               </button>
             ))}
           </div>
         )}
 
-        {/* GROUPS — list */}
+        {/* GROUPS â€” list */}
         {mode === "groups" && !selectedGroup && (
           <div className="p-4">
             {isPrivileged && (
@@ -332,17 +332,17 @@ export default function ChatPage() {
             )}
             {groups.length === 0 ? (
               <div className="flex flex-col items-center py-16">
-                <p className="text-4xl mb-3">👥</p>
+                <p className="text-4xl mb-3">ðŸ‘¥</p>
                 <p className="text-sm text-gray-400 text-center">No groups yet.{isPrivileged ? " Tap + New Group to create one." : " Ask a BCBA or admin to add you to one."}</p>
               </div>
             ) : groups.map(g => (
               <button key={g.id} onClick={() => selectGroup(g)} className="w-full flex items-center gap-3 bg-white rounded-xl p-3.5 mb-2 shadow-sm text-left">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style={{ backgroundColor: "#7c3aed" }}>👥</div>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style={{ backgroundColor: "#7c3aed" }}>ðŸ‘¥</div>
                 <div className="flex-1">
                   <p className="text-[15px] font-semibold text-gray-900">{groupLabel(g)}</p>
                   <p className="text-xs text-gray-400 mt-0.5">{g.members.length} member{g.members.length !== 1 ? "s" : ""}</p>
                 </div>
-                <span className="text-xl text-gray-300">›</span>
+                <span className="text-xl text-gray-300">â€º</span>
               </button>
             ))}
           </div>
@@ -353,18 +353,18 @@ export default function ChatPage() {
           <>
             {mode === "team" && selectedClient && (
               <button onClick={() => { setSelectedClient(null); setMessages([]); }} className="w-full text-left px-4 py-2.5" style={{ backgroundColor: "#1a2234" }}>
-                <span className="text-white text-[15px] font-semibold">‹ {selectedClient.full_name}</span>
+                <span className="text-white text-[15px] font-semibold">â€¹ {selectedClient.full_name}</span>
               </button>
             )}
 
             {mode === "groups" && selectedGroup && (
               <div className="flex items-center px-4 py-2.5" style={{ backgroundColor: "#1a2234" }}>
                 <button onClick={() => { setSelectedGroup(null); setMessages([]); }} className="text-left flex-1">
-                  <span className="text-white text-[15px] font-semibold">‹ {groupLabel(selectedGroup)}</span>
+                  <span className="text-white text-[15px] font-semibold">â€¹ {groupLabel(selectedGroup)}</span>
                 </button>
                 {isPrivileged && (
                   <button onClick={openManageMembers} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ backgroundColor: "#2563eb", color: "#fff" }}>
-                    👥 Manage
+                    ðŸ‘¥ Manage
                   </button>
                 )}
               </div>
@@ -373,7 +373,7 @@ export default function ChatPage() {
             {(mode === "students" || mode === "supervisors") && (
               <div className="px-4 py-2 border-b" style={{ backgroundColor: "#eff6ff", borderColor: "#dbeafe" }}>
                 <p className="text-xs" style={{ color: "#3b82f6" }}>
-                  {mode === "students" ? "🎓 Chat with other student analysts" : "👩‍🏫 Chat with BCBAs, supervisors, and directors"}
+                  {mode === "students" ? "ðŸŽ“ Chat with other student analysts" : "ðŸ‘©â€ðŸ« Chat with BCBAs, supervisors, and directors"}
                 </p>
               </div>
             )}
@@ -391,7 +391,7 @@ export default function ChatPage() {
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4" style={{ minHeight: 300, maxHeight: "50vh" }}>
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center py-16">
-                  <p className="text-4xl mb-3">💬</p>
+                  <p className="text-4xl mb-3">ðŸ’¬</p>
                   <p className="text-sm text-gray-400 text-center">No messages yet. Start the conversation!</p>
                 </div>
               ) : (
@@ -405,7 +405,7 @@ export default function ChatPage() {
                         </div>
                       )}
                       <div className="max-w-[75%] rounded-2xl p-3 shadow-sm" style={isMe ? { backgroundColor: "#2563eb", borderBottomRightRadius: 4 } : { backgroundColor: "#fff", borderBottomLeftRadius: 4 }}>
-                        {!isMe && <p className="text-[11px] font-bold mb-1" style={{ color: roleColor(item.sender_role) }}>{item.sender_name ?? "Unknown"} · {item.sender_role?.toUpperCase()}</p>}
+                        {!isMe && <p className="text-[11px] font-bold mb-1" style={{ color: roleColor(item.sender_role) }}>{item.sender_name ?? "Unknown"} Â· {item.sender_role?.toUpperCase()}</p>}
                         <p className="text-sm leading-relaxed" style={{ color: isMe ? "#fff" : "#111827" }}>{item.message}</p>
                         <p className="text-[10px] mt-1 text-right" style={{ color: isMe ? "#93c5fd" : "#9ca3af" }}>{new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
                       </div>
@@ -423,7 +423,7 @@ export default function ChatPage() {
               <button onClick={() => handleSend()} disabled={!messageText.trim() || sending}
                 className="w-10 h-10 rounded-full flex items-center justify-center text-white text-lg font-bold shrink-0 disabled:opacity-50"
                 style={{ backgroundColor: !messageText.trim() ? "#93c5fd" : "#2563eb" }}>
-                ↑
+                â†‘
               </button>
             </div>
           </>
@@ -456,7 +456,7 @@ export default function ChatPage() {
                       <p className="text-xs text-gray-400">{s.role?.toUpperCase()}</p>
                     </div>
                     <div className="w-6 h-6 rounded-md border-2 flex items-center justify-center" style={checked ? { backgroundColor: "#2563eb", borderColor: "#2563eb" } : { borderColor: "#d1d5db" }}>
-                      {checked && <span className="text-white text-sm font-bold">✓</span>}
+                      {checked && <span className="text-white text-sm font-bold">âœ“</span>}
                     </div>
                   </button>
                 );

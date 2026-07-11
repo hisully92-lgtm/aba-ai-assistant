@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -59,7 +59,7 @@ export default function ChatPage() {
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [showManageMembers, setShowManageMembers] = useState(false);
 
-  const isPrivileged = PRIVILEGED_ROLES.includes(userRole);
+  const isPrivileged = true; // All roles can create and manage groups
 
   useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -134,7 +134,7 @@ export default function ChatPage() {
     setMessages(data ?? []);
   }
 
-  // ── GROUPS ──────────────────────────────────────────────
+  // â”€â”€ GROUPS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async function loadStaffList() {
     const { data } = await supabase
@@ -290,7 +290,7 @@ export default function ChatPage() {
         ))}
       </div>
 
-      {/* TEAM — client list */}
+      {/* TEAM â€” client list */}
       {tab === "team" && !selectedClient && (
         <div className="space-y-3">
           <p className="text-sm text-gray-500">Select a client to view the team chat for that client.</p>
@@ -311,7 +311,7 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* GROUPS — list */}
+      {/* GROUPS â€” list */}
       {tab === "groups" && !selectedGroup && (
         <div className="space-y-3">
           {isPrivileged && (
@@ -321,7 +321,7 @@ export default function ChatPage() {
           )}
           {groups.length === 0 ? (
             <div className="text-center py-16">
-              <p className="text-3xl mb-2">👥</p>
+              <p className="text-3xl mb-2">ðŸ‘¥</p>
               <p className="text-gray-500 font-medium">No groups yet</p>
               <p className="text-gray-400 text-sm">{isPrivileged ? "Click + New Group to create one." : "Ask a BCBA or admin to add you to one."}</p>
             </div>
@@ -330,7 +330,7 @@ export default function ChatPage() {
               {groups.map(g => (
                 <button key={g.id} onClick={() => selectGroup(g)}
                   className="bg-white border border-gray-100 hover:border-purple-300 rounded-xl p-4 text-left transition-all flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white font-bold shrink-0">👥</div>
+                  <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white font-bold shrink-0">ðŸ‘¥</div>
                   <div>
                     <p className="font-semibold text-gray-800">{groupLabel(g)}</p>
                     <p className="text-xs text-gray-400">{g.members.length} member{g.members.length !== 1 ? "s" : ""}</p>
@@ -348,15 +348,15 @@ export default function ChatPage() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <button onClick={() => { setSelectedClient(null); setSelectedGroup(null); setMessages([]); }} className="text-blue-500 hover:underline text-sm">
-                ← Back
+                â† Back
               </button>
               <h2 className="font-bold text-gray-800">
-                {tab === "team" ? `${selectedClient?.full_name} — Team Chat` : groupLabel(selectedGroup!)}
+                {tab === "team" ? `${selectedClient?.full_name} â€” Team Chat` : groupLabel(selectedGroup!)}
               </h2>
             </div>
             {tab === "groups" && isPrivileged && (
               <button onClick={openManageMembers} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-600 text-white">
-                👥 Manage Members
+                ðŸ‘¥ Manage Members
               </button>
             )}
           </div>
@@ -375,7 +375,7 @@ export default function ChatPage() {
           <div className="flex-1 overflow-y-auto bg-gray-50 rounded-xl border border-gray-100 p-4 space-y-3 mb-3">
             {messages.length === 0 && (
               <div className="text-center py-16">
-                <p className="text-3xl mb-2">💬</p>
+                <p className="text-3xl mb-2">ðŸ’¬</p>
                 <p className="text-gray-500 font-medium">No messages yet</p>
                 <p className="text-gray-400 text-sm">Start the conversation</p>
               </div>
@@ -392,7 +392,7 @@ export default function ChatPage() {
                   <div className={`max-w-xs lg:max-w-md rounded-2xl px-4 py-2.5 ${isMe ? "bg-blue-600 text-white rounded-br-sm" : "bg-white border border-gray-100 rounded-bl-sm"}`}>
                     {!isMe && (
                       <p className={`text-xs font-bold mb-1 ${roleColor(msg.sender_role)}`}>
-                        {msg.sender_name ?? "Team"} · {msg.sender_role?.toUpperCase()}
+                        {msg.sender_name ?? "Team"} Â· {msg.sender_role?.toUpperCase()}
                       </p>
                     )}
                     <p className={`text-sm ${isMe ? "text-white" : "text-gray-800"}`}>{msg.message}</p>
@@ -412,7 +412,7 @@ export default function ChatPage() {
               placeholder={tab === "team" ? "Message the team..." : "Message the group..."}
               className="flex-1 border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             <Button onClick={() => handleSend()} loading={sending} disabled={!input.trim()}>
-              Send →
+              Send â†’
             </Button>
           </div>
         </div>
@@ -444,7 +444,7 @@ export default function ChatPage() {
                       <p className="text-xs text-gray-400">{s.role?.toUpperCase()}</p>
                     </div>
                     <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${checked ? "bg-blue-600 border-blue-600" : "border-gray-300"}`}>
-                      {checked && <span className="text-white text-xs font-bold">✓</span>}
+                      {checked && <span className="text-white text-xs font-bold">âœ“</span>}
                     </div>
                   </button>
                 );
