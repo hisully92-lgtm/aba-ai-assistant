@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -103,7 +103,6 @@ export default function LocationsPage() {
         setLocations(prev => prev.map(l => l.id === editingId ? data : l));
       }
     } else {
-      // If setting as primary, unset others
       if (form.is_primary) {
         await supabase.from("locations").update({ is_primary: false }).eq("company_id", companyId);
       }
@@ -169,7 +168,7 @@ export default function LocationsPage() {
       <PageHeader title="Locations">
         {locationGate.allowed ? (
           <Button onClick={() => { setShowForm(s => !s); setEditingId(null); setForm(emptyForm); }}>
-            {showForm && !editingId ? "✕ Cancel" : "+ Add Location"}
+            {showForm && !editingId ? "Cancel" : "+ Add Location"}
           </Button>
         ) : (
           <div className="flex items-center gap-2">
@@ -178,19 +177,18 @@ export default function LocationsPage() {
             </span>
             <Link href="/dashboard/settings/billing"
               className="text-xs bg-orange-500 text-white px-3 py-2 rounded-lg hover:bg-orange-600 transition-colors font-medium">
-              🔒 Upgrade
+              Upgrade
             </Link>
           </div>
         )}
       </PageHeader>
 
-      {/* PLAN INFO */}
       <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm">
         <span className="text-gray-600">
-          {planName} plan · <strong>{locationCount}</strong> of <strong>{limits.locations === 9999 ? "unlimited" : limits.locations}</strong> locations used
+          {planName} plan - <strong>{locationCount}</strong> of <strong>{limits.locations === 9999 ? "unlimited" : limits.locations}</strong> locations used
         </span>
         <Link href="/dashboard/settings/billing" className="text-blue-600 hover:underline text-xs">
-          Manage Plan →
+          Manage Plan
         </Link>
       </div>
 
@@ -204,11 +202,10 @@ export default function LocationsPage() {
 
       {success && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
-          ✓ Location saved successfully.
+          Location saved successfully.
         </div>
       )}
 
-      {/* FORM */}
       {showForm && (locationGate.allowed || editingId) && (
         <Section title={editingId ? "Edit Location" : "Add New Location"}>
           {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
@@ -282,12 +279,10 @@ export default function LocationsPage() {
         </Section>
       )}
 
-      {/* LOCATIONS LIST */}
       {loading && <p className="text-gray-400 text-sm">Loading locations...</p>}
 
       {!loading && locations.length === 0 && (
         <div className="text-center py-16 border border-dashed border-gray-200 rounded-2xl bg-white">
-          <div className="text-5xl mb-4">📍</div>
           <p className="text-gray-700 font-semibold text-lg">No locations yet</p>
           <p className="text-gray-400 text-sm mt-1 mb-6">Add your clinic locations to manage where sessions take place.</p>
           <Button onClick={() => setShowForm(true)}>+ Add First Location</Button>
@@ -296,7 +291,7 @@ export default function LocationsPage() {
 
       <div className="space-y-3">
         {locations.map(loc => (
-          <div key={loc.id} className={`border rounded-xl p-5 bg-white ${loc.is_primary ? "border-blue-200" : "border-gray-100"}`}>
+          <div key={loc.id} className={"border rounded-xl p-5 bg-white " + (loc.is_primary ? "border-blue-200" : "border-gray-100")}>
             <div className="flex justify-between items-start">
               <div>
                 <div className="flex items-center gap-2 mb-1">
@@ -311,8 +306,8 @@ export default function LocationsPage() {
                   </p>
                 )}
                 <div className="flex gap-4 mt-1 text-xs text-gray-400 flex-wrap">
-                  {loc.phone && <span>📞 {loc.phone}</span>}
-                  {loc.email && <span>✉️ {loc.email}</span>}
+                  {loc.phone && <span>{loc.phone}</span>}
+                  {loc.email && <span>{loc.email}</span>}
                 </div>
               </div>
               <div className="flex gap-2 flex-wrap">
@@ -324,7 +319,7 @@ export default function LocationsPage() {
                 )}
                 <button onClick={() => startEdit(loc)}
                   className="text-xs px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors">
-                  ✏️ Edit
+                  Edit
                 </button>
                 <button onClick={() => handleDelete(loc.id)}
                   className="text-xs px-3 py-1.5 border border-red-200 text-red-500 rounded-lg hover:bg-red-50 transition-colors">
@@ -336,10 +331,9 @@ export default function LocationsPage() {
         ))}
       </div>
 
-      {/* EXTRA LOCATION ADD-ON INFO */}
       {!locationGate.allowed && (
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-700">
-          💡 Need more locations? You can add extra locations for <strong>+$29/mo per location</strong> beyond your plan limit,
+          Need more locations? You can add extra locations for <strong>+$49/mo per location</strong> beyond your plan limit,
           or <Link href="/dashboard/settings/billing" className="underline font-medium">upgrade your plan</Link> for higher limits.
         </div>
       )}
