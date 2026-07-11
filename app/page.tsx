@@ -51,7 +51,7 @@ export default function HomePage() {
               Request More Info
             </Link>
           </div>
-          <p className="text-xs text-gray-400 mt-4">No credit card required · HIPAA compliant · Free to start</p>
+          <p className="text-xs text-gray-400 mt-4">Quick approval process · HIPAA compliant · Free to start</p>
         </div>
       </section>
 
@@ -105,7 +105,7 @@ export default function HomePage() {
           <p className="text-gray-500 mb-16">Quick approval process. No IT setup required.</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
             {[
-              { step: "1", title: "Create your clinic", desc: "Sign up, name your clinic, and sign the HIPAA BAA electronically. Takes under 2 minutes." },
+              { step: "1", title: "Create your clinic", desc: "Submit a request, get approved, and sign the HIPAA BAA electronically." },
               { step: "2", title: "Invite your team", desc: "Share your clinic code with staff. They join instantly with role-based access automatically applied." },
               { step: "3", title: "Start documenting", desc: "Add clients, log sessions, track goals, and generate reports — all from day one." },
             ].map(step => (
@@ -147,17 +147,15 @@ export default function HomePage() {
       <section id="pricing" className="px-6 py-24 bg-white">
         <div className="max-w-6xl mx-auto text-center">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">Simple, honest pricing</h2>
-          <p className="text-gray-500 mb-4">First month free. No charge until your trial ends.</p>
-          <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-4 py-2 rounded-full text-sm font-medium mb-12">
-            🎉 30-day free trial — card required but not charged until trial ends
-          </div>
+          <p className="text-gray-500 mb-4">Contracts of 3+ months include a free first month.</p>
+          <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-4 py-2 rounded-full text-sm font-medium mb-12">Free first month on 3+ month contracts</div>
           <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             {[
-              { name: "Starter", icon: "🌱", price: "$149", desc: "Solo practitioners", features: ["1 clinician", "10 clients", "1 location", "Session notes"], highlight: false },
-              { name: "Professional", icon: "⚡", price: "$299", desc: "Growing practices", features: ["5 clinicians", "Unlimited clients", "2 locations", "AI features"], highlight: true },
-              { name: "Growth", icon: "📈", price: "$399", desc: "Mid-size clinics", features: ["25 clinicians", "Unlimited clients", "5 locations", "Advanced reports"], highlight: false },
-              { name: "Enterprise", icon: "🏢", price: "$549", desc: "Large organizations", features: ["75 clinicians", "Unlimited clients", "15 locations", "EDI claims"], highlight: false },
-              { name: "Clinic", icon: "🏥", price: "$699", desc: "Unlimited everything", features: ["Unlimited staff", "Unlimited clients", "Unlimited locations", "White-label"], highlight: false },
+              { name: "Starter", icon: "🌱", price: "$199", desc: "Solo practitioners", features: ["1 clinician", "10 clients", "1 location", "Session notes"], highlight: false },
+              { name: "Professional", icon: "⚡", price: "$449", desc: "Growing practices", features: ["5 clinicians", "Unlimited clients", "2 locations", "AI features"], highlight: true },
+              { name: "Growth", icon: "📈", price: "$649", desc: "Mid-size clinics", features: ["25 clinicians", "Unlimited clients", "5 locations", "Advanced reports"], highlight: false },
+              { name: "Enterprise", icon: "🏢", price: "$849", desc: "Large organizations", features: ["75 clinicians", "Unlimited clients", "15 locations", "EDI claims"], highlight: false },
+              { name: "Clinic", icon: "🏥", price: "$1099", desc: "Unlimited everything", features: ["Unlimited staff", "Unlimited clients", "Unlimited locations", "White-label"], highlight: false },
             ].map(plan => (
               <div key={plan.name} className={`relative rounded-2xl border-2 p-6 text-left flex flex-col ${plan.highlight ? "border-blue-500 shadow-xl shadow-blue-100" : "border-gray-200"}`}>
                 {plan.highlight && (
@@ -263,5 +261,6 @@ export default function HomePage() {
     </div>
   );
 }
+
 
 
