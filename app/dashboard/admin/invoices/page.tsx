@@ -18,6 +18,11 @@ type Invoice = {
   company_name?: string;
 };
 
+type CompanyRow = {
+  id: string;
+  name: string;
+};
+
 export default function AdminInvoicesPage() {
   const [authorized, setAuthorized] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -51,28 +56,30 @@ export default function AdminInvoicesPage() {
     const { data: invoiceData } = await supabase
       .from("company_invoices")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .returns<Invoice[]>();
 
     if (!invoiceData || invoiceData.length === 0) {
       setInvoices([]);
       return;
     }
 
-    const companyIds = Array.from(new Set(invoiceData.map((i: { company_id: string }) => i.company_id)));
+    const companyIds: string[] = Array.from(new Set(invoiceData.map((i: Invoice) => i.company_id)));
     const { data: companies } = await supabase
       .from("companies")
       .select("id, name")
-      .in("id", companyIds);
+      .in("id", companyIds)
+      .returns<CompanyRow[]>();
 
     const nameMap: Record<string, string> = {};
-    (companies ?? []).forEach((c) => { nameMap[c.id] = c.name; });
+    (companies ?? []).forEach((c: CompanyRow) => { nameMap[c.id] = c.name; });
 
-    setInvoices(invoiceData.map((i) => ({ ...i, company_name: nameMap[i.company_id] || "Unknown" })));
+    setInvoices(invoiceData.map((i: Invoice) => ({ ...i, company_name: nameMap[i.company_id] || "Unknown" })));
   }
 
   function downloadCSV() {
     const headers = ["Invoice Number", "Company", "Description", "Amount", "Status", "Date"];
-    const rows = filtered.map((inv) => [
+    const rows = filtered.map((inv: Invoice) => [
       inv.invoice_number,
       inv.company_name,
       inv.description,
@@ -80,7 +87,7 @@ export default function AdminInvoicesPage() {
       inv.status,
       new Date(inv.created_at).toLocaleDateString(),
     ]);
-    const csv = [headers, ...rows].map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("\n");
+    const csv = [headers, ...rows].map((r: (string | number | undefined)[]) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -90,13 +97,13 @@ export default function AdminInvoicesPage() {
     URL.revokeObjectURL(url);
   }
 
-  const filtered = invoices.filter((inv) =>
+  const filtered = invoices.filter((inv: Invoice) =>
     inv.company_name?.toLowerCase().includes(search.toLowerCase()) ||
     inv.invoice_number.toLowerCase().includes(search.toLowerCase()) ||
     inv.description?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const totalRevenue = filtered.filter((i) => i.status === "paid").reduce((sum, i) => sum + Number(i.amount), 0);
+  const totalRevenue = filtered.filter((i: Invoice) => i.status === "paid").reduce((sum: number, i: Invoice) => sum + Number(i.amount), 0);
 
   if (loading) return <div className="p-8 text-gray-400">Loading...</div>;
   if (!authorized) return null;
@@ -137,7 +144,7 @@ export default function AdminInvoicesPage() {
         {filtered.length === 0 && (
           <p className="text-gray-400 text-sm text-center py-8">No invoices found.</p>
         )}
-        {filtered.map((inv) => (
+        {filtered.map((inv: Invoice) => (
           <div key={inv.id} className="border border-gray-100 rounded-xl p-4 bg-white flex justify-between items-center flex-wrap gap-2">
             <div>
               <p className="font-semibold text-gray-800 text-sm">{inv.company_name}</p>
@@ -157,5 +164,3 @@ export default function AdminInvoicesPage() {
     </div>
   );
 }
-
-
