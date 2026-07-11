@@ -53,41 +53,52 @@ export default function AdminInvoicesPage() {
   }
 
   async function loadInvoices() {
-    const { data: invoiceData } = await supabase
+    const result = await supabase
       .from("company_invoices")
       .select("*")
-      .order("created_at", { ascending: false })
-      .returns<Invoice[]>();
+      .order("created_at", { ascending: false });
 
-    if (!invoiceData || invoiceData.length === 0) {
+    const invoiceData = (result.data ?? []) as Invoice[];
+
+    if (invoiceData.length === 0) {
       setInvoices([]);
       return;
     }
 
-    const companyIds: string[] = Array.from(new Set(invoiceData.map((i: Invoice) => i.company_id)));
-    const { data: companies } = await supabase
+    const companyIds: string[] = Array.from(new Set(invoiceData.map(function (i: Invoice) { return i.company_id; })));
+
+    const companyResult = await supabase
       .from("companies")
       .select("id, name")
-      .in("id", companyIds)
-      .returns<CompanyRow[]>();
+      .in("id", companyIds);
+
+    const companies = (companyResult.data ?? []) as CompanyRow[];
 
     const nameMap: Record<string, string> = {};
-    (companies ?? []).forEach((c: CompanyRow) => { nameMap[c.id] = c.name; });
+    companies.forEach(function (c: CompanyRow) { nameMap[c.id] = c.name; });
 
-    setInvoices(invoiceData.map((i: Invoice) => ({ ...i, company_name: nameMap[i.company_id] || "Unknown" })));
+    const merged: Invoice[] = invoiceData.map(function (i: Invoice) {
+      return { id: i.id, company_id: i.company_id, invoice_number: i.invoice_number, description: i.description, amount: i.amount, status: i.status, created_at: i.created_at, company_name: nameMap[i.company_id] || "Unknown" };
+    });
+
+    setInvoices(merged);
   }
 
   function downloadCSV() {
     const headers = ["Invoice Number", "Company", "Description", "Amount", "Status", "Date"];
-    const rows = filtered.map((inv: Invoice) => [
-      inv.invoice_number,
-      inv.company_name,
-      inv.description,
-      inv.amount.toFixed(2),
-      inv.status,
-      new Date(inv.created_at).toLocaleDateString(),
-    ]);
-    const csv = [headers, ...rows].map((r: (string | number | undefined)[]) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("\n");
+    const rows = filtered.map(function (inv: Invoice) {
+      return [
+        inv.invoice_number,
+        inv.company_name || "",
+        inv.description,
+        inv.amount.toFixed(2),
+        inv.status,
+        new Date(inv.created_at).toLocaleDateString(),
+      ];
+    });
+    const csv = [headers, ...rows].map(function (r: string[]) {
+      return r.map(function (v: string) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(",");
+    }).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -97,13 +108,17 @@ export default function AdminInvoicesPage() {
     URL.revokeObjectURL(url);
   }
 
-  const filtered = invoices.filter((inv: Invoice) =>
-    inv.company_name?.toLowerCase().includes(search.toLowerCase()) ||
-    inv.invoice_number.toLowerCase().includes(search.toLowerCase()) ||
-    inv.description?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered: Invoice[] = invoices.filter(function (inv: Invoice) {
+    return (
+      (inv.company_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      inv.invoice_number.toLowerCase().includes(search.toLowerCase()) ||
+      (inv.description ?? "").toLowerCase().includes(search.toLowerCase())
+    );
+  });
 
-  const totalRevenue = filtered.filter((i: Invoice) => i.status === "paid").reduce((sum: number, i: Invoice) => sum + Number(i.amount), 0);
+  const totalRevenue: number = filtered
+    .filter(function (i: Invoice) { return i.status === "paid"; })
+    .reduce(function (sum: number, i: Invoice) { return sum + Number(i.amount); }, 0);
 
   if (loading) return <div className="p-8 text-gray-400">Loading...</div>;
   if (!authorized) return null;
@@ -144,22 +159,24 @@ export default function AdminInvoicesPage() {
         {filtered.length === 0 && (
           <p className="text-gray-400 text-sm text-center py-8">No invoices found.</p>
         )}
-        {filtered.map((inv: Invoice) => (
-          <div key={inv.id} className="border border-gray-100 rounded-xl p-4 bg-white flex justify-between items-center flex-wrap gap-2">
-            <div>
-              <p className="font-semibold text-gray-800 text-sm">{inv.company_name}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{inv.description}</p>
-              <p className="text-xs text-gray-400 mt-0.5 font-mono">{inv.invoice_number}</p>
+        {filtered.map(function (inv: Invoice) {
+          return (
+            <div key={inv.id} className="border border-gray-100 rounded-xl p-4 bg-white flex justify-between items-center flex-wrap gap-2">
+              <div>
+                <p className="font-semibold text-gray-800 text-sm">{inv.company_name}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{inv.description}</p>
+                <p className="text-xs text-gray-400 mt-0.5 font-mono">{inv.invoice_number}</p>
+              </div>
+              <div className="text-right">
+                <p className="font-bold text-gray-900">${Number(inv.amount).toFixed(2)}</p>
+                <span className={"text-xs px-2 py-0.5 rounded-full font-medium " + (inv.status === "paid" ? "bg-green-100 text-green-700" : inv.status === "pending" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700")}>
+                  {inv.status}
+                </span>
+                <p className="text-xs text-gray-400 mt-0.5">{new Date(inv.created_at).toLocaleDateString()}</p>
+              </div>
             </div>
-            <div className="text-right">
-              <p className="font-bold text-gray-900">${Number(inv.amount).toFixed(2)}</p>
-              <span className={"text-xs px-2 py-0.5 rounded-full font-medium " + (inv.status === "paid" ? "bg-green-100 text-green-700" : inv.status === "pending" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700")}>
-                {inv.status}
-              </span>
-              <p className="text-xs text-gray-400 mt-0.5">{new Date(inv.created_at).toLocaleDateString()}</p>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
