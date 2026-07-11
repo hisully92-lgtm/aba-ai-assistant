@@ -58,7 +58,7 @@ export default function AdminInvoicesPage() {
       return;
     }
 
-    const companyIds = Array.from(new Set(invoiceData.map((i) => i.company_id)));
+    const companyIds = Array.from(new Set(invoiceData.map((i: { company_id: string }) => i.company_id)));
     const { data: companies } = await supabase
       .from("companies")
       .select("id, name")
@@ -157,3 +157,4 @@ export default function AdminInvoicesPage() {
     </div>
   );
 }
+
