@@ -10,10 +10,7 @@ export default function RequestAccessErrorPage() {
         <p className="text-gray-500 mb-6">
           The link you used is no longer valid. This can happen if it was already used or has expired.
         </p>
-        
-          href="/request-access"
-          className="inline-block bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold text-sm hover:bg-blue-700 transition-colors"
-        >
+        <a href="/request-access" className="inline-block bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold text-sm hover:bg-blue-700 transition-colors">
           Submit a New Request
         </a>
       </div>
