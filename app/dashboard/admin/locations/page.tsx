@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -50,27 +50,19 @@ export default function LocationsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [billingType, setBillingType] = useState<"addon" | "separate" | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [expandedLocation, setExpandedLocation] = useState<string | null>(null);
   const [editingCoords, setEditingCoords] = useState<string | null>(null);
   const [coordForm, setCoordForm] = useState({ lat: "", lng: "", radius: "300" });
   const [savingCoords, setSavingCoords] = useState(false);
   const [companyId, setCompanyId] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState<string>("Unknown");
   const [userId, setUserId] = useState<string | null>(null);
   const { canAddLocation, limits, planName } = usePlanGate();
-  const [processingPayment, setProcessingPayment] = useState(false);
   const [urlMessage, setUrlMessage] = useState<string | null>(null);
+  const [requestSent, setRequestSent] = useState(false);
 
   useEffect(() => { init(); }, []);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("location_success") === "true") {
-      setUrlMessage("Payment received! Your new location will show as active within a few seconds — refresh if it's not showing yet.");
-    }
-  }, []);
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
@@ -89,6 +81,13 @@ export default function LocationsPage() {
     if (!companyUser?.company_id) return;
     setCompanyId(companyUser.company_id);
 
+    const { data: company } = await supabase
+      .from("companies")
+      .select("name")
+      .eq("id", companyUser.company_id)
+      .single();
+    if (company) setCompanyName(company.name);
+
     const [{ data: locData }, { data: profileData }, { data: assignData }] = await Promise.all([
       supabase.from("locations").select("*").eq("company_id", companyUser.company_id).order("name"),
       supabase.from("profiles").select("id, full_name, role, email"),
@@ -102,78 +101,17 @@ export default function LocationsPage() {
   }
 
   function handleAddLocationClick() {
-    // Check plan gate first
     const gate = canAddLocation();
     if (!gate.allowed) return;
-
-    if (locations.length === 0) {
-      // First location is free
-      setShowForm(true);
-    } else {
-      // Additional locations require payment
-      setShowPaymentModal(true);
-      setBillingType(null);
-    }
-  }
-
-  async function handlePaymentProceed() {
-    if (!billingType || !form.name || !companyId) {
-      // Show form first to get location name
-      setShowPaymentModal(false);
-      setShowForm(true);
-      return;
-    }
-    await processPayment();
-  }
-
-  async function processPayment() {
-    if (!companyId || !form.name) return;
-    setProcessingPayment(true);
-
-    const token = (await supabase.auth.getSession()).data.session?.access_token;
-
-    const res = await fetch("/api/square/location-checkout", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        companyId,
-        locationName: form.name,
-        billingType,
-        address: form.address,
-        city: form.city,
-        state: form.state,
-        zip: form.zip,
-        phone: form.phone,
-        lat: form.lat,
-        lng: form.lng,
-        radius: form.radius,
-      }),
-    });
-
-    const result = await res.json();
-    if (!res.ok) {
-      alert("Payment setup failed: " + result.error);
-      setProcessingPayment(false);
-      return;
-    }
-
-    // Redirect to Square checkout
-    window.location.href = result.url;
+    setShowForm(true);
   }
 
   async function handleSave() {
     if (!form.name || !companyId) return;
-
-    // If this is an additional location, require payment first
-    if (locations.length >= 1 && !billingType) {
-      setShowPaymentModal(true);
-      return;
-    }
-
     setSaving(true);
+
+    const isAdditional = locations.length >= 1;
+
     const res = await fetch("/api/admin/save-location", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -189,18 +127,38 @@ export default function LocationsPage() {
         lng: form.lng || null,
         radius: form.radius || "300",
         createdBy: userId,
+        paymentStatus: isAdditional ? "pending" : "not_required",
       }),
     });
 
     const result = await res.json();
     if (!res.ok) {
       alert("Failed to save location: " + result.error);
-    } else if (result.data) {
+      setSaving(false);
+      return;
+    }
+
+    if (result.data) {
       setLocations(prev => [...prev, result.data]);
       setForm(emptyForm);
       setShowForm(false);
-      setBillingType(null);
     }
+
+    if (isAdditional) {
+      await fetch("/api/request-upgrade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          companyName,
+          currentPlan: "current",
+          requestedPlan: "additional location ($49/mo)",
+          resourceType: "location: " + form.name,
+        }),
+      });
+      setRequestSent(true);
+    }
+
     setSaving(false);
   }
 
@@ -277,73 +235,6 @@ export default function LocationsPage() {
 
   return (
     <div className="space-y-6">
-
-      {/* PAYMENT MODAL */}
-      {showPaymentModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl space-y-4">
-            <h3 className="text-lg font-bold text-gray-900">Add a New Location</h3>
-
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-              <p className="font-semibold mb-1">Payment Required</p>
-              <p>Each additional location costs <strong>$49/month</strong>. Square will process your payment and your new location will become active once payment is confirmed. A confirmation email will be sent to your admin email.</p>
-            </div>
-
-            <div className="space-y-3">
-              <p className="text-sm font-semibold text-gray-700">Choose billing method:</p>
-
-              <button
-                onClick={() => setBillingType("addon")}
-                className={`w-full text-left border rounded-xl p-4 transition-all ${billingType === "addon" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"}`}>
-                <p className="font-semibold text-gray-800 text-sm">Add to existing subscription</p>
-                <p className="text-xs text-gray-500 mt-1">$49/mo added to your current billing cycle. Managed together with your plan.</p>
-              </button>
-
-              <button
-                onClick={() => setBillingType("separate")}
-                className={`w-full text-left border rounded-xl p-4 transition-all ${billingType === "separate" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300"}`}>
-                <p className="font-semibold text-gray-800 text-sm">Separate Square payment</p>
-                <p className="text-xs text-gray-500 mt-1">$49/mo billed as a separate subscription. Good for keeping location billing independent.</p>
-              </button>
-            </div>
-
-            {billingType && (
-              <div className="border-t pt-4 space-y-3">
-                <p className="text-sm font-semibold text-gray-700">Location name (required before checkout):</p>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={e => setForm({ ...form, name: e.target.value })}
-                  placeholder="e.g. North Office, Second Clinic"
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-              </div>
-            )}
-
-            <p className="text-xs text-gray-400">
-              You will be redirected to Square to complete payment. Your location will activate automatically once Square confirms the transaction.
-            </p>
-
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => { setShowPaymentModal(false); setBillingType(null); }}
-                className="px-4 py-2 border rounded-lg text-sm text-gray-500 hover:bg-gray-50">
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  if (!billingType || !form.name) return;
-                  setShowPaymentModal(false);
-                  setShowForm(true);
-                }}
-                disabled={!billingType || !form.name.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
-                Continue to Location Details
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <PageHeader title="Locations & Staff Assignments">
         <Button onClick={handleAddLocationClick}>
           {showForm ? "Cancel" : "+ Add Location"}
@@ -356,24 +247,30 @@ export default function LocationsPage() {
         </div>
       )}
 
+      {requestSent && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700">
+          Location added. Our team will follow up to set up billing for this location.
+        </div>
+      )}
+
       {(() => {
         const gate = canAddLocation();
         if (!gate.allowed) return (
           <UpgradePrompt
-            reason={`Your ${planName} plan allows up to ${limits.locations} location${limits.locations === 1 ? "" : "s"}. Upgrade to add more.`}
+            reason={"Your " + planName + " plan allows up to " + limits.locations + " location" + (limits.locations === 1 ? "" : "s") + ". Upgrade to add more."}
             upgradeTo={gate.upgradeTo}
             feature="Additional Locations"
           />
         );
         return locations.length > 0 ? (
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
-            Your first location is included free. Additional locations are $49/mo each, billed through Square.
+            Your first location is included free. Additional locations are $49/mo each - our team will follow up to set up billing after you add one.
           </div>
         ) : null;
       })()}
 
       {showForm && (
-        <Section title={locations.length === 0 ? "New Location (Free)" : `New Location — $49/mo (${billingType === "addon" ? "Added to subscription" : "Separate payment"})`}>
+        <Section title={locations.length === 0 ? "New Location (Free)" : "New Location - $49/mo"}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <label className="text-sm font-medium text-gray-700 mb-1 block">Location Name *</label>
@@ -416,7 +313,7 @@ export default function LocationsPage() {
             <div className="md:col-span-2 border-t border-gray-100 pt-4">
               <p className="text-sm font-semibold text-gray-700 mb-1">Geofence Coordinates (optional)</p>
               <p className="text-xs text-gray-400 mb-3">
-                Find coordinates at <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">maps.google.com</a> — right-click your location and copy the coordinates.
+                Find coordinates at <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">maps.google.com</a> - right-click your location and copy the coordinates.
               </p>
               <div className="grid grid-cols-3 gap-3">
                 <div>
@@ -444,17 +341,10 @@ export default function LocationsPage() {
             </div>
           </div>
           <div className="mt-4 flex gap-2 items-center">
-            {locations.length >= 1 && billingType ? (
-              <button
-                onClick={processPayment}
-                disabled={processingPayment || !form.name.trim()}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50">
-                {processingPayment ? "Redirecting to Square..." : "Proceed to Payment ($49/mo)"}
-              </button>
-            ) : (
-              <Button onClick={handleSave} loading={saving}>Save Location</Button>
-            )}
-            <Button variant="outline" onClick={() => { setShowForm(false); setBillingType(null); }}>Cancel</Button>
+            <Button onClick={handleSave} loading={saving}>
+              {locations.length >= 1 ? "Add Location ($49/mo)" : "Save Location"}
+            </Button>
+            <Button variant="outline" onClick={() => { setShowForm(false); }}>Cancel</Button>
           </div>
         </Section>
       )}
@@ -468,18 +358,18 @@ export default function LocationsPage() {
           const hasCoords = loc.lat && loc.lng;
 
           return (
-            <div key={loc.id} className={`border rounded-xl bg-white ${!loc.is_active ? "opacity-60 border-gray-100" : "border-gray-200"}`}>
+            <div key={loc.id} className={"border rounded-xl bg-white " + (!loc.is_active ? "opacity-60 border-gray-100" : "border-gray-200")}>
               <div className="p-4">
                 <div className="flex justify-between items-start flex-wrap gap-3">
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-bold text-gray-800 text-lg">{loc.name}</p>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${loc.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                      <span className={"text-xs px-2 py-0.5 rounded-full font-medium " + (loc.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500")}>
                         {loc.is_active ? "Active" : "Inactive"}
                       </span>
                       {loc.payment_status === "pending" && (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
-                          Payment Pending
+                          Payment Pending - We will follow up to set up billing
                         </span>
                       )}
                       {hasCoords ? (
@@ -522,7 +412,7 @@ export default function LocationsPage() {
                       {isExpanded ? "Hide Staff" : "Manage Staff"}
                     </button>
                     <button onClick={() => toggleLocation(loc.id, loc.is_active)}
-                      className={`px-3 py-1.5 border rounded-lg text-xs ${loc.is_active ? "border-orange-200 text-orange-600 hover:bg-orange-50" : "border-green-200 text-green-600 hover:bg-green-50"}`}>
+                      className={"px-3 py-1.5 border rounded-lg text-xs " + (loc.is_active ? "border-orange-200 text-orange-600 hover:bg-orange-50" : "border-green-200 text-green-600 hover:bg-green-50")}>
                       {loc.is_active ? "Deactivate" : "Activate"}
                     </button>
                     <button onClick={() => deleteLocation(loc.id)}
@@ -536,7 +426,7 @@ export default function LocationsPage() {
                   <div className="mt-4 border border-blue-100 rounded-xl p-4 bg-blue-50">
                     <p className="text-sm font-semibold text-blue-700 mb-2">Geofence Coordinates</p>
                     <p className="text-xs text-blue-500 mb-3">
-                      Find coordinates at <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="underline">maps.google.com</a> — right-click your clinic location and copy the lat/lng.
+                      Find coordinates at <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="underline">maps.google.com</a> - right-click your clinic location and copy the lat/lng.
                     </p>
                     <div className="grid grid-cols-3 gap-3 mb-3">
                       <div>
@@ -576,16 +466,16 @@ export default function LocationsPage() {
                         const assigned = isAssigned(profile.id, loc.id);
                         const primary = isPrimary(profile.id, loc.id);
                         return (
-                          <div key={profile.id} className={`flex items-center justify-between border rounded-lg p-3 transition-all ${assigned ? "border-blue-100 bg-blue-50" : "border-gray-100 bg-white"}`}>
+                          <div key={profile.id} className={"flex items-center justify-between border rounded-lg p-3 transition-all " + (assigned ? "border-blue-100 bg-blue-50" : "border-gray-100 bg-white")}>
                             <div className="flex items-center gap-3">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${assigned ? "bg-blue-200 text-blue-700" : "bg-gray-200 text-gray-500"}`}>
+                              <div className={"w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold " + (assigned ? "bg-blue-200 text-blue-700" : "bg-gray-200 text-gray-500")}>
                                 {(profile.full_name ?? "?")[0].toUpperCase()}
                               </div>
                               <div>
                                 <p className="text-sm font-medium text-gray-800">{profile.full_name ?? "Unknown"}</p>
                                 <div className="flex items-center gap-2 mt-0.5">
                                   {profile.role && (
-                                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${roleColor[profile.role] ?? "bg-gray-100 text-gray-600"}`}>
+                                    <span className={"text-xs px-2 py-0.5 rounded-full font-medium " + (roleColor[profile.role] ?? "bg-gray-100 text-gray-600")}>
                                       {profile.role}
                                     </span>
                                   )}
@@ -601,7 +491,7 @@ export default function LocationsPage() {
                                 </button>
                               )}
                               <button onClick={() => toggleAssignment(profile.id, loc.id)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${assigned ? "bg-blue-600 text-white hover:bg-blue-700" : "border border-gray-300 text-gray-600 hover:border-blue-400"}`}>
+                                className={"px-3 py-1.5 rounded-lg text-xs font-medium transition-all " + (assigned ? "bg-blue-600 text-white hover:bg-blue-700" : "border border-gray-300 text-gray-600 hover:border-blue-400")}>
                                 {assigned ? "Assigned" : "+ Assign"}
                               </button>
                             </div>
