@@ -6,7 +6,7 @@ import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
 import UpgradeRequiredModal from "@/components/billing/UpgradeRequiredModal";
-import { getLimits } from "@/lib/planLimits";
+import { usePlanGate } from "@/lib/hooks/usePlanGate";
 
 const DIAGNOSES = [
   "Autism Spectrum Disorder (ASD)", "Intellectual Disability", "ADHD",
@@ -19,12 +19,13 @@ const emptyForm = {
 };
 
 export default function NewClientPage() {
+  const { canAddClient, plan, companyId } = usePlanGate();
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [companyInfo, setCompanyInfo] = useState<{ id: string; name: string; plan: string } | null>(null);
+  const [companyName, setCompanyName] = useState("Your clinic");
 
   async function handleSave() {
     if (!form.full_name.trim()) { setError("Client name is required."); return; }
@@ -49,22 +50,14 @@ export default function NewClientPage() {
       return;
     }
 
-    const { data: company } = await supabase
-      .from("companies")
-      .select("id, name, plan")
-      .eq("id", companyUser.company_id)
-      .single();
-
-    const plan = company?.plan || "starter";
-    const limits = getLimits(plan);
-
-    const { count: currentClientCount } = await supabase
-      .from("clients")
-      .select("id", { count: "exact", head: true })
-      .eq("company_id", companyUser.company_id);
-
-    if ((currentClientCount ?? 0) >= limits.clients) {
-      setCompanyInfo({ id: companyUser.company_id, name: company?.name || "Your clinic", plan });
+    const check = canAddClient();
+    if (!check.allowed) {
+      const { data: company } = await supabase
+        .from("companies")
+        .select("name")
+        .eq("id", companyUser.company_id)
+        .single();
+      setCompanyName(company?.name || "Your clinic");
       setShowUpgradeModal(true);
       setSaving(false);
       return;
@@ -78,7 +71,6 @@ export default function NewClientPage() {
 
     if (saveError) { setError(saveError.message); setSaving(false); return; }
 
-    // Auto-assign based on role
     if (data) {
       if (["clinician", "rbt", "bt"].includes(companyUser.role)) {
         await supabase.from("assignments").insert([{
@@ -167,12 +159,12 @@ export default function NewClientPage() {
         </div>
       </Section>
 
-      {showUpgradeModal && companyInfo && (
+      {showUpgradeModal && companyId && plan && (
         <UpgradeRequiredModal
           resourceType="clients"
-          currentPlan={companyInfo.plan}
-          companyId={companyInfo.id}
-          companyName={companyInfo.name}
+          currentPlan={plan}
+          companyId={companyId}
+          companyName={companyName}
           onClose={() => setShowUpgradeModal(false)}
         />
       )}

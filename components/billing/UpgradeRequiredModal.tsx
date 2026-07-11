@@ -1,7 +1,13 @@
 ﻿"use client";
 
 import { useState } from "react";
-import { PLAN_LIMITS, PLAN_ORDER, PlanId } from "@/lib/planLimits";
+import { PLAN_LIMITS, PLAN_NAMES, PlanType } from "@/lib/hooks/usePlanGate";
+
+const PLAN_ORDER: PlanType[] = ["starter", "basic", "professional", "growth", "enterprise", "clinic"];
+
+const PLAN_PRICES: Record<string, number> = {
+  starter: 199, basic: 299, professional: 449, growth: 649, enterprise: 849, clinic: 1099,
+};
 
 export default function UpgradeRequiredModal({
   resourceType,
@@ -18,12 +24,12 @@ export default function UpgradeRequiredModal({
 }) {
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<PlanId | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<PlanType | null>(null);
 
-  const currentIndex = PLAN_ORDER.indexOf(currentPlan as PlanId);
+  const currentIndex = PLAN_ORDER.indexOf(currentPlan as PlanType);
   const availableUpgrades = PLAN_ORDER.slice(currentIndex + 1);
 
-  async function handleRequest(plan: PlanId) {
+  async function handleRequest(plan: PlanType) {
     setSending(true);
     try {
       await fetch("/api/request-upgrade", {
@@ -67,6 +73,7 @@ export default function UpgradeRequiredModal({
 
             <div className="space-y-2 mb-5">
               {availableUpgrades.map((planId) => {
+                if (!planId) return null;
                 const p = PLAN_LIMITS[planId];
                 return (
                   <button
@@ -77,8 +84,8 @@ export default function UpgradeRequiredModal({
                     }`}
                   >
                     <div className="flex justify-between items-center">
-                      <span className="font-semibold text-gray-900 text-sm">{p.label}</span>
-                      <span className="text-blue-600 font-bold text-sm">${p.price}/mo</span>
+                      <span className="font-semibold text-gray-900 text-sm">{PLAN_NAMES[planId]}</span>
+                      <span className="text-blue-600 font-bold text-sm">${PLAN_PRICES[planId]}/mo</span>
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
                       Up to {p.clinicians >= 9999 ? "unlimited" : p.clinicians} clinicians,{" "}

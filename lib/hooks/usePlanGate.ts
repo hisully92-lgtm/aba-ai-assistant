@@ -1,12 +1,13 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 
-export type PlanType = "starter" | "professional" | "growth" | "enterprise" | "clinic" | null;
+export type PlanType = "starter" | "basic" | "professional" | "growth" | "enterprise" | "clinic" | null;
 
 export const PLAN_LIMITS = {
   starter:      { clinicians: 1,   clients: 10,  locations: 1  },
+  basic:        { clinicians: 3,   clients: 25,  locations: 1  },
   professional: { clinicians: 5,   clients: 9999, locations: 2  },
   growth:       { clinicians: 25,  clients: 9999, locations: 5  },
   enterprise:   { clinicians: 75,  clients: 9999, locations: 15 },
@@ -15,6 +16,7 @@ export const PLAN_LIMITS = {
 
 export const PLAN_FEATURES = {
   starter:      { ai: false, insurance: false, edi: false, quickbooks: false, customBranding: false, whiteLabel: false, api: false, safmeds: false, parentPortal: false, analytics: false },
+  basic:        { ai: true,  insurance: false, edi: false, quickbooks: false, customBranding: false, whiteLabel: false, api: false, safmeds: false, parentPortal: true,  analytics: false },
   professional: { ai: true,  insurance: true,  edi: false, quickbooks: false, customBranding: false, whiteLabel: false, api: false, safmeds: true,  parentPortal: true,  analytics: true  },
   growth:       { ai: true,  insurance: true,  edi: false, quickbooks: false, customBranding: false, whiteLabel: false, api: false, safmeds: true,  parentPortal: true,  analytics: true  },
   enterprise:   { ai: true,  insurance: true,  edi: true,  quickbooks: true,  customBranding: true,  whiteLabel: false, api: false, safmeds: true,  parentPortal: true,  analytics: true  },
@@ -23,6 +25,7 @@ export const PLAN_FEATURES = {
 
 export const PLAN_NAMES: Record<string, string> = {
   starter: "Starter",
+  basic: "Basic",
   professional: "Professional",
   growth: "Growth",
   enterprise: "Enterprise",
@@ -30,7 +33,8 @@ export const PLAN_NAMES: Record<string, string> = {
 };
 
 export const UPGRADE_PATH: Record<string, string> = {
-  starter: "professional",
+  starter: "basic",
+  basic: "professional",
   professional: "growth",
   growth: "enterprise",
   enterprise: "clinic",
@@ -63,7 +67,6 @@ export function usePlanGate() {
     const cid = companyUser?.company_id ?? null;
     setCompanyId(cid);
 
-    // Get plan from subscription_contracts
     const { data: contract } = await supabase
       .from("subscription_contracts")
       .select("plan_type")
@@ -108,7 +111,7 @@ export function usePlanGate() {
     if (clientCount >= limits.clients) {
       return {
         allowed: false,
-        reason: `Your ${PLAN_NAMES[plan ?? "starter"]} plan allows up to ${limits.clients} clients.`,
+        reason: "Your " + PLAN_NAMES[plan ?? "starter"] + " plan allows up to " + limits.clients + " clients.",
         upgradeTo: UPGRADE_PATH[plan ?? "starter"],
       };
     }
@@ -120,7 +123,7 @@ export function usePlanGate() {
     if (clinicianCount >= limits.clinicians) {
       return {
         allowed: false,
-        reason: `Your ${PLAN_NAMES[plan ?? "starter"]} plan allows up to ${limits.clinicians} clinician${limits.clinicians === 1 ? "" : "s"}.`,
+        reason: "Your " + PLAN_NAMES[plan ?? "starter"] + " plan allows up to " + limits.clinicians + " clinician" + (limits.clinicians === 1 ? "" : "s") + ".",
         upgradeTo: UPGRADE_PATH[plan ?? "starter"],
       };
     }
@@ -132,7 +135,7 @@ export function usePlanGate() {
     if (locationCount >= limits.locations) {
       return {
         allowed: false,
-        reason: `Your ${PLAN_NAMES[plan ?? "starter"]} plan allows up to ${limits.locations} location${limits.locations === 1 ? "" : "s"}.`,
+        reason: "Your " + PLAN_NAMES[plan ?? "starter"] + " plan allows up to " + limits.locations + " location" + (limits.locations === 1 ? "" : "s") + ".",
         upgradeTo: UPGRADE_PATH[plan ?? "starter"],
       };
     }
