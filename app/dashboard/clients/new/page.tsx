@@ -1,10 +1,12 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
+import UpgradeRequiredModal from "@/components/billing/UpgradeRequiredModal";
+import { getLimits } from "@/lib/planLimits";
 
 const DIAGNOSES = [
   "Autism Spectrum Disorder (ASD)", "Intellectual Disability", "ADHD",
@@ -21,6 +23,8 @@ export default function NewClientPage() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [companyInfo, setCompanyInfo] = useState<{ id: string; name: string; plan: string } | null>(null);
 
   async function handleSave() {
     if (!form.full_name.trim()) { setError("Client name is required."); return; }
@@ -41,6 +45,27 @@ export default function NewClientPage() {
 
     if (!companyUser?.company_id) {
       setError("No company found. Please complete onboarding.");
+      setSaving(false);
+      return;
+    }
+
+    const { data: company } = await supabase
+      .from("companies")
+      .select("id, name, plan")
+      .eq("id", companyUser.company_id)
+      .single();
+
+    const plan = company?.plan || "starter";
+    const limits = getLimits(plan);
+
+    const { count: currentClientCount } = await supabase
+      .from("clients")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyUser.company_id);
+
+    if ((currentClientCount ?? 0) >= limits.clients) {
+      setCompanyInfo({ id: companyUser.company_id, name: company?.name || "Your clinic", plan });
+      setShowUpgradeModal(true);
       setSaving(false);
       return;
     }
@@ -141,6 +166,16 @@ export default function NewClientPage() {
           </Button>
         </div>
       </Section>
+
+      {showUpgradeModal && companyInfo && (
+        <UpgradeRequiredModal
+          resourceType="clients"
+          currentPlan={companyInfo.plan}
+          companyId={companyInfo.id}
+          companyName={companyInfo.name}
+          onClose={() => setShowUpgradeModal(false)}
+        />
+      )}
     </div>
   );
 }
