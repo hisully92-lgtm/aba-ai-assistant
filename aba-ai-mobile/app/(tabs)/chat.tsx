@@ -62,7 +62,7 @@ export default function ChatScreen() {
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [showManageMembers, setShowManageMembers] = useState(false);
 
-  const isPrivileged = PRIVILEGED_ROLES.includes(userRole);
+  const isPrivileged = true; // All roles can create and manage groups
 
   useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
