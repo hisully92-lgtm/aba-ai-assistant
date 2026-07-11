@@ -34,6 +34,7 @@ export default function UpgradePage() {
       const user = auth?.user;
       let companyId = "";
       let companyName = "Unknown";
+      let contactName = "";
 
       if (user) {
         const { data: companyUser } = await supabase
@@ -53,6 +54,9 @@ export default function UpgradePage() {
             .single();
           companyName = company?.name || "Unknown";
         }
+
+        const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
+        contactName = profile?.full_name || "";
       }
 
       await fetch("/api/request-upgrade", {
@@ -64,6 +68,8 @@ export default function UpgradePage() {
           currentPlan: "current",
           requestedPlan: planId,
           resourceType: "upgrade request (" + planName + ")",
+          contactEmail: user?.email || "",
+          contactName,
         }),
       });
       setSent(planId);
@@ -140,3 +146,6 @@ export default function UpgradePage() {
     </div>
   );
 }
+
+
+
