@@ -59,7 +59,7 @@ export default function ChatPage() {
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [showManageMembers, setShowManageMembers] = useState(false);
 
-  const isPrivileged = true; // All roles can create and manage groups
+  const isPrivileged = true; // -- GROUPS --
 
   useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -134,7 +134,7 @@ export default function ChatPage() {
     setMessages(data ?? []);
   }
 
-  // â”€â”€ GROUPS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- GROUPS --
 
   async function loadStaffList() {
     const { data } = await supabase
@@ -290,7 +290,7 @@ export default function ChatPage() {
         ))}
       </div>
 
-      {/* TEAM â€” client list */}
+      {/* TEAM - client list */}
       {tab === "team" && !selectedClient && (
         <div className="space-y-3">
           <p className="text-sm text-gray-500">Select a client to view the team chat for that client.</p>
@@ -311,7 +311,7 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* GROUPS â€” list */}
+      {/* GROUPS - list */}
       {tab === "groups" && !selectedGroup && (
         <div className="space-y-3">
           {isPrivileged && (
@@ -348,10 +348,10 @@ export default function ChatPage() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <button onClick={() => { setSelectedClient(null); setSelectedGroup(null); setMessages([]); }} className="text-blue-500 hover:underline text-sm">
-                â† Back
+                Back
               </button>
               <h2 className="font-bold text-gray-800">
-                {tab === "team" ? `${selectedClient?.full_name} â€” Team Chat` : groupLabel(selectedGroup!)}
+                {tab === "team" ? `${selectedClient?.full_name} - Team Chat` : groupLabel(selectedGroup!)}
               </h2>
             </div>
             {tab === "groups" && isPrivileged && (
@@ -392,7 +392,7 @@ export default function ChatPage() {
                   <div className={`max-w-xs lg:max-w-md rounded-2xl px-4 py-2.5 ${isMe ? "bg-blue-600 text-white rounded-br-sm" : "bg-white border border-gray-100 rounded-bl-sm"}`}>
                     {!isMe && (
                       <p className={`text-xs font-bold mb-1 ${roleColor(msg.sender_role)}`}>
-                        {msg.sender_name ?? "Team"} Â· {msg.sender_role?.toUpperCase()}
+                        {msg.sender_name ?? "Team"} - {msg.sender_role?.toUpperCase()}
                       </p>
                     )}
                     <p className={`text-sm ${isMe ? "text-white" : "text-gray-800"}`}>{msg.message}</p>
@@ -412,7 +412,7 @@ export default function ChatPage() {
               placeholder={tab === "team" ? "Message the team..." : "Message the group..."}
               className="flex-1 border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
             <Button onClick={() => handleSend()} loading={sending} disabled={!input.trim()}>
-              Send â†’
+              Send
             </Button>
           </div>
         </div>
@@ -444,7 +444,7 @@ export default function ChatPage() {
                       <p className="text-xs text-gray-400">{s.role?.toUpperCase()}</p>
                     </div>
                     <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${checked ? "bg-blue-600 border-blue-600" : "border-gray-300"}`}>
-                      {checked && <span className="text-white text-xs font-bold">âœ“</span>}
+                      {checked && <span className="text-white text-xs font-bold">X</span>}
                     </div>
                   </button>
                 );
@@ -503,3 +503,6 @@ export default function ChatPage() {
     </div>
   );
 }
+
+
+
