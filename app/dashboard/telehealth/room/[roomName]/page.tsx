@@ -3,12 +3,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
-import Video, {
-  Room,
-  RemoteParticipant,
-  RemoteTrack,
-  LocalVideoTrack,
-} from 'twilio-video';
+import { RemoteParticipant, RemoteTrack, LocalVideoTrack } from 'twilio-video';
+import Video from 'twilio-video';
+import { useTelehealthCall } from '@/lib/contexts/TelehealthCallContext';
 
 type ParsedIdentity = { id: string; name: string; role: string };
 
@@ -32,125 +29,49 @@ export default function TelehealthRoomPage() {
   const params = useParams<{ roomName: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const roomName = params?.roomName ?? '';
-  const telehealthSessionId = searchParams?.get('sessionId') ?? '';
+  const urlRoomName = params?.roomName ?? '';
+  const urlSessionId = searchParams?.get('sessionId') ?? '';
 
-  const [room, setRoom] = useState<Room | null>(null);
-  const [participants, setParticipants] = useState<RemoteParticipant[]>([]);
-  const [micEnabled, setMicEnabled] = useState(true);
-  const [cameraEnabled, setCameraEnabled] = useState(true);
+  const call = useTelehealthCall();
+
   const [isSharingScreen, setIsSharingScreen] = useState(false);
-  const [connecting, setConnecting] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [hostUserId, setHostUserId] = useState<string>('');
-  const [localIdentity, setLocalIdentity] = useState<ParsedIdentity | null>(null);
-  const [networkQuality, setNetworkQuality] = useState<number | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<{ id: string; message: string; sender_name: string; sender_role: string; created_at: string }[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [sendingChat, setSendingChat] = useState(false);
+  const [networkQuality, setNetworkQuality] = useState<number | null>(null);
 
-  const localVideoRef = useRef<HTMLDivElement>(null);
-  const localVideoTrackRef = useRef<LocalVideoTrack | null>(null);
   const screenTrackRef = useRef<LocalVideoTrack | null>(null);
+  const leavingRef = useRef(false);
 
   useEffect(() => {
-    if (!roomName) {
-      setError('Missing room name');
-      setConnecting(false);
-      return;
-    }
+    if (!urlRoomName || !urlSessionId) return;
+    call.connect(urlRoomName, urlSessionId);
+  }, [urlRoomName, urlSessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    if (!telehealthSessionId) {
-      setError('Missing session reference — start this session from the Telehealth page');
-      setConnecting(false);
-      return;
-    }
-
-    let activeRoom: Room | null = null;
-
-    async function connectToRoom() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          setError('Not authenticated');
-          setConnecting(false);
-          return;
-        }
-
-        const res = await fetch('/api/video/token', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ roomName, telehealthSessionId }),
-        });
-
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || 'Failed to get video token');
-        }
-
-        const { token, hostUserId: host } = await res.json();
-        setHostUserId(host ?? '');
-
-        activeRoom = await Video.connect(token, {
-          name: roomName,
-          audio: true,
-          video: { width: 640, height: 480 },
-          networkQuality: { local: 1, remote: 1 },
-        });
-
-        setLocalIdentity(parseIdentity(activeRoom.localParticipant.identity));
-        setRoom(activeRoom);
-        setConnecting(false);
-
-        activeRoom.localParticipant.videoTracks.forEach((publication) => {
-          if (publication.track && localVideoRef.current) {
-            localVideoTrackRef.current = publication.track;
-            localVideoRef.current.appendChild(publication.track.attach());
-          }
-        });
-
-        // @ts-ignore — networkQualityLevel exists when networkQuality is enabled on connect
-        setNetworkQuality(activeRoom.localParticipant.networkQualityLevel ?? null);
-        activeRoom.localParticipant.on('networkQualityLevelChanged', (level: number) => {
-          setNetworkQuality(level);
-        });
-
-        const attachParticipant = (participant: RemoteParticipant) => {
-          setParticipants((prev) => [...prev.filter((p) => p.sid !== participant.sid), participant]);
-        };
-
-        activeRoom.participants.forEach(attachParticipant);
-        activeRoom.on('participantConnected', attachParticipant);
-        activeRoom.on('participantDisconnected', (participant) => {
-          setParticipants((prev) => prev.filter((p) => p.sid !== participant.sid));
-        });
-
-        activeRoom.on('disconnected', () => {
-          router.push('/dashboard/telehealth');
-        });
-      } catch (err: any) {
-        console.error('Failed to connect to room:', err);
-        setError(err.message || 'Failed to connect');
-        setConnecting(false);
-      }
-    }
-
-    connectToRoom();
-
+  // When this page unmounts (navigating elsewhere) without an explicit Leave,
+  // hand the call off to the floating window instead of disconnecting it.
+  useEffect(() => {
     return () => {
-      if (activeRoom) {
-        activeRoom.disconnect();
+      if (!leavingRef.current) {
+        call.minimize();
       }
     };
-  }, [roomName, telehealthSessionId, router]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!chatOpen || !telehealthSessionId || !roomName) return;
+    if (!call.room) return;
+    // @ts-ignore
+    setNetworkQuality(call.room.localParticipant.networkQualityLevel ?? null);
+    const handler = (level: number) => setNetworkQuality(level);
+    call.room.localParticipant.on('networkQualityLevelChanged', handler);
+    return () => {
+      call.room?.localParticipant.off('networkQualityLevelChanged', handler);
+    };
+  }, [call.room]);
 
+  useEffect(() => {
+    if (!chatOpen || !urlSessionId || !urlRoomName) return;
     let cancelled = false;
 
     async function loadMessages() {
@@ -159,11 +80,8 @@ export default function TelehealthRoomPage() {
       try {
         const res = await fetch('/api/video/chat/list', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ telehealthSessionId, roomName }),
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ telehealthSessionId: urlSessionId, roomName: urlRoomName }),
         });
         if (!res.ok || cancelled) return;
         const { messages } = await res.json();
@@ -179,21 +97,18 @@ export default function TelehealthRoomPage() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [chatOpen, telehealthSessionId, roomName]);
+  }, [chatOpen, urlSessionId, urlRoomName]);
 
   const sendChatMessage = useCallback(async () => {
-    if (!chatInput.trim() || !telehealthSessionId || !roomName) return;
+    if (!chatInput.trim() || !urlSessionId || !urlRoomName) return;
     setSendingChat(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
       const res = await fetch('/api/video/chat/send', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ telehealthSessionId, roomName, message: chatInput.trim() }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ telehealthSessionId: urlSessionId, roomName: urlRoomName, message: chatInput.trim() }),
       });
       if (res.ok) {
         const { message } = await res.json();
@@ -205,63 +120,16 @@ export default function TelehealthRoomPage() {
     } finally {
       setSendingChat(false);
     }
-  }, [chatInput, telehealthSessionId, roomName]);
-
-  const toggleMic = useCallback(() => {
-    if (!room) return;
-    room.localParticipant.audioTracks.forEach((pub) => {
-      if (micEnabled) {
-        pub.track.disable();
-      } else {
-        pub.track.enable();
-      }
-    });
-    setMicEnabled(!micEnabled);
-  }, [room, micEnabled]);
-
-  const toggleCamera = useCallback(async () => {
-    if (!room) return;
-
-    if (cameraEnabled) {
-      room.localParticipant.videoTracks.forEach((pub) => {
-        if (pub.track !== screenTrackRef.current) pub.track.disable();
-      });
-      setCameraEnabled(false);
-      return;
-    }
-
-    const existingTrack = localVideoTrackRef.current;
-    const stillPublished = Array.from(room.localParticipant.videoTracks.values()).some(
-      (pub) => pub.track === existingTrack
-    );
-
-    if (existingTrack && stillPublished) {
-      existingTrack.enable();
-      setCameraEnabled(true);
-      return;
-    }
-
-    try {
-      const freshTrack = await Video.createLocalVideoTrack({ width: 640, height: 480 });
-      await room.localParticipant.publishTrack(freshTrack);
-      localVideoTrackRef.current = freshTrack;
-      if (localVideoRef.current) {
-        localVideoRef.current.appendChild(freshTrack.attach());
-      }
-      setCameraEnabled(true);
-    } catch (err) {
-      console.error('Failed to re-acquire camera track:', err);
-      setError('Could not turn camera back on — check camera permissions');
-    }
-  }, [room, cameraEnabled]);
+  }, [chatInput, urlSessionId, urlRoomName]);
 
   const toggleScreenShare = useCallback(async () => {
-    if (!room) return;
+    const activeRoom = call.room;
+    if (!activeRoom) return;
 
     if (isSharingScreen) {
       const track = screenTrackRef.current;
       if (track) {
-        room.localParticipant.unpublishTrack(track);
+        activeRoom.localParticipant.unpublishTrack(track);
         track.stop();
       }
       screenTrackRef.current = null;
@@ -270,31 +138,34 @@ export default function TelehealthRoomPage() {
     }
 
     try {
-      // @ts-ignore — getDisplayMedia typing varies by TS lib target
+      // @ts-ignore
       const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
       const mediaTrack = stream.getVideoTracks()[0];
       const screenTrack = new Video.LocalVideoTrack(mediaTrack, { name: 'screen-share' });
-
-      await room.localParticipant.publishTrack(screenTrack);
+      await activeRoom.localParticipant.publishTrack(screenTrack);
       screenTrackRef.current = screenTrack;
       setIsSharingScreen(true);
-
       mediaTrack.addEventListener('ended', () => {
-        room.localParticipant.unpublishTrack(screenTrack);
+        activeRoom.localParticipant.unpublishTrack(screenTrack);
         screenTrackRef.current = null;
         setIsSharingScreen(false);
       });
     } catch (err) {
       console.error('Screen share failed or was cancelled:', err);
     }
-  }, [room, isSharingScreen]);
+  }, [call.room, isSharingScreen]);
 
-  const leaveCall = useCallback(() => {
-    room?.disconnect();
-    router.push('/dashboard/telehealth');
-  }, [room, router]);
+  const handleLeave = useCallback(() => {
+    leavingRef.current = true;
+    call.leave();
+  }, [call]);
 
-  if (connecting) {
+  const handleBackToDashboard = useCallback(() => {
+    // Explicit "minimize and go back" affordance — same as navigating away
+    router.push('/dashboard');
+  }, [router]);
+
+  if (call.connecting) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-900 text-white">
         <p>Connecting to session...</p>
@@ -302,10 +173,10 @@ export default function TelehealthRoomPage() {
     );
   }
 
-  if (error) {
+  if (call.error) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-gray-900 text-white gap-4">
-        <p className="text-red-400">{error}</p>
+        <p className="text-red-400">{call.error}</p>
         <button onClick={() => router.push('/dashboard/telehealth')} className="px-4 py-2 bg-blue-600 rounded">
           Back
         </button>
@@ -313,23 +184,36 @@ export default function TelehealthRoomPage() {
     );
   }
 
-  const totalTiles = participants.length + 1;
+  if (!call.room) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-900 text-white">
+        <p>Connecting to session...</p>
+      </div>
+    );
+  }
+
+  const totalTiles = call.participants.length + 1;
   const gridCols =
     totalTiles <= 1 ? 'grid-cols-1' : totalTiles <= 4 ? 'grid-cols-2' : totalTiles <= 9 ? 'grid-cols-3' : 'grid-cols-4';
 
-  const isLocalHost = !!localIdentity && localIdentity.id === hostUserId;
+  const isLocalHost = !!call.localIdentity && call.localIdentity.id === call.hostUserId;
 
   return (
     <div className="flex flex-col h-screen bg-gray-900">
+      <div className="flex items-center justify-between px-3 py-2 bg-gray-800 border-b border-gray-700">
+        <button onClick={handleBackToDashboard} className="text-xs text-gray-300 hover:text-white">
+          ← Back to Dashboard (call stays connected)
+        </button>
+      </div>
       <div className="flex-1 flex overflow-hidden">
         <div className={`flex-1 grid ${gridCols} gap-2 p-2 overflow-auto`}>
           <div
-            ref={localVideoRef}
+            ref={call.attachLocalVideo}
             className="relative bg-gray-800 rounded-lg overflow-hidden aspect-video [&>video]:w-full [&>video]:h-full [&>video]:object-cover"
           >
             <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
               <span className="text-white text-sm bg-black/50 px-2 py-1 rounded">
-                You{localIdentity?.role ? ` · ${ROLE_LABELS[localIdentity.role] ?? localIdentity.role}` : ''}
+                You{call.localIdentity?.role ? ` · ${ROLE_LABELS[call.localIdentity.role] ?? call.localIdentity.role}` : ''}
               </span>
               {isLocalHost && (
                 <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded font-semibold">Host</span>
@@ -341,8 +225,8 @@ export default function TelehealthRoomPage() {
               </span>
             )}
           </div>
-          {participants.map((participant) => (
-            <ParticipantTile key={participant.sid} participant={participant} isHost={parseIdentity(participant.identity).id === hostUserId} />
+          {call.participants.map((participant) => (
+            <ParticipantTile key={participant.sid} participant={participant} isHost={parseIdentity(participant.identity).id === call.hostUserId} />
           ))}
         </div>
 
@@ -350,9 +234,7 @@ export default function TelehealthRoomPage() {
           <div className="w-80 bg-gray-800 border-l border-gray-700 flex flex-col">
             <div className="px-4 py-3 border-b border-gray-700 text-white font-semibold text-sm">Session Chat</div>
             <div className="flex-1 overflow-y-auto p-3 space-y-3">
-              {chatMessages.length === 0 && (
-                <p className="text-gray-500 text-xs text-center mt-4">No messages yet</p>
-              )}
+              {chatMessages.length === 0 && <p className="text-gray-500 text-xs text-center mt-4">No messages yet</p>}
               {chatMessages.map((m) => (
                 <div key={m.id}>
                   <p className="text-xs text-gray-400">
@@ -384,16 +266,16 @@ export default function TelehealthRoomPage() {
       </div>
       <div className="flex items-center justify-center gap-4 p-4 bg-gray-800">
         <button
-          onClick={toggleMic}
-          className={`px-4 py-3 rounded-full ${micEnabled ? 'bg-gray-700' : 'bg-red-600'} text-white`}
+          onClick={call.toggleMic}
+          className={`px-4 py-3 rounded-full ${call.micEnabled ? 'bg-gray-700' : 'bg-red-600'} text-white`}
         >
-          {micEnabled ? 'Mute' : 'Unmute'}
+          {call.micEnabled ? 'Mute' : 'Unmute'}
         </button>
         <button
-          onClick={toggleCamera}
-          className={`px-4 py-3 rounded-full ${cameraEnabled ? 'bg-gray-700' : 'bg-red-600'} text-white`}
+          onClick={call.toggleCamera}
+          className={`px-4 py-3 rounded-full ${call.cameraEnabled ? 'bg-gray-700' : 'bg-red-600'} text-white`}
         >
-          {cameraEnabled ? 'Camera Off' : 'Camera On'}
+          {call.cameraEnabled ? 'Camera Off' : 'Camera On'}
         </button>
         <button
           onClick={toggleScreenShare}
@@ -407,7 +289,7 @@ export default function TelehealthRoomPage() {
         >
           Chat
         </button>
-        <button onClick={leaveCall} className="px-6 py-3 rounded-full bg-red-600 text-white font-semibold">
+        <button onClick={handleLeave} className="px-6 py-3 rounded-full bg-red-600 text-white font-semibold">
           Leave
         </button>
       </div>
@@ -426,8 +308,7 @@ function ParticipantTile({ participant, isHost }: { participant: RemoteParticipa
     const attachTrack = (track: RemoteTrack) => {
       if (track.kind === 'video' || track.kind === 'audio') {
         // @ts-ignore
-        const el = track.attach();
-        container.appendChild(el);
+        container.appendChild(track.attach());
       }
     };
 

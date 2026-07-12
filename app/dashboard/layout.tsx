@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -10,6 +10,8 @@ import OnboardingTutorial from "@/components/OnboardingTutorials";
 import { TimerProvider } from "@/lib/contexts/TimerContext";
 import FloatingTimerBar from "@/components/timers/FloatingTimerBar";
 import FloatingChat from "@/components/layout/FloatingChat";
+import { TelehealthCallProvider } from "@/lib/contexts/TelehealthCallContext";
+import FloatingCallWindow from "@/components/telehealth/FloatingCallWindow";
 
 function SkeletonLoader() {
   return (
@@ -141,6 +143,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <TimerProvider>
+      <TelehealthCallProvider>
       <div className="flex min-h-screen bg-gray-50" style={{ height: "100vh", overflow: "hidden" }}>
 
         {/* MOBILE OVERLAY */}
@@ -245,9 +248,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* FLOATING CHAT */}
         <FloatingChat />
 
+        {/* FLOATING TELEHEALTH CALL WINDOW */}
+        <FloatingCallWindow />
+
       </div>
+      </TelehealthCallProvider>
     </TimerProvider>
   );
 }
-
-
