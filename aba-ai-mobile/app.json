@@ -57,9 +57,16 @@
             "./assets/sounds/mixkit-musical-reveal-961.wav"
           ],
           "mode": "production"
-        }
-      ]
-    ],
+          }
+        ],
+        [
+          "@twilio/video-react-native-sdk",
+          {
+            "cameraPermission": "Allow ABA AI to access your camera for telehealth sessions",
+            "microphonePermission": "Allow ABA AI to access your microphone for telehealth sessions"
+          }
+        ]
+      ],
     "extra": {
       "eas": {
         "projectId": "9f789234-7f7f-4d05-a3c9-11751e353dbd"
