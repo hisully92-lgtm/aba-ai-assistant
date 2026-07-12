@@ -1,197 +1,184 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase/client";
-import Section from "@/components/ui/Section";
-import PageHeader from "@/components/layout/PageHeader";
-import Button from "@/components/ui/Button";
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase/client';
 
 type Recording = {
   id: string;
-  session_id: string | null;
-  room_name: string | null;
-  recording_url: string | null;
-  duration_seconds: number;
-  consent_obtained: boolean;
-  storage_provider: string;
+  recording_sid: string;
+  duration_seconds: number | null;
   status: string;
-  expires_at: string | null;
+  consent_obtained: boolean;
   created_at: string;
+  client_id: string;
+  clients?: { full_name: string } | null;
 };
 
-export default function RecordingsPage() {
+export default function TelehealthRecordingsPage() {
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [loading, setLoading] = useState(true);
-  const [consentForm, setConsentForm] = useState(false);
+  const [playingUrl, setPlayingUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { init(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
-  async function init() {
+  async function load() {
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
-    const { data } = await supabase.from("telehealth_recordings")
-      .select("*")
-      .eq("created_by", user.id)
-      .order("created_at", { ascending: false });
+    const { data: companyUser } = await supabase
+      .from('company_users')
+      .select('company_id, role')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .maybeSingle();
 
-    setRecordings(data ?? []);
+    if (!companyUser) {
+      setLoading(false);
+      return;
+    }
+
+    const isPrivileged = companyUser.role === 'admin' || companyUser.role === 'bcba';
+
+    let query = supabase
+      .from('telehealth_video_recordings')
+      .select('id, recording_sid, duration_seconds, status, consent_obtained, created_at, client_id, clients(full_name)')
+      .eq('company_id', companyUser.company_id)
+      .order('created_at', { ascending: false });
+
+    if (!isPrivileged) {
+      const { data: assignments } = await supabase
+        .from('client_assignments')
+        .select('client_id')
+        .eq('staff_id', user.id);
+      const clientIds = (assignments ?? []).map((a) => a.client_id);
+      if (clientIds.length === 0) {
+        setRecordings([]);
+        setLoading(false);
+        return;
+      }
+      query = query.in('client_id', clientIds);
+    }
+
+    const { data } = await query;
+    setRecordings((data as any) ?? []);
     setLoading(false);
   }
 
-  async function updateConsent(id: string, consent: boolean) {
-    await supabase.from("telehealth_recordings").update({ consent_obtained: consent }).eq("id", id);
-    setRecordings((prev) => prev.map((r) => r.id === id ? { ...r, consent_obtained: consent } : r));
+  async function play(recordingSid: string) {
+    setError(null);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const res = await fetch('/api/video/recording/media', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ recordingSid }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      setError(err.error || 'Failed to load recording');
+      return;
+    }
+
+    const { url } = await res.json();
+    setPlayingUrl(url);
   }
 
-  function formatDuration(seconds: number) {
+  async function toggleConsent(id: string, current: boolean) {
+    await supabase.from('telehealth_video_recordings').update({ consent_obtained: !current }).eq('id', id);
+    setRecordings((prev) => prev.map((r) => (r.id === id ? { ...r, consent_obtained: !current } : r)));
+  }
+
+  function formatDuration(seconds: number | null) {
+    if (!seconds) return '—';
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, "0")}`;
+    return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
   function statusColor(status: string) {
-    if (status === "available") return "bg-green-100 text-green-700";
-    if (status === "processing") return "bg-yellow-100 text-yellow-700";
-    if (status === "expired") return "bg-red-100 text-red-700";
-    return "bg-gray-100 text-gray-500";
+    if (status === 'available') return 'bg-green-100 text-green-700';
+    if (status === 'processing') return 'bg-yellow-100 text-yellow-700';
+    if (status === 'failed') return 'bg-red-100 text-red-700';
+    return 'bg-gray-100 text-gray-500';
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Telehealth Recordings" />
+    <div className="max-w-3xl mx-auto p-6 space-y-6">
+      <h1 className="text-2xl font-bold">Telehealth Recordings</h1>
 
-      {/* LEGAL NOTICE */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-        <p className="text-sm font-bold text-yellow-800 mb-2">⚖️ Important Legal Notice</p>
-        <div className="text-xs text-yellow-700 space-y-1">
-          <p>• Recording telehealth sessions requires written informed consent from all participants including clients and/or guardians.</p>
-          <p>• Laws vary by state — some require one-party consent, others require all-party consent.</p>
-          <p>• All recordings must be stored in HIPAA-compliant storage and treated as Protected Health Information (PHI).</p>
-          <p>• Recordings must be included in your Notice of Privacy Practices.</p>
-          <p>• Consult your legal counsel and malpractice insurance before enabling session recording.</p>
-        </div>
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-xs text-yellow-700 space-y-1">
+        <p className="font-bold mb-1">⚖️ Recording requires informed consent</p>
+        <p>Confirm consent was obtained from the client/guardian before treating a recording as available for review. Consent laws vary by state.</p>
       </div>
 
-      {/* SETUP STEPS */}
-      <Section title="🔌 Recording Setup (Daily.co)">
-        <div className="space-y-3">
-          {[
-            { step: "1", text: "Sign up for a Daily.co HIPAA-compliant plan (required for session recording)", link: "https://daily.co", status: "pending" },
-            { step: "2", text: "Enable cloud recording in your Daily.co dashboard settings", link: null, status: "pending" },
-            { step: "3", text: "Add DAILY_API_KEY to your Vercel environment variables", link: null, status: "pending" },
-            { step: "4", text: "Configure recording retention period (default: 7 days for HIPAA)", link: null, status: "pending" },
-            { step: "5", text: "Obtain written consent from clients/guardians before recording any session", link: null, status: "required" },
-            { step: "6", text: "Document consent in client records and link to recording", link: null, status: "required" },
-          ].map((item) => (
-            <div key={item.step} className={`flex items-center gap-3 border rounded-lg p-3 ${item.status === "required" ? "border-orange-200 bg-orange-50" : "border-gray-100 bg-white"}`}>
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${item.status === "required" ? "bg-orange-500 text-white" : "bg-blue-100 text-blue-600"}`}>
-                {item.step}
-              </span>
-              <p className={`text-sm flex-1 ${item.status === "required" ? "text-orange-700 font-medium" : "text-gray-600"}`}>
-                {item.text}
-              </p>
-              {item.link && (
-                <a href={item.link} target="_blank" rel="noopener noreferrer"
-                  className="text-xs text-blue-500 hover:underline shrink-0">Open →</a>
-              )}
-            </div>
-          ))}
+      {playingUrl && (
+        <div className="bg-black rounded-xl overflow-hidden">
+          <video src={playingUrl} controls autoPlay className="w-full" />
+          <button
+            onClick={() => setPlayingUrl(null)}
+            className="w-full py-2 bg-gray-800 text-white text-sm"
+          >
+            Close
+          </button>
         </div>
+      )}
 
-        <div className="mt-4 bg-gray-900 rounded-xl p-4">
-          <p className="text-xs font-semibold text-gray-400 mb-2">Add to .env.local & Vercel</p>
-          <code className="text-xs text-green-400 whitespace-pre">{`DAILY_API_KEY=your_daily_api_key
-DAILY_DOMAIN=yourname.daily.co
-DAILY_RECORDING_RETENTION_DAYS=7`}</code>
-        </div>
-      </Section>
+      {error && <p className="text-red-600 text-sm">{error}</p>}
 
-      {/* CONSENT TEMPLATE */}
-      <Section title="📄 Consent Form Template">
-        <Button variant="outline" onClick={() => setConsentForm(!consentForm)}>
-          {consentForm ? "Hide Template" : "View Consent Template"}
-        </Button>
+      {loading && <p className="text-gray-400 text-sm">Loading...</p>}
 
-        {consentForm && (
-          <div className="mt-4 border border-gray-200 rounded-xl p-4 bg-gray-50 text-sm text-gray-700 space-y-3">
-            <p className="font-bold text-gray-800">TELEHEALTH SESSION RECORDING CONSENT</p>
-            <p>I, the undersigned, hereby provide consent for my/my child's ABA therapy sessions conducted via telehealth to be recorded for the following purposes:</p>
-            <ul className="list-disc list-inside space-y-1 text-sm">
-              <li>Clinical supervision and quality assurance</li>
-              <li>Treatment planning and progress review</li>
-              <li>Staff training (with identifying information removed)</li>
-            </ul>
-            <p>I understand that:</p>
-            <ul className="list-disc list-inside space-y-1 text-sm">
-              <li>Recordings will be stored securely and treated as Protected Health Information</li>
-              <li>Recordings will be retained for [X] days and then deleted</li>
-              <li>I may withdraw this consent at any time in writing</li>
-              <li>Declining consent will not affect the quality of services provided</li>
-            </ul>
-            <p className="text-xs text-gray-400 mt-2">
-              Customize this template with your organization's name, retention policy, and legal counsel review before use.
-            </p>
-            <Button variant="outline" onClick={() => {
-              const text = document.querySelector(".consent-text")?.textContent ?? "";
-              navigator.clipboard.writeText(text);
-            }}>
-              📋 Copy Template
-            </Button>
-          </div>
-        )}
-      </Section>
+      {!loading && recordings.length === 0 && (
+        <div className="text-center py-10 text-gray-400 text-sm">No recordings yet.</div>
+      )}
 
-      {/* RECORDINGS LIST */}
-      <Section title={`Recordings (${recordings.length})`}>
-        {loading && <p className="text-gray-400 text-sm">Loading...</p>}
-        {!loading && recordings.length === 0 && (
-          <div className="text-center py-8">
-            <p className="text-4xl mb-3">🎥</p>
-            <p className="text-gray-500 text-sm">No recordings yet.</p>
-            <p className="text-gray-400 text-xs mt-1">Recordings will appear here once Daily.co is configured and sessions are recorded.</p>
-          </div>
-        )}
-        <div className="space-y-3">
-          {recordings.map((rec) => (
-            <div key={rec.id} className={`border rounded-xl p-4 bg-white ${!rec.consent_obtained ? "border-orange-200" : "border-gray-100"}`}>
-              <div className="flex justify-between items-start flex-wrap gap-2">
-                <div>
-                  <p className="font-medium text-gray-800">{rec.room_name ?? "Session Recording"}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {new Date(rec.created_at).toLocaleDateString()}
-                    {rec.duration_seconds > 0 && ` · ${formatDuration(rec.duration_seconds)}`}
-                    {` · ${rec.storage_provider}`}
-                  </p>
-                  {rec.expires_at && (
-                    <p className="text-xs text-orange-600 mt-0.5">
-                      Expires: {new Date(rec.expires_at).toLocaleDateString()}
-                    </p>
-                  )}
-                  {!rec.consent_obtained && (
-                    <p className="text-xs text-red-600 mt-0.5 font-medium">⚠️ Consent not documented</p>
-                  )}
-                </div>
-                <div className="flex gap-2 items-center">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(rec.status)}`}>
-                    {rec.status}
-                  </span>
-                  <button onClick={() => updateConsent(rec.id, !rec.consent_obtained)}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${rec.consent_obtained ? "border-green-300 text-green-600 bg-green-50" : "border-orange-300 text-orange-600"}`}>
-                    {rec.consent_obtained ? "✓ Consent" : "Add Consent"}
+      <div className="space-y-3">
+        {recordings.map((rec) => (
+          <div key={rec.id} className={`border rounded-xl p-4 bg-white ${!rec.consent_obtained ? 'border-orange-200' : 'border-gray-100'}`}>
+            <div className="flex justify-between items-start flex-wrap gap-2">
+              <div>
+                <p className="font-medium text-gray-800">{rec.clients?.full_name ?? 'Unknown client'}</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {new Date(rec.created_at).toLocaleDateString()} · {formatDuration(rec.duration_seconds)}
+                </p>
+                {!rec.consent_obtained && (
+                  <p className="text-xs text-red-600 mt-0.5 font-medium">⚠️ Consent not documented</p>
+                )}
+              </div>
+              <div className="flex gap-2 items-center">
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(rec.status)}`}>
+                  {rec.status}
+                </span>
+                <button
+                  onClick={() => toggleConsent(rec.id, rec.consent_obtained)}
+                  className={`text-xs px-3 py-1.5 rounded-full border ${rec.consent_obtained ? 'border-green-300 text-green-600 bg-green-50' : 'border-orange-300 text-orange-600'}`}
+                >
+                  {rec.consent_obtained ? '✓ Consent' : 'Add Consent'}
+                </button>
+                {rec.status === 'available' && (
+                  <button
+                    onClick={() => play(rec.recording_sid)}
+                    className="text-xs px-3 py-1.5 rounded-full bg-blue-600 text-white"
+                  >
+                    ▶ Play
                   </button>
-                  {rec.recording_url && (
-                    <a href={rec.recording_url} target="_blank" rel="noopener noreferrer">
-                      <Button variant="outline">▶ View</Button>
-                    </a>
-                  )}
-                </div>
+                )}
               </div>
             </div>
-          ))}
-        </div>
-      </Section>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
