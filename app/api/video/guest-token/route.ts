@@ -7,6 +7,12 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+function getClientIp(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for');
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return request.headers.get('x-real-ip') ?? 'unknown';
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -18,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     const { data: videoSession } = await supabaseAdmin
       .from('telehealth_video_sessions')
-      .select('id, room_name, status, guest_token_expires_at, client_id')
+      .select('id, company_id, room_name, status, guest_token_expires_at, client_id')
       .eq('guest_token', guestToken)
       .single();
 
@@ -56,6 +62,18 @@ export async function POST(request: NextRequest) {
 
     const videoGrant = new VideoGrant({ room: videoSession.room_name });
     accessToken.addGrant(videoGrant);
+
+    // Audit log — who joined, when, from where
+    await supabaseAdmin.from('telehealth_session_audit_log').insert({
+      video_session_id: videoSession.id,
+      company_id: videoSession.company_id,
+      actor_type: 'guest',
+      actor_id: null,
+      actor_name: guestDisplayName,
+      event: 'joined',
+      ip_address: getClientIp(request),
+      user_agent: request.headers.get('user-agent') ?? 'unknown',
+    });
 
     return NextResponse.json({
       token: accessToken.toJwt(),

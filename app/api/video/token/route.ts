@@ -7,6 +7,12 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+function getClientIp(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for');
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return request.headers.get('x-real-ip') ?? 'unknown';
+}
+
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
@@ -77,8 +83,6 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     const displayName = profile?.full_name || user.email || 'Staff';
-    // Twilio identity is a plain string — encode name/role alongside the user id so the
-    // client can render real names and a host badge without a second lookup per participant.
     const identity = `${user.id}::${encodeURIComponent(displayName)}::${companyUser.role}`;
 
     const { AccessToken } = twilio.jwt;
@@ -101,6 +105,18 @@ export async function POST(request: NextRequest) {
         .eq('id', telehealthSessionId)
         .eq('status', 'scheduled');
     }
+
+    // Audit log — who joined, when, from where
+    await supabaseAdmin.from('telehealth_session_audit_log').insert({
+      video_session_id: videoSession.id,
+      company_id: companyUser.company_id,
+      actor_type: 'staff',
+      actor_id: user.id,
+      actor_name: displayName,
+      event: 'joined',
+      ip_address: getClientIp(request),
+      user_agent: request.headers.get('user-agent') ?? 'unknown',
+    });
 
     return NextResponse.json({
       token: accessToken.toJwt(),
