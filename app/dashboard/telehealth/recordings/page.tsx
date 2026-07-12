@@ -57,7 +57,7 @@ export default function TelehealthRecordingsPage() {
         .from('client_assignments')
         .select('client_id')
         .eq('staff_id', user.id);
-      const clientIds = (assignments ?? []).map((a) => a.client_id);
+      const clientIds = (assignments ?? []).map((a: { client_id: string }) => a.client_id);
       if (clientIds.length === 0) {
         setRecordings([]);
         setLoading(false);
