@@ -36,11 +36,13 @@ export async function POST(request: NextRequest) {
 
     const { data: client } = await supabaseAdmin
       .from('clients')
-      .select('full_name')
+      .select('full_name, guardian_name')
       .eq('id', videoSession.client_id)
       .single();
 
-    const guestIdentity = `guest-${videoSession.id.slice(0, 8)}`;
+    const guestDisplayName = client?.guardian_name || 'Guest';
+    const guestUniqueId = `guest-${videoSession.id.slice(0, 8)}`;
+    const identity = `${guestUniqueId}::${encodeURIComponent(guestDisplayName)}::guardian`;
 
     const { AccessToken } = twilio.jwt;
     const { VideoGrant } = AccessToken;
@@ -49,7 +51,7 @@ export async function POST(request: NextRequest) {
       process.env.TWILIO_ACCOUNT_SID!,
       process.env.TWILIO_API_KEY_SID!,
       process.env.TWILIO_API_KEY_SECRET!,
-      { identity: guestIdentity, ttl: 14400 }
+      { identity, ttl: 14400 }
     );
 
     const videoGrant = new VideoGrant({ room: videoSession.room_name });

@@ -70,6 +70,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'You are not authorized to join this session' }, { status: 403 });
     }
 
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const displayName = profile?.full_name || user.email || 'Staff';
+    // Twilio identity is a plain string — encode name/role alongside the user id so the
+    // client can render real names and a host badge without a second lookup per participant.
+    const identity = `${user.id}::${encodeURIComponent(displayName)}::${companyUser.role}`;
+
     const { AccessToken } = twilio.jwt;
     const { VideoGrant } = AccessToken;
 
@@ -77,7 +88,7 @@ export async function POST(request: NextRequest) {
       process.env.TWILIO_ACCOUNT_SID!,
       process.env.TWILIO_API_KEY_SID!,
       process.env.TWILIO_API_KEY_SECRET!,
-      { identity: user.id, ttl: 14400 } // 4 hour token validity
+      { identity, ttl: 14400 } // 4 hour token validity
     );
 
     const videoGrant = new VideoGrant({ room: roomName });
@@ -93,8 +104,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       token: accessToken.toJwt(),
-      identity: user.id,
+      identity,
       roomName,
+      hostUserId: videoSession.staff_id,
     });
   } catch (error: any) {
     console.error('Video token generation error:', error);

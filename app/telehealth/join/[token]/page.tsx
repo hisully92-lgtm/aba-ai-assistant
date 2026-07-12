@@ -4,6 +4,21 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Video, { Room, RemoteParticipant, RemoteTrack } from 'twilio-video';
 
+function parseIdentity(identity: string): { name: string; role: string } {
+  const [, encodedName, role] = identity.split('::');
+  return {
+    name: encodedName ? decodeURIComponent(encodedName) : identity,
+    role: role ?? '',
+  };
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Admin',
+  bcba: 'BCBA',
+  rbt: 'RBT',
+  guardian: 'Guardian',
+};
+
 export default function TelehealthGuestJoinPage() {
   const params = useParams<{ token: string }>();
   const guestToken = params?.token ?? '';
@@ -163,6 +178,7 @@ export default function TelehealthGuestJoinPage() {
 
 function ParticipantTile({ participant }: { participant: RemoteParticipant }) {
   const videoRef = useRef<HTMLDivElement>(null);
+  const identity = parseIdentity(participant.identity);
 
   useEffect(() => {
     const container = videoRef.current;
@@ -199,7 +215,7 @@ function ParticipantTile({ participant }: { participant: RemoteParticipant }) {
     <div className="relative bg-gray-800 rounded-lg overflow-hidden aspect-video [&>video]:w-full [&>video]:h-full [&>video]:object-cover">
       <div ref={videoRef} className="w-full h-full" />
       <span className="absolute bottom-2 left-2 text-white text-sm bg-black/50 px-2 py-1 rounded">
-        {participant.identity}
+        {identity.name}{identity.role ? ` · ${ROLE_LABELS[identity.role] ?? identity.role}` : ''}
       </span>
     </div>
   );
