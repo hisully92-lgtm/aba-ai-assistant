@@ -1,14 +1,16 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
-import Video, { Room, RemoteParticipant, RemoteTrack } from 'twilio-video';
+import Video, { Room, RemoteParticipant, RemoteTrack, LocalVideoTrack } from 'twilio-video';
 
 export default function TelehealthRoomPage() {
-  const params = useParams();
+  const params = useParams<{ roomName: string }>();
+  const searchParams = useSearchParams();
   const router = useRouter();
-  const roomName = params.roomName as string;
+  const roomName = params?.roomName ?? '';
+  const telehealthSessionId = searchParams?.get('sessionId') ?? '';
 
   const [room, setRoom] = useState<Room | null>(null);
   const [participants, setParticipants] = useState<RemoteParticipant[]>([]);
@@ -18,8 +20,21 @@ export default function TelehealthRoomPage() {
   const [error, setError] = useState<string | null>(null);
 
   const localVideoRef = useRef<HTMLDivElement>(null);
+  const localVideoTrackRef = useRef<LocalVideoTrack | null>(null);
 
   useEffect(() => {
+    if (!roomName) {
+      setError('Missing room name');
+      setConnecting(false);
+      return;
+    }
+
+    if (!telehealthSessionId) {
+      setError('Missing session reference — start this session from the Telehealth page');
+      setConnecting(false);
+      return;
+    }
+
     let activeRoom: Room | null = null;
 
     async function connectToRoom() {
@@ -37,7 +52,7 @@ export default function TelehealthRoomPage() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ roomName }),
+          body: JSON.stringify({ roomName, telehealthSessionId }),
         });
 
         if (!res.ok) {
@@ -58,6 +73,7 @@ export default function TelehealthRoomPage() {
 
         activeRoom.localParticipant.videoTracks.forEach((publication) => {
           if (publication.track && localVideoRef.current) {
+            localVideoTrackRef.current = publication.track;
             localVideoRef.current.appendChild(publication.track.attach());
           }
         });
@@ -89,7 +105,7 @@ export default function TelehealthRoomPage() {
         activeRoom.disconnect();
       }
     };
-  }, [roomName, router]);
+  }, [roomName, telehealthSessionId, router]);
 
   const toggleMic = useCallback(() => {
     if (!room) return;
@@ -103,16 +119,43 @@ export default function TelehealthRoomPage() {
     setMicEnabled(!micEnabled);
   }, [room, micEnabled]);
 
-  const toggleCamera = useCallback(() => {
+  const toggleCamera = useCallback(async () => {
     if (!room) return;
-    room.localParticipant.videoTracks.forEach((pub) => {
-      if (cameraEnabled) {
+
+    if (cameraEnabled) {
+      // Turning off: disable and unpublish so the camera light actually turns off
+      room.localParticipant.videoTracks.forEach((pub) => {
         pub.track.disable();
-      } else {
-        pub.track.enable();
+      });
+      setCameraEnabled(false);
+      return;
+    }
+
+    // Turning on: if we still hold the track, just re-enable it
+    const existingTrack = localVideoTrackRef.current;
+    const stillPublished = Array.from(room.localParticipant.videoTracks.values()).some(
+      (pub) => pub.track === existingTrack
+    );
+
+    if (existingTrack && stillPublished) {
+      existingTrack.enable();
+      setCameraEnabled(true);
+      return;
+    }
+
+    // No usable track — request a fresh one and publish it
+    try {
+      const freshTrack = await Video.createLocalVideoTrack({ width: 640, height: 480 });
+      await room.localParticipant.publishTrack(freshTrack);
+      localVideoTrackRef.current = freshTrack;
+      if (localVideoRef.current) {
+        localVideoRef.current.appendChild(freshTrack.attach());
       }
-    });
-    setCameraEnabled(!cameraEnabled);
+      setCameraEnabled(true);
+    } catch (err) {
+      console.error('Failed to re-acquire camera track:', err);
+      setError('Could not turn camera back on — check camera permissions');
+    }
   }, [room, cameraEnabled]);
 
   const leaveCall = useCallback(() => {
@@ -215,7 +258,7 @@ function ParticipantTile({ participant }: { participant: RemoteParticipant }) {
   return (
     <div className="relative bg-gray-800 rounded-lg overflow-hidden aspect-video [&>video]:w-full [&>video]:h-full [&>video]:object-cover">
       <div ref={videoRef} className="w-full h-full" />
-      <span className="absolute bottom-2 left-2 text-white text-sm bg-black/50 px-2 py-1 rounded">
+      <span className="absolute bottom-2 left-2 text-white text-sm bg-black-50 px-2 py-1 rounded">
         {participant.identity}
       </span>
     </div>

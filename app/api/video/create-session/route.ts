@@ -36,7 +36,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No active company membership' }, { status: 403 });
     }
 
-    // Check that this company has an active video add-on
     const { data: addon } = await supabaseAdmin
       .from('company_addons')
       .select('status')
@@ -54,10 +53,38 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { clientId, scheduledStart, recordSession } = body;
 
-    // Generate a unique room name
+    if (!clientId) {
+      return NextResponse.json({ error: 'clientId is required' }, { status: 400 });
+    }
+
+    // Confirm the client belongs to this company
+    const { data: client } = await supabaseAdmin
+      .from('clients')
+      .select('id, company_id')
+      .eq('id', clientId)
+      .single();
+
+    if (!client || client.company_id !== companyUser.company_id) {
+      return NextResponse.json({ error: 'Client not found' }, { status: 403 });
+    }
+
+    // Non-admin/BCBA staff must be explicitly assigned to this client
+    const isPrivileged = companyUser.role === 'admin' || companyUser.role === 'bcba';
+    if (!isPrivileged) {
+      const { data: assignment } = await supabaseAdmin
+        .from('client_assignments')
+        .select('id')
+        .eq('client_id', clientId)
+        .eq('staff_id', user.id)
+        .maybeSingle();
+
+      if (!assignment) {
+        return NextResponse.json({ error: 'You are not assigned to this client' }, { status: 403 });
+      }
+    }
+
     const roomName = `telehealth-${companyUser.company_id.slice(0, 8)}-${Date.now()}`;
 
-    // Create the Twilio Video room
     const room = await twilioClient.video.v1.rooms.create({
       uniqueName: roomName,
       type: 'group',
@@ -66,12 +93,11 @@ export async function POST(request: NextRequest) {
       statusCallbackMethod: 'POST',
     });
 
-    // Create the telehealth_sessions row
     const { data: session, error: insertError } = await supabaseAdmin
       .from('telehealth_video_sessions')
       .insert({
         company_id: companyUser.company_id,
-        client_id: clientId || null,
+        client_id: clientId,
         staff_id: user.id,
         room_name: roomName,
         room_sid: room.sid,

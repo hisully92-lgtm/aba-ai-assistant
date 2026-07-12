@@ -34,20 +34,29 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { telehealthSessionId, roomName } = body;
 
-    if (!roomName) {
-      return NextResponse.json({ error: 'roomName is required' }, { status: 400 });
+    if (!roomName || !telehealthSessionId) {
+      return NextResponse.json({ error: 'roomName and telehealthSessionId are required' }, { status: 400 });
     }
 
-    if (telehealthSessionId) {
-      const { data: session } = await supabaseAdmin
-        .from('telehealth_video_sessions')
-        .select('id, company_id, room_name')
-        .eq('id', telehealthSessionId)
-        .single();
+    const { data: videoSession } = await supabaseAdmin
+      .from('telehealth_video_sessions')
+      .select('id, company_id, room_name, staff_id, status')
+      .eq('id', telehealthSessionId)
+      .single();
 
-      if (!session || session.company_id !== companyUser.company_id) {
-        return NextResponse.json({ error: 'Session not found or access denied' }, { status: 403 });
-      }
+    if (!videoSession || videoSession.company_id !== companyUser.company_id || videoSession.room_name !== roomName) {
+      return NextResponse.json({ error: 'Session not found or access denied' }, { status: 403 });
+    }
+
+    if (videoSession.status === 'completed' || videoSession.status === 'cancelled') {
+      return NextResponse.json({ error: 'This session has ended' }, { status: 403 });
+    }
+
+    const isPrivileged = companyUser.role === 'admin' || companyUser.role === 'bcba';
+    const isAssignedStaff = videoSession.staff_id === user.id;
+
+    if (!isPrivileged && !isAssignedStaff) {
+      return NextResponse.json({ error: 'You are not authorized to join this session' }, { status: 403 });
     }
 
     const { AccessToken } = twilio.jwt;
@@ -63,7 +72,7 @@ export async function POST(request: NextRequest) {
     const videoGrant = new VideoGrant({ room: roomName });
     accessToken.addGrant(videoGrant);
 
-    if (telehealthSessionId) {
+    if (videoSession.status === 'scheduled') {
       await supabaseAdmin
         .from('telehealth_video_sessions')
         .update({ status: 'in_progress', actual_start: new Date().toISOString() })
