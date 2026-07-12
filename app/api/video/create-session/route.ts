@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import twilio from 'twilio';
 import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
+import { sendPushToUsers } from '@/lib/push-server';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -137,6 +138,27 @@ export async function POST(request: NextRequest) {
         console.error('Guardian SMS invite failed:', err);
         smsResult = 'failed';
       }
+    }
+
+    // Push-notify any other staff assigned to this client (skip the creator)
+    try {
+      const { data: teamAssignments } = await supabaseAdmin
+        .from('client_assignments')
+        .select('staff_id')
+        .eq('client_id', clientId)
+        .neq('staff_id', user.id);
+
+      const otherStaffIds = Array.from(new Set((teamAssignments ?? []).map((a: any) => a.staff_id)));
+
+      if (otherStaffIds.length > 0) {
+        await sendPushToUsers(otherStaffIds, {
+          title: 'Telehealth session started',
+          body: `${client.full_name}'s telehealth session is starting now.`,
+          url: `/dashboard/telehealth/room/${roomName}?sessionId=${session.id}`,
+        });
+      }
+    } catch (err) {
+      console.error('Staff push notification failed:', err);
     }
 
     return NextResponse.json({

@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
 
     const { data: videoSession } = await supabaseAdmin
       .from('telehealth_video_sessions')
-      .select('id, company_id, room_name, staff_id, status')
+      .select('id, company_id, room_name, staff_id, client_id, status')
       .eq('id', telehealthSessionId)
       .single();
 
@@ -53,9 +53,20 @@ export async function POST(request: NextRequest) {
     }
 
     const isPrivileged = companyUser.role === 'admin' || companyUser.role === 'bcba';
-    const isAssignedStaff = videoSession.staff_id === user.id;
+    const isSessionCreator = videoSession.staff_id === user.id;
 
-    if (!isPrivileged && !isAssignedStaff) {
+    let isAssignedToClient = false;
+    if (!isPrivileged && !isSessionCreator) {
+      const { data: assignment } = await supabaseAdmin
+        .from('client_assignments')
+        .select('id')
+        .eq('client_id', videoSession.client_id)
+        .eq('staff_id', user.id)
+        .maybeSingle();
+      isAssignedToClient = !!assignment;
+    }
+
+    if (!isPrivileged && !isSessionCreator && !isAssignedToClient) {
       return NextResponse.json({ error: 'You are not authorized to join this session' }, { status: 403 });
     }
 
