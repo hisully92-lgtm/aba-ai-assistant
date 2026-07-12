@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
 
     if (telehealthSessionId) {
       const { data: session } = await supabaseAdmin
-        .from('telehealth_sessions')
+        .from('telehealth_video_sessions')
         .select('id, company_id, room_name')
         .eq('id', telehealthSessionId)
         .single();
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     if (telehealthSessionId) {
       await supabaseAdmin
-        .from('telehealth_sessions')
+        .from('telehealth_video_sessions')
         .update({ status: 'in_progress', actual_start: new Date().toISOString() })
         .eq('id', telehealthSessionId)
         .eq('status', 'scheduled');

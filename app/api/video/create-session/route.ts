@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
 
     // Create the telehealth_sessions row
     const { data: session, error: insertError } = await supabaseAdmin
-      .from('telehealth_sessions')
+      .from('telehealth_video_sessions')
       .insert({
         company_id: companyUser.company_id,
         client_id: clientId || null,
