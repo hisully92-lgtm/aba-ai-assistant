@@ -95,6 +95,8 @@ export default function BillingPage() {
   const [redeemingCode, setRedeemingCode] = useState(false);
   const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null);
   const [redeemError, setRedeemError] = useState<string | null>(null);
+  const [telehealthRequestSending, setTelehealthRequestSending] = useState(false);
+  const [telehealthRequestSent, setTelehealthRequestSent] = useState(false);
 
   useEffect(() => {
     void init();
@@ -173,6 +175,31 @@ export default function BillingPage() {
       setError("Something went wrong sending your request. Please try again.");
     } finally {
       setRequestSending(false);
+    }
+  }
+
+  async function handleRequestTelehealth() {
+    setTelehealthRequestSending(true);
+    setError(null);
+    try {
+      await fetch("/api/request-upgrade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId: companyInfo?.id ?? "",
+          companyName: companyInfo?.name ?? "Unknown",
+          currentPlan: activeContract?.plan_type ?? "none",
+          requestedPlan: "Telehealth Video Add-on",
+          resourceType: "Telehealth Video Add-on (+$60/mo, 300 min included, $0.05/min overage)",
+          contactEmail: contactInfo?.email ?? "",
+          contactName: contactInfo?.name ?? "",
+        }),
+      });
+      setTelehealthRequestSent(true);
+    } catch {
+      setError("Something went wrong sending your request. Please try again.");
+    } finally {
+      setTelehealthRequestSending(false);
     }
   }
 
@@ -417,6 +444,22 @@ export default function BillingPage() {
           <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700">
             <p className="font-semibold mb-1">Nonprofit Discount Available</p>
             <p className="text-xs">501(c)(3) organizations receive 20% off all plans. <a href="mailto:support@aba-ai-assistant.com?subject=Nonprofit Discount Request" className="underline font-medium">Contact us to apply</a></p>
+          </div>
+
+          <div className="border-2 border-blue-200 bg-blue-50 rounded-2xl p-5">
+            <p className="font-bold text-gray-800">Telehealth Video</p>
+            <p className="text-xs text-gray-600 mt-1">Remote video sessions with clients — $60/mo, 300 participant-minutes included, $0.05/min after that.</p>
+            {telehealthRequestSent ? (
+              <p className="text-sm text-green-700 font-medium mt-3">Requested — our team will reach out to activate it.</p>
+            ) : (
+              <button
+                onClick={handleRequestTelehealth}
+                disabled={telehealthRequestSending}
+                className="mt-3 px-4 py-2 rounded-xl text-sm font-bold border-2 border-blue-300 text-blue-600 hover:bg-blue-100 transition-colors disabled:opacity-50"
+              >
+                {telehealthRequestSending ? "Sending..." : "Request Telehealth Add-on"}
+              </button>
+            )}
           </div>
         </div>
       )}
