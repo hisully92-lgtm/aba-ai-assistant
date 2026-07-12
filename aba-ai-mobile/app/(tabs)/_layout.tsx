@@ -36,6 +36,9 @@ export default function TabsLayout() {
       <Tabs.Screen name="notes" options={{
         tabBarIcon: ({ focused }) => <TabIcon emoji="📝👧" label="Parent" focused={focused} />,
       }} />
+      <Tabs.Screen name="telehealth" options={{
+        tabBarIcon: ({ focused }) => <TabIcon emoji="🎥" label="Video" focused={focused} />,
+      }} />
       <Tabs.Screen name="timers" options={{ href: null }} />
       <Tabs.Screen name="profile" options={{ href: null }} />
       <Tabs.Screen name="timeentry" options={{ href: null }} />
