@@ -83,7 +83,10 @@ export async function POST(request: NextRequest) {
 
     if (insertError) {
       console.error('Failed to create telehealth session row:', insertError);
-      return NextResponse.json({ error: 'Failed to save session' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to save session', debug: insertError.message, code: insertError.code, details: insertError.details },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
