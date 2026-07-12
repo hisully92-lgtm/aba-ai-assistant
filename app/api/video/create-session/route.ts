@@ -36,6 +36,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No active company membership' }, { status: 403 });
     }
 
+    // Check that this company has an active video add-on
+    const { data: addon } = await supabaseAdmin
+      .from('company_addons')
+      .select('status')
+      .eq('company_id', companyUser.company_id)
+      .eq('addon_type', 'video')
+      .single();
+
+    if (!addon || addon.status !== 'active') {
+      return NextResponse.json(
+        { error: 'Telehealth video is not active for your company. Request it from Plans & Billing.' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { clientId, scheduledStart, recordSession } = body;
 

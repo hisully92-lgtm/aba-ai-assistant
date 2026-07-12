@@ -2,13 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase/client';
 import Video, { Room, RemoteParticipant, RemoteTrack } from 'twilio-video';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export default function TelehealthRoomPage() {
   const params = useParams();
@@ -220,7 +215,7 @@ function ParticipantTile({ participant }: { participant: RemoteParticipant }) {
   return (
     <div className="relative bg-gray-800 rounded-lg overflow-hidden aspect-video [&>video]:w-full [&>video]:h-full [&>video]:object-cover">
       <div ref={videoRef} className="w-full h-full" />
-      <span className="absolute bottom-2 left-2 text-white text-sm bg-black-50 px-2 py-1 rounded">
+      <span className="absolute bottom-2 left-2 text-white text-sm bg-black/50 px-2 py-1 rounded">
         {participant.identity}
       </span>
     </div>
