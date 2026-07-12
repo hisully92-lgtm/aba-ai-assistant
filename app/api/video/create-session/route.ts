@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import twilio from 'twilio';
+import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseAdmin = createClient(
@@ -51,16 +52,15 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { clientId, scheduledStart, recordSession } = body;
+    const { clientId, scheduledStart, recordSession, inviteGuardian } = body;
 
     if (!clientId) {
       return NextResponse.json({ error: 'clientId is required' }, { status: 400 });
     }
 
-    // Confirm the client belongs to this company
     const { data: client } = await supabaseAdmin
       .from('clients')
-      .select('id, company_id')
+      .select('id, company_id, full_name, guardian_name, guardian_phone')
       .eq('id', clientId)
       .single();
 
@@ -68,7 +68,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Client not found' }, { status: 403 });
     }
 
-    // Non-admin/BCBA staff must be explicitly assigned to this client
     const isPrivileged = companyUser.role === 'admin' || companyUser.role === 'bcba';
     if (!isPrivileged) {
       const { data: assignment } = await supabaseAdmin
@@ -84,6 +83,8 @@ export async function POST(request: NextRequest) {
     }
 
     const roomName = `telehealth-${companyUser.company_id.slice(0, 8)}-${Date.now()}`;
+    const guestToken = crypto.randomBytes(24).toString('hex');
+    const guestTokenExpiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(); // 4 hour window
 
     const room = await twilioClient.video.v1.rooms.create({
       uniqueName: roomName,
@@ -103,6 +104,8 @@ export async function POST(request: NextRequest) {
         room_sid: room.sid,
         status: 'scheduled',
         scheduled_start: scheduledStart || new Date().toISOString(),
+        guest_token: guestToken,
+        guest_token_expires_at: guestTokenExpiresAt,
       })
       .select()
       .single();
@@ -112,10 +115,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save session' }, { status: 500 });
     }
 
+    // Text the guardian a no-login join link, if requested and a number is on file
+    let smsResult: 'sent' | 'skipped' | 'failed' = 'skipped';
+    if (inviteGuardian !== false && client.guardian_phone) {
+      const joinUrl = `${process.env.NEXT_PUBLIC_APP_URL}/telehealth/join/${guestToken}`;
+      const message = `${client.guardian_name ? client.guardian_name + ', ' : ''}your ABA AI telehealth session for ${client.full_name} is ready. Join here: ${joinUrl}`;
+
+      try {
+        const smsRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/sms/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: client.guardian_phone,
+            message,
+            companyId: companyUser.company_id,
+            triggerType: 'telehealth_invite',
+          }),
+        });
+        smsResult = smsRes.ok ? 'sent' : 'failed';
+      } catch (err) {
+        console.error('Guardian SMS invite failed:', err);
+        smsResult = 'failed';
+      }
+    }
+
     return NextResponse.json({
       session,
       roomName,
       roomSid: room.sid,
+      guardianInvite: smsResult,
     });
   } catch (error: any) {
     console.error('Telehealth session creation error:', error);
