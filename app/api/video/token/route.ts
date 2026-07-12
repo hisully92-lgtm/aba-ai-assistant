@@ -75,15 +75,6 @@ export async function POST(request: NextRequest) {
       token: accessToken.toJwt(),
       identity: user.id,
       roomName,
-      _debug: {
-        accountSidPrefix: process.env.TWILIO_ACCOUNT_SID?.slice(0, 4),
-        accountSidLength: process.env.TWILIO_ACCOUNT_SID?.length,
-        apiKeySidPrefix: process.env.TWILIO_API_KEY_SID?.slice(0, 4),
-        apiKeySidLength: process.env.TWILIO_API_KEY_SID?.length,
-        apiKeySecretLength: process.env.TWILIO_API_KEY_SECRET?.length,
-        apiKeySecretFirst4: process.env.TWILIO_API_KEY_SECRET?.slice(0, 4),
-        apiKeySecretLast4: process.env.TWILIO_API_KEY_SECRET?.slice(-4),
-      },
     });
   } catch (error: any) {
     console.error('Video token generation error:', error);
