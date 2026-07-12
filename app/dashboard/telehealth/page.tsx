@@ -32,7 +32,7 @@ export default function TelehealthPage() {
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || 'Failed to create session');
+        throw new Error(JSON.stringify(err));
       }
 
       const { roomName } = await res.json();
