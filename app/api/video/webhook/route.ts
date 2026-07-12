@@ -18,16 +18,40 @@ export async function POST(request: NextRequest) {
 
     const { data: videoSession } = await supabaseAdmin
       .from('telehealth_video_sessions')
-      .select('id, company_id, client_id, status')
+      .select('id, company_id, client_id, status, scheduled_start, actual_start')
       .eq('room_sid', roomSid)
       .maybeSingle();
 
     if (event === 'room-ended') {
       if (videoSession && videoSession.status !== 'completed') {
+        const now = new Date();
         await supabaseAdmin
           .from('telehealth_video_sessions')
-          .update({ status: 'completed', actual_end: new Date().toISOString() })
+          .update({ status: 'completed', actual_end: now.toISOString() })
           .eq('id', videoSession.id);
+
+        // Log participant-minute usage for billing (Phase 8).
+        // Approximation: room duration from Twilio, not summed per-participant —
+        // close enough for 1:1 and small-group sessions, which covers this use case.
+        const roomDurationRaw = form.get('RoomDuration')?.toString();
+        const durationSeconds = roomDurationRaw ? parseInt(roomDurationRaw, 10) : null;
+        const start = videoSession.actual_start ? new Date(videoSession.actual_start) : null;
+        const minutesUsed = durationSeconds
+          ? Math.max(1, Math.round(durationSeconds / 60))
+          : start
+          ? Math.max(1, Math.round((now.getTime() - start.getTime()) / 60000))
+          : null;
+
+        if (minutesUsed) {
+          await supabaseAdmin.from('addon_usage_log').insert({
+            company_id: videoSession.company_id,
+            addon_type: 'video',
+            units_used: minutesUsed,
+            source_id: videoSession.id,
+            period_start: start?.toISOString() ?? now.toISOString(),
+            period_end: now.toISOString(),
+          });
+        }
       }
     }
 
@@ -63,7 +87,6 @@ export async function POST(request: NextRequest) {
             .update({ status: 'available', duration_seconds: duration })
             .eq('id', existing.id);
         } else if (videoSession) {
-          // recording-started webhook may have been missed — insert fresh
           await supabaseAdmin.from('telehealth_video_recordings').insert({
             video_session_id: videoSession.id,
             company_id: videoSession.company_id,

@@ -7,6 +7,14 @@
     {
       "path": "/api/cron/overdue-check",
       "schedule": "30 13 * * *"
+    },
+    {
+      "path": "/api/cron/overdue-check",
+      "schedule": "30 13 * * *"
+    },
+    {
+      "path": "/api/cron/telehealth-billing",
+      "schedule": "0 14 1 * *"
     }
   ]
 }

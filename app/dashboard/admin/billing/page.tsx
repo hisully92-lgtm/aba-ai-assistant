@@ -54,7 +54,14 @@ type BillingStats = {
   avgSessionValue: number;
 };
 
-type TabType = "overview" | "sessions" | "invoices" | "usage" | "churn";
+type TabType = "overview" | "sessions" | "invoices" | "usage" | "churn" | "addons";
+
+type CompanyAddon = {
+  company_id: string;
+  company_name: string;
+  status: string;
+  activated_at: string | null;
+};
 
 const TAB_LABELS: Record<TabType, string> = {
   overview: "Overview",
@@ -62,6 +69,7 @@ const TAB_LABELS: Record<TabType, string> = {
   invoices: "Invoices",
   usage: "Feature Usage",
   churn: "Churn Risk",
+  addons: "Add-ons",
 };
 
 export default function AdminBillingPage() {
@@ -74,6 +82,9 @@ export default function AdminBillingPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [usageLogs, setUsageLogs] = useState<UsageLog[]>([]);
   const [churnRisks, setChurnRisks] = useState<ChurnRisk[]>([]);
+  const [companyAddons, setCompanyAddons] = useState<CompanyAddon[]>([]);
+  const [addonSearch, setAddonSearch] = useState("");
+  const [addonUpdating, setAddonUpdating] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -146,6 +157,22 @@ export default function AdminBillingPage() {
       setUsageLogs(data ?? []);
     }
 
+    if (tab === "addons") {
+      const { data } = await supabase
+        .from("company_addons")
+        .select("company_id, status, activated_at, companies(name)")
+        .eq("addon_type", "video")
+        .order("activated_at", { ascending: false });
+      setCompanyAddons(
+        (data ?? []).map((row: any) => ({
+          company_id: row.company_id,
+          company_name: row.companies?.name ?? "Unknown",
+          status: row.status,
+          activated_at: row.activated_at,
+        }))
+      );
+    }
+
     if (tab === "churn") {
       const res = await fetch("/api/churn", {
         headers: { "x-worker-secret": process.env.NEXT_PUBLIC_WORKER_SECRET ?? "" },
@@ -157,6 +184,35 @@ export default function AdminBillingPage() {
     }
 
     setLoading(false);
+  }
+
+  async function toggleAddonStatus(companyId: string, currentStatus: string) {
+    setAddonUpdating(companyId);
+    const newStatus = currentStatus === "active" ? "inactive" : "active";
+    const { data: auth } = await supabase.auth.getUser();
+    await supabase
+      .from("company_addons")
+      .update({
+        status: newStatus,
+        activated_at: newStatus === "active" ? new Date().toISOString() : null,
+      })
+      .eq("company_id", companyId)
+      .eq("addon_type", "video");
+    setCompanyAddons((prev) =>
+      prev.map((c) => (c.company_id === companyId ? { ...c, status: newStatus, activated_at: newStatus === "active" ? new Date().toISOString() : null } : c))
+    );
+    setAddonUpdating(null);
+  }
+
+  async function activateAddonForNewCompany(companyId: string) {
+    if (!companyId) return;
+    setAddonUpdating(companyId);
+    await supabase.from("company_addons").upsert(
+      { company_id: companyId, addon_type: "video", status: "active", activated_at: new Date().toISOString() },
+      { onConflict: "company_id,addon_type" }
+    );
+    await loadTab("addons");
+    setAddonUpdating(null);
   }
 
   function statusColor(status: string) {
@@ -236,6 +292,55 @@ export default function AdminBillingPage() {
       </div>
 
       {loading && <p className="text-gray-400 text-sm">Loading...</p>}
+
+      {/* ADD-ONS */}
+      {!loading && activeTab === "addons" && (
+        <Section title={`Telehealth Video Add-ons (${companyAddons.length})`}>
+          <div className="flex gap-2 mb-4">
+            <input
+              value={addonSearch}
+              onChange={(e) => setAddonSearch(e.target.value)}
+              placeholder="Paste company ID to activate for a new company..."
+              className="flex-1 border rounded-lg px-3 py-2 text-sm"
+            />
+            <button
+              onClick={() => activateAddonForNewCompany(addonSearch.trim())}
+              disabled={!addonSearch.trim() || addonUpdating === addonSearch.trim()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+            >
+              Activate
+            </button>
+          </div>
+          {companyAddons.length === 0 ? (
+            <p className="text-gray-400 text-sm">No companies have requested or activated the telehealth add-on yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {companyAddons.map((c) => (
+                <div key={c.company_id} className="border border-gray-100 rounded-lg p-4 bg-white flex justify-between items-center">
+                  <div>
+                    <p className="font-medium text-gray-800">{c.company_name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {c.activated_at ? `Activated ${new Date(c.activated_at).toLocaleDateString()}` : "Not yet activated"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${c.status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                      {c.status}
+                    </span>
+                    <button
+                      onClick={() => toggleAddonStatus(c.company_id, c.status)}
+                      disabled={addonUpdating === c.company_id}
+                      className="text-xs px-3 py-1.5 rounded-full border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {c.status === "active" ? "Deactivate" : "Activate"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+      )}
 
       {/* BILLING SESSIONS */}
       {!loading && activeTab === "sessions" && (
