@@ -45,6 +45,10 @@ export default function TelehealthRoomPage() {
   const [hostUserId, setHostUserId] = useState<string>('');
   const [localIdentity, setLocalIdentity] = useState<ParsedIdentity | null>(null);
   const [networkQuality, setNetworkQuality] = useState<number | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<{ id: string; message: string; sender_name: string; sender_role: string; created_at: string }[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [sendingChat, setSendingChat] = useState(false);
 
   const localVideoRef = useRef<HTMLDivElement>(null);
   const localVideoTrackRef = useRef<LocalVideoTrack | null>(null);
@@ -143,6 +147,65 @@ export default function TelehealthRoomPage() {
       }
     };
   }, [roomName, telehealthSessionId, router]);
+
+  useEffect(() => {
+    if (!chatOpen || !telehealthSessionId || !roomName) return;
+
+    let cancelled = false;
+
+    async function loadMessages() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      try {
+        const res = await fetch('/api/video/chat/list', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ telehealthSessionId, roomName }),
+        });
+        if (!res.ok || cancelled) return;
+        const { messages } = await res.json();
+        if (!cancelled) setChatMessages(messages ?? []);
+      } catch (err) {
+        console.error('Failed to load chat messages:', err);
+      }
+    }
+
+    loadMessages();
+    const interval = setInterval(loadMessages, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [chatOpen, telehealthSessionId, roomName]);
+
+  const sendChatMessage = useCallback(async () => {
+    if (!chatInput.trim() || !telehealthSessionId || !roomName) return;
+    setSendingChat(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch('/api/video/chat/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ telehealthSessionId, roomName, message: chatInput.trim() }),
+      });
+      if (res.ok) {
+        const { message } = await res.json();
+        setChatMessages((prev) => [...prev, message]);
+        setChatInput('');
+      }
+    } catch (err) {
+      console.error('Failed to send chat message:', err);
+    } finally {
+      setSendingChat(false);
+    }
+  }, [chatInput, telehealthSessionId, roomName]);
 
   const toggleMic = useCallback(() => {
     if (!room) return;
@@ -258,28 +321,66 @@ export default function TelehealthRoomPage() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-900">
-      <div className={`flex-1 grid ${gridCols} gap-2 p-2 overflow-auto`}>
-        <div
-          ref={localVideoRef}
-          className="relative bg-gray-800 rounded-lg overflow-hidden aspect-video [&>video]:w-full [&>video]:h-full [&>video]:object-cover"
-        >
-          <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
-            <span className="text-white text-sm bg-black/50 px-2 py-1 rounded">
-              You{localIdentity?.role ? ` · ${ROLE_LABELS[localIdentity.role] ?? localIdentity.role}` : ''}
-            </span>
-            {isLocalHost && (
-              <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded font-semibold">Host</span>
+      <div className="flex-1 flex overflow-hidden">
+        <div className={`flex-1 grid ${gridCols} gap-2 p-2 overflow-auto`}>
+          <div
+            ref={localVideoRef}
+            className="relative bg-gray-800 rounded-lg overflow-hidden aspect-video [&>video]:w-full [&>video]:h-full [&>video]:object-cover"
+          >
+            <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
+              <span className="text-white text-sm bg-black/50 px-2 py-1 rounded">
+                You{localIdentity?.role ? ` · ${ROLE_LABELS[localIdentity.role] ?? localIdentity.role}` : ''}
+              </span>
+              {isLocalHost && (
+                <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded font-semibold">Host</span>
+              )}
+            </div>
+            {networkQuality !== null && (
+              <span className="absolute top-2 right-2 text-xs bg-black/50 text-white px-2 py-1 rounded">
+                Signal: {networkQuality}/5
+              </span>
             )}
           </div>
-          {networkQuality !== null && (
-            <span className="absolute top-2 right-2 text-xs bg-black/50 text-white px-2 py-1 rounded">
-              Signal: {networkQuality}/5
-            </span>
-          )}
+          {participants.map((participant) => (
+            <ParticipantTile key={participant.sid} participant={participant} isHost={parseIdentity(participant.identity).id === hostUserId} />
+          ))}
         </div>
-        {participants.map((participant) => (
-          <ParticipantTile key={participant.sid} participant={participant} isHost={parseIdentity(participant.identity).id === hostUserId} />
-        ))}
+
+        {chatOpen && (
+          <div className="w-80 bg-gray-800 border-l border-gray-700 flex flex-col">
+            <div className="px-4 py-3 border-b border-gray-700 text-white font-semibold text-sm">Session Chat</div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              {chatMessages.length === 0 && (
+                <p className="text-gray-500 text-xs text-center mt-4">No messages yet</p>
+              )}
+              {chatMessages.map((m) => (
+                <div key={m.id}>
+                  <p className="text-xs text-gray-400">
+                    {m.sender_name}{m.sender_role ? ` · ${ROLE_LABELS[m.sender_role] ?? m.sender_role}` : ''}
+                  </p>
+                  <p className="text-sm text-white bg-gray-700 rounded-lg px-3 py-2 mt-0.5 break-words">{m.message}</p>
+                </div>
+              ))}
+            </div>
+            <div className="p-3 border-t border-gray-700 flex gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !sendingChat && sendChatMessage()}
+                placeholder="Type a message..."
+                className="flex-1 bg-gray-900 text-white text-sm rounded-lg px-3 py-2 focus:outline-none"
+              />
+              <button
+                onClick={sendChatMessage}
+                disabled={sendingChat || !chatInput.trim()}
+                className="px-3 py-2 bg-blue-600 disabled:bg-gray-600 text-white text-sm rounded-lg"
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       <div className="flex items-center justify-center gap-4 p-4 bg-gray-800">
         <button
@@ -299,6 +400,12 @@ export default function TelehealthRoomPage() {
           className={`px-4 py-3 rounded-full ${isSharingScreen ? 'bg-blue-600' : 'bg-gray-700'} text-white`}
         >
           {isSharingScreen ? 'Stop Sharing' : 'Share Screen'}
+        </button>
+        <button
+          onClick={() => setChatOpen(!chatOpen)}
+          className={`px-4 py-3 rounded-full ${chatOpen ? 'bg-blue-600' : 'bg-gray-700'} text-white`}
+        >
+          Chat
         </button>
         <button onClick={leaveCall} className="px-6 py-3 rounded-full bg-red-600 text-white font-semibold">
           Leave

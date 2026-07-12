@@ -83,6 +83,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Full assigned care team for this client (used for chat membership + push invites)
+    const { data: teamAssignments } = await supabaseAdmin
+      .from('client_assignments')
+      .select('staff_id')
+      .eq('client_id', clientId);
+
+    const teamStaffIds = Array.from(new Set((teamAssignments ?? []).map((a: any) => a.staff_id)));
+    const otherStaffIds = teamStaffIds.filter((id) => id !== user.id);
+
     const roomName = `telehealth-${companyUser.company_id.slice(0, 8)}-${Date.now()}`;
     const guestToken = crypto.randomBytes(24).toString('hex');
     const guestTokenExpiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(); // 4 hour window
@@ -94,6 +103,26 @@ export async function POST(request: NextRequest) {
       statusCallback: `${process.env.NEXT_PUBLIC_APP_URL}/api/video/webhook`,
       statusCallbackMethod: 'POST',
     });
+
+    // Scoped chat for this session — reuses the existing group chat infrastructure
+    const { data: groupChat } = await supabaseAdmin
+      .from('group_chats')
+      .insert({
+        company_id: companyUser.company_id,
+        name: `Telehealth — ${client.full_name}`,
+        created_by: user.id,
+      })
+      .select()
+      .single();
+
+    if (groupChat) {
+      const memberRows = [user.id, ...otherStaffIds].map((staffId) => ({
+        group_chat_id: groupChat.id,
+        user_id: staffId,
+        added_by: user.id,
+      }));
+      await supabaseAdmin.from('group_chat_members').insert(memberRows);
+    }
 
     const { data: session, error: insertError } = await supabaseAdmin
       .from('telehealth_video_sessions')
@@ -107,6 +136,7 @@ export async function POST(request: NextRequest) {
         scheduled_start: scheduledStart || new Date().toISOString(),
         guest_token: guestToken,
         guest_token_expires_at: guestTokenExpiresAt,
+        group_chat_id: groupChat?.id ?? null,
       })
       .select()
       .single();
@@ -142,14 +172,6 @@ export async function POST(request: NextRequest) {
 
     // Push-notify any other staff assigned to this client (skip the creator)
     try {
-      const { data: teamAssignments } = await supabaseAdmin
-        .from('client_assignments')
-        .select('staff_id')
-        .eq('client_id', clientId)
-        .neq('staff_id', user.id);
-
-      const otherStaffIds = Array.from(new Set((teamAssignments ?? []).map((a: any) => a.staff_id)));
-
       if (otherStaffIds.length > 0) {
         await sendPushToUsers(otherStaffIds, {
           title: 'Telehealth session started',
