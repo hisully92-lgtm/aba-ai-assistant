@@ -81,6 +81,8 @@ export async function POST(request: NextRequest) {
         apiKeySidPrefix: process.env.TWILIO_API_KEY_SID?.slice(0, 4),
         apiKeySidLength: process.env.TWILIO_API_KEY_SID?.length,
         apiKeySecretLength: process.env.TWILIO_API_KEY_SECRET?.length,
+        apiKeySecretFirst4: process.env.TWILIO_API_KEY_SECRET?.slice(0, 4),
+        apiKeySecretLast4: process.env.TWILIO_API_KEY_SECRET?.slice(-4),
       },
     });
   } catch (error: any) {
