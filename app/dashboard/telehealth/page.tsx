@@ -52,7 +52,7 @@ export default function TelehealthPage() {
       const { data } = await supabase
         .from('client_assignments')
         .select('client_id, clients(id, full_name)')
-        .eq('staff_id', user.id);
+        .eq('user_id', user.id);
       const assigned = (data ?? [])
         .map((row: any) => row.clients)
         .filter(Boolean)
