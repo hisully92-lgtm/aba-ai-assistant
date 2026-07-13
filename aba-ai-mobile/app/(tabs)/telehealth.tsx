@@ -12,6 +12,7 @@ import { supabase } from "../../lib/supabase";
 const API_URL = "https://aba-ai-assistant.com";
 
 type Client = { id: string; full_name: string };
+type ActiveSession = { id: string; room_name: string; status: string };
 
 export default function TelehealthTab() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -20,6 +21,8 @@ export default function TelehealthTab() {
   const [connecting, setConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
+  const [checkingActive, setCheckingActive] = useState(false);
 
   const [token, setToken] = useState("");
   const [roomName, setRoomName] = useState("");
@@ -33,6 +36,14 @@ export default function TelehealthTab() {
   useEffect(() => {
     loadClients();
   }, []);
+
+  useEffect(() => {
+    if (!clientId) {
+      setActiveSession(null);
+      return;
+    }
+    checkActiveSession(clientId);
+  }, [clientId]);
 
   async function loadClients() {
     const { data: auth } = await supabase.auth.getUser();
@@ -76,6 +87,59 @@ export default function TelehealthTab() {
     }
 
     setLoadingClients(false);
+  }
+
+  async function checkActiveSession(selectedClientId: string) {
+    setCheckingActive(true);
+    setActiveSession(null);
+    const { data } = await supabase
+      .from("telehealth_video_sessions")
+      .select("id, room_name, status")
+      .eq("client_id", selectedClientId)
+      .in("status", ["scheduled", "in_progress"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setActiveSession(data ?? null);
+    setCheckingActive(false);
+  }
+
+  async function joinExisting() {
+    if (!activeSession) return;
+    setConnecting(true);
+    setError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError("Not authenticated");
+        setConnecting(false);
+        return;
+      }
+
+      const tokenRes = await fetch(`${API_URL}/api/video/token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ roomName: activeSession.room_name, telehealthSessionId: activeSession.id }),
+      });
+
+      if (!tokenRes.ok) {
+        const err = await tokenRes.json();
+        throw new Error(err.error || "Failed to get video token");
+      }
+
+      const { token: accessToken } = await tokenRes.json();
+      setToken(accessToken);
+      setRoomName(activeSession.room_name);
+
+      twilioRef.current?.connect({ accessToken, roomName: activeSession.room_name });
+    } catch (err: any) {
+      console.error("Failed to join telehealth call:", err);
+      setError(err.message || "Failed to join session");
+      setConnecting(false);
+    }
   }
 
   async function startCall() {
@@ -213,15 +277,31 @@ export default function TelehealthTab() {
             </Picker>
           )}
 
-          {error && <Text style={styles.error}>{error}</Text>}
+          {checkingActive && <Text style={styles.subtitle}>Checking for an active session...</Text>}
 
-          <TouchableOpacity
-            style={[styles.button, !clientId && styles.buttonDisabled]}
-            disabled={!clientId}
-            onPress={startCall}
-          >
-            <Text style={styles.buttonText}>Start Video Session</Text>
-          </TouchableOpacity>
+          {activeSession && !checkingActive && (
+            <View style={styles.activeBox}>
+              <Text style={styles.activeText}>
+                A telehealth session for this client is already {activeSession.status === "in_progress" ? "in progress" : "scheduled"}.
+              </Text>
+              <TouchableOpacity style={styles.button} onPress={joinExisting}>
+                <Text style={styles.buttonText}>Join Existing Session</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {!activeSession && !checkingActive && (
+            <>
+              {error && <Text style={styles.error}>{error}</Text>}
+              <TouchableOpacity
+                style={[styles.button, !clientId && styles.buttonDisabled]}
+                disabled={!clientId}
+                onPress={startCall}
+              >
+                <Text style={styles.buttonText}>Start Video Session</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </ScrollView>
     );
@@ -295,6 +375,8 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, fontWeight: "600", color: "#374151" },
   picker: { backgroundColor: "#f9fafb", borderRadius: 8 },
   error: { color: "#dc2626", fontSize: 13 },
+  activeBox: { backgroundColor: "#eff6ff", borderColor: "#bfdbfe", borderWidth: 1, borderRadius: 10, padding: 12, gap: 8 },
+  activeText: { fontSize: 13, color: "#1e40af", fontWeight: "500" },
   button: { backgroundColor: "#2563eb", paddingVertical: 14, borderRadius: 10, alignItems: "center" },
   buttonDisabled: { backgroundColor: "#9ca3af" },
   buttonText: { color: "#fff", fontWeight: "600" },
