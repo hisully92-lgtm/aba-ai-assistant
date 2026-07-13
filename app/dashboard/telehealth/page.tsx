@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 
 type Client = { id: string; full_name: string };
+type ActiveSession = { id: string; room_name: string; staff_id: string; status: string };
 
 export default function TelehealthPage() {
   const router = useRouter();
@@ -14,10 +15,20 @@ export default function TelehealthPage() {
   const [recordSession, setRecordSession] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [clientId, setClientId] = useState('');
+  const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
+  const [checkingActive, setCheckingActive] = useState(false);
 
   useEffect(() => {
     loadClients();
   }, []);
+
+  useEffect(() => {
+    if (!clientId) {
+      setActiveSession(null);
+      return;
+    }
+    checkActiveSession(clientId);
+  }, [clientId]);
 
   async function loadClients() {
     const { data: auth } = await supabase.auth.getUser();
@@ -62,6 +73,26 @@ export default function TelehealthPage() {
 
     setLoading(false);
   }
+
+  async function checkActiveSession(selectedClientId: string) {
+    setCheckingActive(true);
+    setActiveSession(null);
+    const { data } = await supabase
+      .from('telehealth_video_sessions')
+      .select('id, room_name, staff_id, status')
+      .eq('client_id', selectedClientId)
+      .in('status', ['scheduled', 'in_progress'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setActiveSession(data ?? null);
+    setCheckingActive(false);
+  }
+
+  const joinExisting = () => {
+    if (!activeSession) return;
+    router.push(`/dashboard/telehealth/room/${activeSession.room_name}?sessionId=${activeSession.id}`);
+  };
 
   const startSession = async () => {
     if (!clientId) {
@@ -128,28 +159,50 @@ export default function TelehealthPage() {
           </select>
         </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="recordSession"
-            checked={recordSession}
-            onChange={(e) => setRecordSession(e.target.checked)}
-            className="w-4 h-4"
-          />
-          <label htmlFor="recordSession" className="text-sm">
-            Record this session
-          </label>
-        </div>
+        {checkingActive && (
+          <p className="text-xs text-gray-400">Checking for an active session...</p>
+        )}
 
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+        {activeSession && !checkingActive && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+            <p className="text-sm text-blue-800 font-medium">
+              A telehealth session for this client is already {activeSession.status === 'in_progress' ? 'in progress' : 'scheduled'}.
+            </p>
+            <button
+              onClick={joinExisting}
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm"
+            >
+              Join Existing Session
+            </button>
+          </div>
+        )}
 
-        <button
-          onClick={startSession}
-          disabled={starting || loading || !clientId}
-          className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-semibold"
-        >
-          {starting ? 'Starting...' : 'Start Video Session'}
-        </button>
+        {!activeSession && !checkingActive && (
+          <>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="recordSession"
+                checked={recordSession}
+                onChange={(e) => setRecordSession(e.target.checked)}
+                className="w-4 h-4"
+              />
+              <label htmlFor="recordSession" className="text-sm">
+                Record this session
+              </label>
+            </div>
+
+            {error && <p className="text-red-600 text-sm">{error}</p>}
+
+            <button
+              onClick={startSession}
+              disabled={starting || loading || !clientId}
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-semibold"
+            >
+              {starting ? 'Starting...' : 'Start Video Session'}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
