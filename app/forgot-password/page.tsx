@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import Link from "next/link";
@@ -14,7 +14,7 @@ export default function ForgotPassword() {
     setLoading(true);
     setError("");
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: "https://aba-ai-assistant.com/reset-password",
+      redirectTo: "https://aba-ai-assistant.com/auth/confirm",
     });
     if (resetError) { setError(resetError.message); setLoading(false); return; }
     setSent(true);
@@ -30,7 +30,7 @@ export default function ForgotPassword() {
         </div>
         {sent ? (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-700 text-center space-y-2">
-            <p className="text-2xl">📧</p>
+            <p className="text-2xl">??</p>
             <p className="font-semibold">Check your email!</p>
             <p>We sent a password reset link to <strong>{email}</strong></p>
           </div>
@@ -46,7 +46,7 @@ export default function ForgotPassword() {
             </div>
             <button onClick={handleSubmit} disabled={loading}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg text-sm transition-colors disabled:opacity-50">
-              {loading ? "Sending..." : "Send Reset Link →"}
+              {loading ? "Sending..." : "Send Reset Link ?"}
             </button>
           </div>
         )}
