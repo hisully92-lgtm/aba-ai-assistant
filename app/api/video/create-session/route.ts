@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
         .from('client_assignments')
         .select('id')
         .eq('client_id', clientId)
-        .eq('staff_id', user.id)
+        .eq('user_id', user.id)
         .maybeSingle();
 
       if (!assignment) {
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     // Full assigned care team for this client (used for chat membership + push invites)
     const { data: teamAssignments } = await supabaseAdmin
       .from('client_assignments')
-      .select('staff_id')
+      .select('user_id')
       .eq('client_id', clientId);
 
     const teamStaffIds = Array.from(new Set((teamAssignments ?? []).map((a: any) => a.staff_id)));

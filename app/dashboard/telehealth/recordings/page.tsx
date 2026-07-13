@@ -56,7 +56,7 @@ export default function TelehealthRecordingsPage() {
       const { data: assignments } = await supabase
         .from('client_assignments')
         .select('client_id')
-        .eq('staff_id', user.id);
+        .eq('user_id', user.id);
       const clientIds = (assignments ?? []).map((a: { client_id: string }) => a.client_id);
       if (clientIds.length === 0) {
         setRecordings([]);

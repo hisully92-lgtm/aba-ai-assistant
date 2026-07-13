@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
           .from('client_assignments')
           .select('id')
           .eq('client_id', session.client_id)
-          .eq('staff_id', user.id)
+          .eq('user_id', user.id)
           .maybeSingle();
         isAssignedToClient = !!assignment;
       }
