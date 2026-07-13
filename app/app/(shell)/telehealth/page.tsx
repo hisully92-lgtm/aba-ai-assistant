@@ -136,7 +136,12 @@ export default function TelehealthAppPage() {
   return (
     <AppShell title="Telehealth">
       <div className="px-5 py-6 space-y-4">
-        <p className="text-sm" style={{ color: "#94a3b8" }}>Start a video session with a client.</p>
+        <div className="flex justify-between items-center">
+          <p className="text-sm" style={{ color: "#94a3b8" }}>Start a video session with a client.</p>
+          <a href="/app/telehealth/history" className="text-xs font-medium" style={{ color: "#60a5fa" }}>
+            History →
+          </a>
+        </div>
 
         <div>
           <label className="text-xs font-semibold block mb-1.5" style={{ color: "#94a3b8" }}>Client</label>
