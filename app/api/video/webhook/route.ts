@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import twilio from 'twilio';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+const twilioClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID!,
+  process.env.TWILIO_AUTH_TOKEN!
 );
 
 export async function POST(request: NextRequest) {
@@ -21,6 +27,24 @@ export async function POST(request: NextRequest) {
       .select('id, company_id, client_id, status, scheduled_start, actual_start')
       .eq('room_sid', roomSid)
       .maybeSingle();
+
+    // Whenever someone leaves, check if the room is now empty — if so, end it
+    // immediately rather than waiting on Twilio's default ~5 minute empty-room timeout.
+    if (event === 'participant-disconnected' && videoSession && videoSession.status === 'in_progress') {
+      try {
+        const connectedParticipants = await twilioClient.video.v1
+          .rooms(roomSid)
+          .participants.list({ status: 'connected' });
+
+        if (connectedParticipants.length === 0) {
+          await twilioClient.video.v1.rooms(roomSid).update({ status: 'completed' });
+          // Twilio will fire its own 'room-ended' webhook after this, which handles
+          // marking the session completed and logging usage — no need to duplicate that here.
+        }
+      } catch (err) {
+        console.log(`Could not check/end empty room ${roomSid}:`, err);
+      }
+    }
 
     if (event === 'room-ended') {
       if (videoSession && videoSession.status !== 'completed') {
