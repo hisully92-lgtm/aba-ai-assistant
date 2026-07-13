@@ -41,7 +41,7 @@ export default function TelehealthHistoryAppPage() {
       .eq("actor_id", user.id)
       .eq("event", "joined");
 
-    const joinedIds = Array.from(new Set((joinedRows ?? []).map((r) => r.video_session_id)));
+    const joinedIds = Array.from(new Set((joinedRows ?? []).map((r: { video_session_id: string }) => r.video_session_id)));
 
     const { data: createdSessions } = await supabase
       .from("telehealth_video_sessions")
@@ -150,3 +150,4 @@ export default function TelehealthHistoryAppPage() {
     </AppShell>
   );
 }
+
