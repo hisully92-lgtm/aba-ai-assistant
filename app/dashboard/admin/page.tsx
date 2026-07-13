@@ -16,6 +16,9 @@ type TeamMember = {
   status: string;
   full_name: string | null;
   email: string | null;
+  phone: string | null;
+  bcba_license_number: string | null;
+  credential_expiry: string | null;
   created_at: string;
 };
 
@@ -128,7 +131,10 @@ export default function AdminPage() {
       role: m.role,
       status: m.status,
       full_name: m.full_name,
-      email: null,
+      email: m.email,
+      phone: m.phone,
+      bcba_license_number: m.bcba_license_number,
+      credential_expiry: m.credential_expiry,
       created_at: m.created_at,
     }));
 
@@ -537,6 +543,26 @@ export default function AdminPage() {
                     )}
                   </div>
                 </div>
+                <details className="mt-3 pt-3 border-t border-gray-100">
+                  <summary className="text-xs text-blue-600 cursor-pointer font-medium">Details</summary>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-600">
+                    <p><span className="text-gray-400">Phone:</span> {member.phone || "—"}</p>
+                    <p><span className="text-gray-400">BCBA License:</span> {member.bcba_license_number || "—"}</p>
+                    <p className="col-span-2">
+                      <span className="text-gray-400">Credential Expiry:</span>{" "}
+                      {member.credential_expiry ? (
+                        <span className={
+                          Math.ceil((new Date(member.credential_expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 30
+                            ? "text-red-600 font-semibold"
+                            : ""
+                        }>
+                          {new Date(member.credential_expiry).toLocaleDateString()}
+                          {Math.ceil((new Date(member.credential_expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 30 ? " ⚠️ Expiring soon" : ""}
+                        </span>
+                      ) : "—"}
+                    </p>
+                  </div>
+                </details>
               </div>
             ))}
           </div>
