@@ -355,6 +355,7 @@ export default function Sidebar({ onClose, collapsed = false }: SidebarProps) {
         { label: "Approved Billing", href: "/dashboard/billing/approved" },
         { label: "Admin Panel", href: "/dashboard/admin" },
         { label: "Send Invite", href: "/dashboard/admin/send-invite" },
+        { label: "Pending Team Members", href: "/dashboard/admin/pending-team" },
         { label: "All Invoices", href: "/dashboard/admin/invoices" },
         { label: "Analytics", href: "/dashboard/analytics" },
         { label: "Audit Logs", href: "/dashboard/admin/logs" },
