@@ -40,6 +40,8 @@ export default function TelehealthRoomPage() {
   const [chatInput, setChatInput] = useState('');
   const [sendingChat, setSendingChat] = useState(false);
   const [networkQuality, setNetworkQuality] = useState<number | null>(null);
+  const [dominantSpeakerSid, setDominantSpeakerSid] = useState<string | null>(null);
+  const [layoutMode, setLayoutMode] = useState<'side-by-side' | 'stacked'>('side-by-side');
 
   const screenTrackRef = useRef<LocalVideoTrack | null>(null);
   const leavingRef = useRef(false);
@@ -67,6 +69,18 @@ export default function TelehealthRoomPage() {
     call.room.localParticipant.on('networkQualityLevelChanged', handler);
     return () => {
       call.room?.localParticipant.off('networkQualityLevelChanged', handler);
+    };
+  }, [call.room]);
+
+  useEffect(() => {
+    if (!call.room) return;
+    // @ts-ignore — dominantSpeakerChanged fires with a RemoteParticipant or null
+    const handler = (participant: RemoteParticipant | null) => setDominantSpeakerSid(participant?.sid ?? null);
+    // @ts-ignore
+    call.room.on('dominantSpeakerChanged', handler);
+    return () => {
+      // @ts-ignore
+      call.room?.off('dominantSpeakerChanged', handler);
     };
   }, [call.room]);
 
@@ -193,6 +207,7 @@ export default function TelehealthRoomPage() {
   }
 
   const totalTiles = call.participants.length + 1;
+  const isTwoPerson = totalTiles === 2;
   const gridCols =
     totalTiles <= 1 ? 'grid-cols-1' : totalTiles <= 4 ? 'grid-cols-2' : totalTiles <= 9 ? 'grid-cols-3' : 'grid-cols-4';
 
@@ -204,12 +219,34 @@ export default function TelehealthRoomPage() {
         <button onClick={handleBackToDashboard} className="text-xs text-gray-300 hover:text-white">
           ← Back to Dashboard (call stays connected)
         </button>
+        {isTwoPerson && (
+          <div className="flex gap-1 bg-gray-900 rounded-lg p-1">
+            <button
+              onClick={() => setLayoutMode('side-by-side')}
+              className={`text-xs px-2 py-1 rounded ${layoutMode === 'side-by-side' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
+            >
+              Side by Side
+            </button>
+            <button
+              onClick={() => setLayoutMode('stacked')}
+              className={`text-xs px-2 py-1 rounded ${layoutMode === 'stacked' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
+            >
+              Stacked
+            </button>
+          </div>
+        )}
       </div>
       <div className="flex-1 flex overflow-hidden">
-        <div className={`flex-1 grid ${gridCols} gap-2 p-2 overflow-auto`}>
+        <div
+          className={
+            isTwoPerson
+              ? `flex-1 flex ${layoutMode === 'side-by-side' ? 'flex-row' : 'flex-col'} gap-2 p-2 overflow-auto`
+              : `flex-1 grid ${gridCols} gap-2 p-2 overflow-auto`
+          }
+        >
           <div
             ref={call.attachLocalVideo}
-            className="relative bg-gray-800 rounded-lg overflow-hidden aspect-video [&>video]:w-full [&>video]:h-full [&>video]:object-cover"
+            className={`relative bg-black rounded-lg overflow-hidden resize overflow-auto min-w-[160px] min-h-[120px] ${isTwoPerson ? 'flex-1' : 'aspect-video'} [&>video]:w-full [&>video]:h-full [&>video]:object-contain`}
           >
             <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
               <span className="text-white text-sm bg-black/50 px-2 py-1 rounded">
@@ -226,7 +263,13 @@ export default function TelehealthRoomPage() {
             )}
           </div>
           {call.participants.map((participant) => (
-            <ParticipantTile key={participant.sid} participant={participant} isHost={parseIdentity(participant.identity).id === call.hostUserId} />
+            <ParticipantTile
+              key={participant.sid}
+              participant={participant}
+              isHost={parseIdentity(participant.identity).id === call.hostUserId}
+              isSpeaking={participant.sid === dominantSpeakerSid}
+              fillMode={isTwoPerson}
+            />
           ))}
         </div>
 
@@ -297,7 +340,17 @@ export default function TelehealthRoomPage() {
   );
 }
 
-function ParticipantTile({ participant, isHost }: { participant: RemoteParticipant; isHost: boolean }) {
+function ParticipantTile({
+  participant,
+  isHost,
+  isSpeaking,
+  fillMode,
+}: {
+  participant: RemoteParticipant;
+  isHost: boolean;
+  isSpeaking?: boolean;
+  fillMode?: boolean;
+}) {
   const videoRef = useRef<HTMLDivElement>(null);
   const identity = parseIdentity(participant.identity);
 
@@ -333,13 +386,16 @@ function ParticipantTile({ participant, isHost }: { participant: RemoteParticipa
   }, [participant]);
 
   return (
-    <div className="relative bg-gray-800 rounded-lg overflow-hidden aspect-video [&>video]:w-full [&>video]:h-full [&>video]:object-cover">
+    <div
+      className={`relative bg-black rounded-lg overflow-hidden resize overflow-auto min-w-[160px] min-h-[120px] ${fillMode ? 'flex-1' : 'aspect-video'} [&>video]:w-full [&>video]:h-full [&>video]:object-contain ${isSpeaking ? 'ring-4 ring-green-400' : ''}`}
+    >
       <div ref={videoRef} className="w-full h-full" />
       <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
         <span className="text-white text-sm bg-black/50 px-2 py-1 rounded">
           {identity.name}{identity.role ? ` · ${ROLE_LABELS[identity.role] ?? identity.role}` : ''}
         </span>
         {isHost && <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded font-semibold">Host</span>}
+        {isSpeaking && <span className="text-xs bg-green-500 text-white px-2 py-1 rounded-full">🔊</span>}
       </div>
     </div>
   );
