@@ -14,7 +14,7 @@ export default function ForgotPassword() {
     setLoading(true);
     setError("");
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: "https://aba-ai-assistant.com/auth/confirm",
+      redirectTo: "https://aba-ai-assistant.com/reset-password",
     });
     if (resetError) { setError(resetError.message); setLoading(false); return; }
     setSent(true);
