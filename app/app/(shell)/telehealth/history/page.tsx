@@ -48,7 +48,7 @@ export default function TelehealthHistoryAppPage() {
       .select("id")
       .eq("staff_id", user.id);
 
-    const allIds = Array.from(new Set([...joinedIds, ...((createdSessions ?? []).map((s) => s.id))]));
+    const allIds = Array.from(new Set([...joinedIds, ...((createdSessions ?? []).map((s: { id: string }) => s.id))]));
 
     if (allIds.length === 0) {
       setSessions([]);
@@ -150,4 +150,5 @@ export default function TelehealthHistoryAppPage() {
     </AppShell>
   );
 }
+
 
