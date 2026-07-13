@@ -19,6 +19,7 @@ const TABS = [
   { emoji: "📋", label: "Session", path: "/app/session" },
   { emoji: "📝", label: "Notes", path: "/app/notes" },
   { emoji: "💬", label: "Chat", path: "/app/chat" },
+  { emoji: "🎥", label: "Video", path: "/app/telehealth" },
   { emoji: "👨‍👧", label: "Parent", path: "/app/parent" },
 ];
 
@@ -30,6 +31,7 @@ const DRAWER_ITEMS = [
   { emoji: "📋", label: "Session", path: "/app/session" },
   { emoji: "📝", label: "Notes", path: "/app/notes" },
   { emoji: "💬", label: "Team Chat", path: "/app/chat" },
+  { emoji: "🎥", label: "Telehealth", path: "/app/telehealth" },
   { emoji: "👨‍👩‍👧", label: "Parent Portal", path: "/app/parent" },
 ];
 
