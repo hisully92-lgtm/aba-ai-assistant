@@ -135,7 +135,7 @@ export default function TelehealthPage() {
 
   return (
     <div className="max-w-2xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-2">Telehealth</h1>
+      <div className="flex justify-between items-start mb-2"><h1 className="text-2xl font-bold">Telehealth</h1><a href="/dashboard/telehealth/history" className="text-sm text-blue-600 hover:underline">View Session History ?</a></div>
       <p className="text-gray-500 mb-6">Start a video session with a client.</p>
 
       <div className="bg-white border rounded-lg p-6 shadow-sm space-y-4">
@@ -207,3 +207,4 @@ export default function TelehealthPage() {
     </div>
   );
 }
+
