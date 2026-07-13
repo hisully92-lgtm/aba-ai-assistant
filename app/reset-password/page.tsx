@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 
@@ -10,6 +10,60 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [sessionReady, setSessionReady] = useState(false);
+
+  useEffect(() => {
+    let resolved = false;
+
+    async function establishSession() {
+      // PKCE-style link: ?code=... in the query string
+      const url = new URL(window.location.href);
+      const code = url.searchParams.get("code");
+      if (code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        if (!exchangeError) {
+          resolved = true;
+          setSessionReady(true);
+          setCheckingSession(false);
+          window.history.replaceState({}, "", "/reset-password");
+          return;
+        }
+      }
+
+      // Hash-fragment style link: #access_token=...&type=recovery
+      // The Supabase client parses this automatically on load and fires PASSWORD_RECOVERY.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        resolved = true;
+        setSessionReady(true);
+        setCheckingSession(false);
+      }
+    }
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event: string, session: any) => {
+      if ((event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") && session) {
+        resolved = true;
+        setSessionReady(true);
+        setCheckingSession(false);
+      }
+    });
+
+    establishSession();
+
+    // Give it a few seconds to resolve via either path before giving up
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        setCheckingSession(false);
+        setSessionReady(false);
+      }
+    }, 4000);
+
+    return () => {
+      clearTimeout(timeout);
+      authListener?.subscription?.unsubscribe();
+    };
+  }, []);
 
   async function handleSubmit() {
     setError("");
@@ -30,7 +84,34 @@ export default function ResetPassword() {
     }
     setSuccess(true);
     setLoading(false);
-    setTimeout(() => router.push("/dashboard"), 2000);
+    await supabase.auth.signOut();
+    setTimeout(() => router.push("/login"), 2000);
+  }
+
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-md p-8 text-center">
+          <p className="text-sm text-gray-500">Verifying your reset link...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!sessionReady) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-md p-8 space-y-4 text-center">
+          <h1 className="text-2xl font-bold text-gray-800">Link expired or invalid</h1>
+          <p className="text-sm text-gray-500">
+            This password reset link is no longer valid. Reset links can only be used once and expire after a short time.
+          </p>
+          <a href="/forgot-password" className="inline-block text-blue-600 hover:underline text-sm font-medium">
+            Request a new reset link →
+          </a>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -45,7 +126,7 @@ export default function ResetPassword() {
           <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-700 text-center space-y-2">
             <p className="text-2xl">✅</p>
             <p className="font-semibold">Password updated!</p>
-            <p>Redirecting you to your dashboard...</p>
+            <p>Redirecting you to sign in...</p>
           </div>
         ) : (
           <div className="space-y-4">
