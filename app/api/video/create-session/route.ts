@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       .select('user_id')
       .eq('client_id', clientId);
 
-    const teamStaffIds = Array.from(new Set((teamAssignments ?? []).map((a: any) => a.staff_id)));
+    const teamStaffIds = Array.from(new Set((teamAssignments ?? []).map((a: any) => a.user_id)));
     const otherStaffIds = teamStaffIds.filter((id) => id !== user.id);
 
     const roomName = `telehealth-${companyUser.company_id.slice(0, 8)}-${Date.now()}`;
