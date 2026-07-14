@@ -153,7 +153,7 @@ if (!joinExisting && verificationType === "bcba") {
 }
 if (joinExisting && !clinicCode.trim()) { setError("Please enter your clinic code."); return; }
 setError("");
-setStep(joinExisting ? "role" : "hipaa");
+setStep("hipaa");
 }
 
   function handleHipaaStep() {
@@ -296,15 +296,7 @@ setStep(joinExisting ? "role" : "hipaa");
       });
       if (profileError) throw new Error(profileError.message);
 
-      if (hipaaSignature && !joinExisting) {
-        await supabase.from("hipaa_agreements").insert([{
-          user_id: user.id,
-          clinic_name: clinicName.trim(),
-          signatory_name: hipaaSignature.trim(),
-          agreed_at: new Date().toISOString(),
-        }]);
-      }
-
+      
       let companyId = "";
       let newClinicCode = "";
 
@@ -352,6 +344,40 @@ setStep(joinExisting ? "role" : "hipaa");
         status: codeVerified || !selectedRole?.requiresCode ? "active" : "pending",
       });
       if (linkError) throw new Error(linkError.message);
+
+      if (hipaaSignature.trim()) {
+        await supabase.from("hipaa_agreements").insert([{
+          user_id: user.id,
+          company_id: companyId,
+          clinic_name: clinicName.trim(),
+          signatory_name: hipaaSignature.trim(),
+          signatory_email: user.email,
+          agreement_type: joinExisting ? "staff_acknowledgment" : "org_baa",
+          role,
+          agreed_at: new Date().toISOString(),
+        }]);
+
+        try {
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          if (currentSession) {
+            await fetch("/api/onboarding/send-agreement-receipt", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${currentSession.access_token}`,
+              },
+              body: JSON.stringify({
+                clinicName: clinicName.trim(),
+                signatoryName: hipaaSignature.trim(),
+                agreementType: joinExisting ? "staff_acknowledgment" : "org_baa",
+                role,
+              }),
+            });
+          }
+        } catch {
+          // Best-effort — don't block onboarding if the receipt email fails
+        }
+      }
 
       if (codeVerified && verificationCode.trim()) {
         await supabase.from("role_codes").update({
@@ -478,7 +504,7 @@ setStep(joinExisting ? "role" : "hipaa");
 
         {step !== "done" && step !== "admin_bootstrap" && (
           <div className="flex gap-1 mb-8 overflow-x-auto">
-            {["Profile", "Clinic", ...(!joinExisting ? ["HIPAA", "Plan"] : []), "Role", ...(selectedRole?.requiresCode ? ["Verify"] : [])].map((label, i) => (
+            {["Profile", "Clinic", "HIPAA", ...(!joinExisting ? ["Plan"] : []), "Role", ...(selectedRole?.requiresCode ? ["Verify"] : [])].map((label, i) => (
               <div key={label} className="flex-1 min-w-[40px]">
                 <div className={`h-1.5 rounded-full transition-colors ${i <= ["profile","clinic","hipaa","role","code","payment"].indexOf(step) ? "bg-blue-500" : "bg-gray-200"}`} />
                 <p className="text-xs mt-1 text-gray-400 truncate">{label}</p>
@@ -631,7 +657,7 @@ setStep(joinExisting ? "role" : "hipaa");
           </div>
         )}
 
-        {/* HIPAA */}
+       {/* HIPAA */}
         {step === "hipaa" && (
           <div className="space-y-4">
             <div>
@@ -807,7 +833,7 @@ setStep(joinExisting ? "role" : "hipaa");
               ))}
             </div>
             <div className="flex gap-2">
-              <button type="button" onClick={() => setStep(joinExisting ? "clinic" : "hipaa")} className={btnSecondary}>← Back</button>
+              <button type="button" onClick={() => setStep("hipaa")} className={btnSecondary}>← Back</button>
               <button type="button" onClick={handleRoleStep} disabled={loading}
                 className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
                 {loading ? "Setting up..." : selectedRole?.requiresCode ? "Next →" : "Complete Setup →"}
