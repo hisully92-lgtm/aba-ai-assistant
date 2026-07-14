@@ -21,42 +21,42 @@ const PLANS = [
     id: "starter",
     label: "Starter",
     price: 199,
-    desc: "1 clinician � Up to 10 clients � 1 location",
+    desc: "1 clinician · Up to 10 clients · 1 location",
     features: ["Session notes", "Basic data collection", "Progress reports", "Email support"],
   },
   {
     id: "basic",
     label: "Basic",
     price: 299,
-    desc: "Up to 3 clinicians � Up to 25 clients � 1 location",
+    desc: "Up to 3 clinicians · Up to 25 clients · 1 location",
     features: ["Everything in Starter", "AI session notes", "Parent portal", "Priority support"],
   },
   {
     id: "professional",
     label: "Professional",
     price: 449,
-    desc: "Up to 5 clinicians � Unlimited clients � 2 locations",
+    desc: "Up to 5 clinicians · Unlimited clients · 2 locations",
     features: ["Everything in Basic", "AI session notes", "Insurance billing", "Priority support"],
   },
   {
     id: "growth",
     label: "Growth",
     price: 649,
-    desc: "Up to 25 clinicians � Unlimited clients � 5 locations",
+    desc: "Up to 25 clinicians · Unlimited clients · 5 locations",
     features: ["Everything in Professional", "Advanced reporting", "Multi-location dashboard", "Onboarding support"],
   },
   {
     id: "enterprise",
     label: "Enterprise",
     price: 849,
-    desc: "Up to 75 clinicians � Unlimited clients � 15 locations",
+    desc: "Up to 75 clinicians · Unlimited clients · 15 locations",
     features: ["Everything in Growth", "EDI 837 claims", "QuickBooks integration", "Custom branding"],
   },
   {
     id: "clinic",
     label: "Clinic",
     price: 1099,
-    desc: "Unlimited clinicians � Unlimited clients � Unlimited locations",
+    desc: "Unlimited clinicians · Unlimited clients · Unlimited locations",
     features: ["Everything in Enterprise", "White-label options", "API access", "Priority dedicated support"],
   },
 ];
@@ -375,7 +375,7 @@ setStep("hipaa");
             });
           }
         } catch {
-          // Best-effort � don't block onboarding if the receipt email fails
+          // Best-effort — don't block onboarding if the receipt email fails
         }
       }
 
@@ -468,7 +468,7 @@ setStep("hipaa");
               <p><strong>Signed Up:</strong> ${new Date().toLocaleString()}</p>
               <p><strong>Locations:</strong> ${locations.filter(l => l.name || l.address).map(l => `${l.name} - ${l.address}, ${l.city}, ${l.state}`).join(" | ") || "Main location only"}</p>
               <p><strong>Code Preference:</strong> ${codePreference}</p>
-              <p><strong>Nonprofit:</strong> ${isNonprofit ? `Yes � EIN: ${nonprofitEin}` : "No"}</p>
+              <p><strong>Nonprofit:</strong> ${isNonprofit ? `Yes — EIN: ${nonprofitEin}` : "No"}</p>
             </div>
           `
         );
@@ -544,7 +544,7 @@ setStep("hipaa");
   </span>
 </label>
             <button type="button" onClick={handleProfileStep} className={btnPrimary}>
-              Continue ?
+              Continue →
             </button>
           </div>
         )}
@@ -559,11 +559,11 @@ setStep("hipaa");
             <div className="grid grid-cols-2 gap-2">
               <button type="button" onClick={() => setJoinExisting(false)}
                 className={`rounded-xl border p-3 text-sm font-medium transition-all cursor-pointer ${!joinExisting ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-blue-300"}`}>
-                ?? New Clinic
+                🏥 New Clinic
               </button>
               <button type="button" onClick={() => setJoinExisting(true)}
                 className={`rounded-xl border p-3 text-sm font-medium transition-all cursor-pointer ${joinExisting ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-blue-300"}`}>
-                ?? Join Existing
+                🔗 Join Existing
               </button>
             </div>
 
@@ -584,11 +584,11 @@ setStep("hipaa");
   <div className="grid grid-cols-2 gap-2">
     <button type="button" onClick={() => setVerificationType("ein")}
       className={`rounded-xl border p-3 text-sm font-medium transition-all cursor-pointer ${verificationType === "ein" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-blue-300"}`}>
-      ?? I have an EIN
+      🏢 I have an EIN
     </button>
     <button type="button" onClick={() => setVerificationType("bcba")}
       className={`rounded-xl border p-3 text-sm font-medium transition-all cursor-pointer ${verificationType === "bcba" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-blue-300"}`}>
-      ?? I&apos;m a solo BCBA
+      🎓 I&apos;m a solo BCBA
     </button>
   </div>
   {verificationType === "ein" ? (
@@ -648,10 +648,10 @@ setStep("hipaa");
             )}
 
             <div className="flex gap-2">
-              <button type="button" onClick={() => setStep("profile")} className={btnSecondary}>? Back</button>
+              <button type="button" onClick={() => setStep("profile")} className={btnSecondary}>← Back</button>
               <button type="button" onClick={handleClinicStep}
                 className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 cursor-pointer">
-                Continue ?
+                Continue →
               </button>
             </div>
           </div>
@@ -718,13 +718,13 @@ setStep("hipaa");
               <label className="mb-1 block text-sm font-medium text-gray-700">Full name as signature *</label>
               <input type="text" value={hipaaSignature} onChange={e => setHipaaSignature(e.target.value)}
                 placeholder="Your full legal name" className={inputClass} />
-              <p className="text-xs text-gray-400 mt-1">Date: {new Date().toLocaleDateString()} � Legally binding electronic signature.</p>
+              <p className="text-xs text-gray-400 mt-1">Date: {new Date().toLocaleDateString()} · Legally binding electronic signature.</p>
             </div>
             <div className="flex gap-2">
-              <button type="button" onClick={() => setStep("clinic")} className={btnSecondary}>? Back</button>
+              <button type="button" onClick={() => setStep("clinic")} className={btnSecondary}>← Back</button>
               <button type="button" onClick={handleHipaaStep} disabled={!hipaaAccepted || !hipaaSignature.trim()}
                 className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
-                Accept and Continue ?
+                Accept and Continue →
               </button>
             </div>
           </div>
@@ -734,11 +734,11 @@ setStep("hipaa");
           <div className="space-y-4">
             <div>
               <h1 className="text-2xl font-bold text-gray-800">Choose Your Plan</h1>
-              <p className="mt-1 text-sm text-gray-500">First month free � no charge until your trial ends.</p>
+              <p className="mt-1 text-sm text-gray-500">First month free — no charge until your trial ends.</p>
             </div>
 
             <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-xs text-green-700 text-center">
-              ?? <strong>30-day free trial</strong> � your card will not be charged until the trial ends.
+              🎉 <strong>30-day free trial</strong> — your card will not be charged until the trial ends.
             </div>
 
             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
@@ -829,10 +829,10 @@ setStep("hipaa");
             </div>
 
             <div className="flex gap-2">
-              <button type="button" onClick={() => setStep("role")} className={btnSecondary}>? Back</button>
+              <button type="button" onClick={() => setStep("role")} className={btnSecondary}>← Back</button>
               <button type="button" onClick={handleCheckout} disabled={checkoutLoading}
                 className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
-                {checkoutLoading ? "Redirecting to Square..." : "Proceed to Payment ?"}
+                {checkoutLoading ? "Redirecting to Square..." : "Proceed to Payment →"}
               </button>
             </div>
           </div>
@@ -862,10 +862,10 @@ setStep("hipaa");
               ))}
             </div>
             <div className="flex gap-2">
-              <button type="button" onClick={() => setStep("hipaa")} className={btnSecondary}>? Back</button>
+              <button type="button" onClick={() => setStep("hipaa")} className={btnSecondary}>← Back</button>
               <button type="button" onClick={handleRoleStep} disabled={loading}
                 className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
-                {loading ? "Setting up..." : selectedRole?.requiresCode ? "Next ?" : "Complete Setup ?"}
+                {loading ? "Setting up..." : selectedRole?.requiresCode ? "Next →" : "Complete Setup →"}
               </button>
             </div>
           </div>
@@ -882,7 +882,7 @@ setStep("hipaa");
             </div>
             {codeVerified ? (
               <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-center text-sm text-green-700">
-                ? Verification successful.
+                ✓ Verification successful.
               </div>
             ) : (
               <div className="space-y-3">
@@ -900,11 +900,11 @@ setStep("hipaa");
               </div>
             )}
             <div className="flex gap-2">
-              <button type="button" onClick={() => { setStep("role"); setCodeVerified(false); setVerificationCode(""); }} className={btnSecondary}>? Back</button>
+              <button type="button" onClick={() => { setStep("role"); setCodeVerified(false); setVerificationCode(""); }} className={btnSecondary}>← Back</button>
               <button type="button" onClick={() => { if (!joinExisting) { setStep("payment"); } else { handleComplete(); } }}
                 disabled={!codeVerified || loading}
                 className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
-                {loading ? "Setting up..." : "Next ?"}
+                {loading ? "Setting up..." : "Next →"}
               </button>
             </div>
           </div>
@@ -914,14 +914,14 @@ setStep("hipaa");
         {step === "admin_bootstrap" && (
           <div className="space-y-6">
             <div className="text-center">
-              <div className="text-4xl mb-3">??</div>
+              <div className="text-4xl mb-3">🎉</div>
               <h1 className="text-2xl font-bold text-gray-800">Clinic Created!</h1>
               <p className="mt-1 text-sm text-gray-500">
-                Save these codes � you will need them to set up your admin account and invite team members.
+                Save these codes — you will need them to set up your admin account and invite team members.
               </p>
             </div>
             <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-xs text-green-700 text-center">
-              ? Your <strong>30-day free trial</strong> has started. No charge until the trial ends.
+              ✅ Your <strong>30-day free trial</strong> has started. No charge until the trial ends.
             </div>
             <div className="space-y-3">
               <div className="border-2 border-blue-200 rounded-xl p-4 bg-blue-50">
@@ -937,7 +937,7 @@ setStep("hipaa");
               </div>
               <div className="border-2 border-purple-200 rounded-xl p-4 bg-purple-50">
                 <p className="text-xs font-bold text-purple-700 uppercase tracking-wide mb-1">Your Admin Setup Code</p>
-                <p className="text-xs text-purple-600 mb-2">Use this to set yourself up as Administrator � expires in 7 days</p>
+                <p className="text-xs text-purple-600 mb-2">Use this to set yourself up as Administrator — expires in 7 days</p>
                 <div className="flex items-center gap-3">
                   <p className="text-xl font-black font-mono tracking-widest text-purple-800 flex-1">{generatedAdminCode}</p>
                   <button type="button" onClick={() => copyToClipboard(generatedAdminCode, "admin")}
@@ -950,13 +950,13 @@ setStep("hipaa");
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-700">
               Save these codes somewhere safe. The admin code expires in 7 days and can only be used once.
               {(codePreference === "email" || codePreference === "both") && (
-                <p className="mt-1">?? Codes also sent to {codeEmail || "your email"}.</p>
+                <p className="mt-1">📧 Codes also sent to {codeEmail || "your email"}.</p>
               )}
             </div>
             <button type="button"
               onClick={() => { setStep("done"); setTimeout(() => { window.location.href = "/dashboard"; }, 1500); }}
               className={btnPrimary}>
-              Continue to Dashboard ?
+              Continue to Dashboard →
             </button>
           </div>
         )}
@@ -964,7 +964,7 @@ setStep("hipaa");
         {/* DONE */}
         {step === "done" && (
           <div className="space-y-4 py-4 text-center">
-            <div className="text-5xl">??</div>
+            <div className="text-5xl">🎉</div>
             <h1 className="text-2xl font-bold text-gray-800">You&apos;re all set!</h1>
             <p className="text-sm text-gray-500">Redirecting to dashboard...</p>
             <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
