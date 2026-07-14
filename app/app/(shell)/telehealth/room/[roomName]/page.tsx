@@ -43,6 +43,8 @@ export default function TelehealthAppRoomPage() {
   const [chatMessages, setChatMessages] = useState<{ id: string; message: string; sender_name: string; sender_role: string; created_at: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [sendingChat, setSendingChat] = useState(false);
+  const [dominantSpeakerSid, setDominantSpeakerSid] = useState<string | null>(null);
+  const [layoutMode, setLayoutMode] = useState<"side-by-side" | "stacked">("side-by-side");
 
   const localVideoRef = useRef<HTMLDivElement>(null);
   const localVideoTrackRef = useRef<LocalVideoTrack | null>(null);
@@ -109,6 +111,9 @@ export default function TelehealthAppRoomPage() {
         activeRoom.on("participantDisconnected", (participant) => {
           setParticipants((prev) => prev.filter((p) => p.sid !== participant.sid));
         });
+
+        // @ts-ignore — dominantSpeakerChanged fires with a RemoteParticipant or null
+        activeRoom.on("dominantSpeakerChanged", (p: RemoteParticipant | null) => setDominantSpeakerSid(p?.sid ?? null));
 
         activeRoom.on("disconnected", () => {
           router.push("/app/telehealth");
@@ -278,6 +283,7 @@ export default function TelehealthAppRoomPage() {
   }
 
   const totalTiles = participants.length + 1;
+  const isTwoPerson = totalTiles === 2;
   const gridCols =
     totalTiles <= 1 ? "grid-cols-1" : totalTiles <= 4 ? "grid-cols-2" : "grid-cols-3";
 
@@ -285,11 +291,38 @@ export default function TelehealthAppRoomPage() {
 
   return (
     <div className="flex flex-col h-screen" style={{ backgroundColor: "#0f172a" }}>
+      <div className="flex items-center justify-between px-3 py-2" style={{ backgroundColor: "#1a2234", borderBottom: "1px solid #2a3a54" }}>
+        <span className="text-xs" style={{ color: "#94a3b8" }}>Telehealth</span>
+        {isTwoPerson && (
+          <div className="flex gap-1 rounded-lg p-1" style={{ backgroundColor: "#0f172a" }}>
+            <button
+              onClick={() => setLayoutMode("side-by-side")}
+              className="text-xs px-2 py-1 rounded"
+              style={{ backgroundColor: layoutMode === "side-by-side" ? "#2563eb" : "transparent", color: layoutMode === "side-by-side" ? "#fff" : "#94a3b8" }}
+            >
+              Side by Side
+            </button>
+            <button
+              onClick={() => setLayoutMode("stacked")}
+              className="text-xs px-2 py-1 rounded"
+              style={{ backgroundColor: layoutMode === "stacked" ? "#2563eb" : "transparent", color: layoutMode === "stacked" ? "#fff" : "#94a3b8" }}
+            >
+              Stacked
+            </button>
+          </div>
+        )}
+      </div>
       <div className="flex-1 flex overflow-hidden">
-        <div className={`flex-1 grid ${gridCols} gap-2 p-2 overflow-auto`}>
+        <div
+          className={
+            isTwoPerson
+              ? `flex-1 flex ${layoutMode === "side-by-side" ? "flex-row" : "flex-col"} gap-2 p-2 overflow-auto`
+              : `flex-1 grid ${gridCols} gap-2 p-2 overflow-auto`
+          }
+        >
           <div
             ref={localVideoRef}
-            className="relative bg-gray-800 rounded-xl overflow-hidden aspect-video [&>video]:w-full [&>video]:h-full [&>video]:object-cover"
+            className={`relative bg-black rounded-xl overflow-hidden resize overflow-auto min-w-[160px] min-h-[120px] ${isTwoPerson ? "flex-1" : "aspect-video"} [&>video]:w-full [&>video]:h-full [&>video]:object-contain`}
           >
             <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
               <span className="text-white text-xs bg-black/50 px-2 py-1 rounded">
@@ -305,6 +338,8 @@ export default function TelehealthAppRoomPage() {
               key={participant.sid}
               participant={participant}
               isHost={parseIdentity(participant.identity).id === hostUserId}
+              isSpeaking={participant.sid === dominantSpeakerSid}
+              fillMode={isTwoPerson}
             />
           ))}
         </div>
@@ -384,7 +419,17 @@ export default function TelehealthAppRoomPage() {
   );
 }
 
-function ParticipantTile({ participant, isHost }: { participant: RemoteParticipant; isHost: boolean }) {
+function ParticipantTile({
+  participant,
+  isHost,
+  isSpeaking,
+  fillMode,
+}: {
+  participant: RemoteParticipant;
+  isHost: boolean;
+  isSpeaking?: boolean;
+  fillMode?: boolean;
+}) {
   const videoRef = useRef<HTMLDivElement>(null);
   const identity = parseIdentity(participant.identity);
 
@@ -420,13 +465,17 @@ function ParticipantTile({ participant, isHost }: { participant: RemoteParticipa
   }, [participant]);
 
   return (
-    <div className="relative bg-gray-800 rounded-xl overflow-hidden aspect-video [&>video]:w-full [&>video]:h-full [&>video]:object-cover">
+    <div
+      className={`relative bg-black rounded-xl overflow-hidden resize overflow-auto min-w-[160px] min-h-[120px] ${fillMode ? "flex-1" : "aspect-video"} [&>video]:w-full [&>video]:h-full [&>video]:object-contain`}
+      style={isSpeaking ? { boxShadow: "0 0 0 4px #4ade80" } : undefined}
+    >
       <div ref={videoRef} className="w-full h-full" />
       <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
         <span className="text-white text-xs bg-black/50 px-2 py-1 rounded">
           {identity.name}{identity.role ? ` · ${ROLE_LABELS[identity.role] ?? identity.role}` : ""}
         </span>
         {isHost && <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded font-semibold">Host</span>}
+        {isSpeaking && <span className="text-xs bg-green-500 text-white px-2 py-1 rounded-full">🔊</span>}
       </div>
     </div>
   );

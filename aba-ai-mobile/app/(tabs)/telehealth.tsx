@@ -58,6 +58,8 @@ export default function TelehealthTab() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [sendingChat, setSendingChat] = useState(false);
+  const [dominantSpeakerSid, setDominantSpeakerSid] = useState<string | null>(null);
+  const [layoutMode, setLayoutMode] = useState<"side-by-side" | "stacked">("side-by-side");
   const chatPollRef = useRef<any>(null);
 
   const twilioRef = useRef<any>(null);
@@ -347,6 +349,10 @@ export default function TelehealthTab() {
     setParticipants((prev) => prev.filter((p) => p.sid !== participant.sid));
   };
 
+  const onDominantSpeakerDidChange = ({ participant }: any) => {
+    setDominantSpeakerSid(participant?.sid ?? null);
+  };
+
   function findParticipantForTrack(track: any) {
     return participants.find((p) => p.sid === track.participantSid);
   }
@@ -428,27 +434,50 @@ export default function TelehealthTab() {
           onParticipantRemovedVideoTrack={onParticipantRemovedVideoTrack}
           onRoomParticipantDidConnect={onRoomParticipantDidConnect}
           onRoomParticipantDidDisconnect={onRoomParticipantDidDisconnect}
+          onDominantSpeakerDidChange={onDominantSpeakerDidChange}
         />
       </View>
     );
   }
 
   // --- In call ---
+  const isTwoPerson = participants.length + 1 === 2;
+
   return (
     <View style={styles.callContainer}>
-      <View style={styles.videoGrid}>
+      <View style={styles.callHeader}>
+        {isTwoPerson && (
+          <View style={styles.layoutToggle}>
+            <TouchableOpacity
+              onPress={() => setLayoutMode("side-by-side")}
+              style={[styles.layoutButton, layoutMode === "side-by-side" && styles.layoutButtonActive]}
+            >
+              <Text style={styles.layoutButtonText}>Side by Side</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setLayoutMode("stacked")}
+              style={[styles.layoutButton, layoutMode === "stacked" && styles.layoutButtonActive]}
+            >
+              <Text style={styles.layoutButtonText}>Stacked</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+      <View style={[styles.videoGrid, isTwoPerson && { flexDirection: layoutMode === "side-by-side" ? "row" : "column" }]}>
         {Array.from(videoTracks, ([trackSid, track]) => {
           const p = findParticipantForTrack(track);
           const identity = p ? parseIdentity(p.identity) : null;
           const isHost = identity?.id === hostUserId;
+          const isSpeaking = p?.sid === dominantSpeakerSid;
           return (
-            <View key={trackSid} style={styles.remoteVideoWrap}>
+            <View key={trackSid} style={[styles.remoteVideoWrap, isTwoPerson && styles.remoteVideoWrapFlex, isSpeaking && styles.speakingBorder]}>
               <TwilioVideoParticipantView trackIdentifier={track} style={styles.remoteVideo} />
               <View style={styles.nameTag}>
                 <Text style={styles.nameTagText}>
                   {identity?.name ?? "Participant"}{identity?.role ? ` · ${ROLE_LABELS[identity.role] ?? identity.role}` : ""}
                 </Text>
                 {isHost && <Text style={styles.hostBadge}>Host</Text>}
+                {isSpeaking && <Text style={styles.speakingBadge}>🔊</Text>}
               </View>
             </View>
           );
@@ -529,6 +558,7 @@ export default function TelehealthTab() {
         onParticipantRemovedVideoTrack={onParticipantRemovedVideoTrack}
         onRoomParticipantDidConnect={onRoomParticipantDidConnect}
         onRoomParticipantDidDisconnect={onRoomParticipantDidDisconnect}
+        onDominantSpeakerDidChange={onDominantSpeakerDidChange}
       />
     </View>
   );
@@ -557,6 +587,14 @@ const styles = StyleSheet.create({
   buttonText: { color: "#fff", fontWeight: "600" },
   callContainer: { flex: 1, backgroundColor: "#111827" },
   videoGrid: { flex: 1, flexDirection: "row", flexWrap: "wrap" },
+  callHeader: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#1f2937", alignItems: "flex-end" },
+  layoutToggle: { flexDirection: "row", gap: 4, backgroundColor: "#111827", borderRadius: 8, padding: 2 },
+  layoutButton: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  layoutButtonActive: { backgroundColor: "#2563eb" },
+  layoutButtonText: { color: "#fff", fontSize: 11, fontWeight: "600" },
+  remoteVideoWrapFlex: { width: undefined, height: undefined, flex: 1 },
+  speakingBorder: { borderWidth: 3, borderColor: "#4ade80" },
+  speakingBadge: { fontSize: 12, backgroundColor: "#22c55e", color: "#fff", paddingHorizontal: 4, borderRadius: 8, overflow: "hidden" },
   remoteVideoWrap: { width: "100%", height: "50%", position: "relative" },
   remoteVideo: { width: "100%", height: "100%" },
   localVideoWrap: { position: "absolute", bottom: 100, right: 12, width: 100, height: 140, borderRadius: 8, overflow: "hidden" },
