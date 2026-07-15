@@ -54,10 +54,10 @@
           "icon": "./assets/icon.png",
           "color": "#ffffff",
           "sounds": [
-            "./assets/sounds/mixkit-page-forward-single-chime-1107.wav",
-            "./assets/sounds/mixkit-happy-bells-notification-937.wav",
-            "./assets/sounds/mixkit-positive-notification-951.wav",
-            "./assets/sounds/mixkit-musical-reveal-961.wav"
+            "./assets/sounds/mixkit_page_forward_single_chime_1107.wav",
+            "./assets/sounds/mixkit_happy_bells_notification_937.wav",
+            "./assets/sounds/mixkit_positive_notification_951.wav",
+            "./assets/sounds/mixkit_musical_reveal_961.wav"
           ],
           "mode": "production"
         }
