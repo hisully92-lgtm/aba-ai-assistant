@@ -36,19 +36,19 @@ export function useTimers() {
 }
 
 const SOUND_FILES: Record<SoundOption, any> = {
-  chime: require("../assets/sounds/mixkit-page-forward-single-chime-1107.wav"),
-  bell: require("../assets/sounds/mixkit-happy-bells-notification-937.wav"),
-  ding: require("../assets/sounds/mixkit-positive-notification-951.wav"),
-  soft: require("../assets/sounds/mixkit-musical-reveal-961.wav"),
+  chime: require("../assets/sounds/mixkit_page_forward_single_chime_1107.wav"),
+  bell: require("../assets/sounds/mixkit_happy_bells_notification_937.wav"),
+  ding: require("../assets/sounds/mixkit_positive_notification_951.wav"),
+  soft: require("../assets/sounds/mixkit_musical_reveal_961.wav"),
   none: null,
 };
 
 // iOS notification sound filenames (must match sounds registered in app.json)
 const NOTIFICATION_SOUND_FILES: Record<SoundOption, string> = {
-  chime: "mixkit-page-forward-single-chime-1107.wav",
-  bell: "mixkit-happy-bells-notification-937.wav",
-  ding: "mixkit-positive-notification-951.wav",
-  soft: "mixkit-musical-reveal-961.wav",
+  chime: "mixkit_page_forward_single_chime_1107.wav",
+  bell: "mixkit_happy_bells_notification_937.wav",
+  ding: "mixkit_positive_notification_951.wav",
+  soft: "mixkit_musical_reveal_961.wav",
   none: "default",
 };
 
