@@ -30,6 +30,9 @@ export default function PublicNav() {
             <Link href="/contact" className={`text-sm font-medium transition-colors ${pathname === "/contact" ? "text-blue-600" : "text-gray-500 hover:text-gray-800"}`}>
               Contact
             </Link>
+            <Link href="/demo" className={`text-sm font-medium transition-colors ${pathname === "/demo" ? "text-blue-600" : "text-gray-500 hover:text-gray-800"}`}>
+              Book a Demo
+            </Link>
           </div>
           <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
             Sign In
