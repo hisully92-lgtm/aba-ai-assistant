@@ -65,7 +65,8 @@
             "cameraPermission": "Allow ABA AI to access your camera for telehealth sessions",
             "microphonePermission": "Allow ABA AI to access your microphone for telehealth sessions"
           }
-        ]
+        ],
+        "./plugins/withoutMediaProjection.js"
       ],
     "extra": {
       "eas": {
