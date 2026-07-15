@@ -152,9 +152,17 @@ if (!joinExisting && verificationType === "bcba") {
   if (!bcbaPattern.test(bcbaCertNumber.trim())) { setError("Please enter a valid BCBA certification number (e.g. 1-23-4567)."); return; }
 }
 if (joinExisting && !clinicCode.trim()) { setError("Please enter your clinic code."); return; }
-setError("");
-setStep("hipaa");
-}
+    if (!joinExisting) {
+      // New clinic sign-up no longer self-completes here — Apple App Store
+      // Guidelines 3.1.1/3.1.3(c) require enterprise services be sold through
+      // a real review process, not automated checkout. Joining an existing,
+      // already-provisioned clinic below is unaffected.
+      router.push("/request-access");
+      return;
+    }
+    setError("");
+    setStep("hipaa");
+  }
 
   function handleHipaaStep() {
     if (!hipaaAccepted || !hipaaSignature.trim()) {
