@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase/client";
 export type PlanType = "starter" | "basic" | "professional" | "growth" | "enterprise" | "clinic" | null;
 
 export const PLAN_LIMITS = {
-  starter:      { clinicians: 1,   clients: 10,  locations: 1  },
+  starter:      { clinicians: 2,   clients: 10,  locations: 1  },
   basic:        { clinicians: 3,   clients: 25,  locations: 1  },
   professional: { clinicians: 5,   clients: 9999, locations: 2  },
   growth:       { clinicians: 25,  clients: 9999, locations: 5  },

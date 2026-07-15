@@ -37,9 +37,9 @@ const CONTRACT_OPTIONS = [
 const PLANS = [
   {
     name: "Starter", type: "starter", icon: "1",
-    description: "Perfect for solo practitioners just getting started",
+    description: "For small ABA teams of 2 or more getting started — purchased by your organization",
     pricing: { 1: 199, 3: 189, 6: 179, 9: 169, 12: 159 },
-    features: ["1 clinician", "Up to 10 clients", "1 location", "Basic data collection", "Session notes", "Progress reports", "Email support"],
+    features: ["Up to 2 clinicians", "Up to 10 clients", "1 location", "Basic data collection", "Session notes", "Progress reports", "Email support"],
   },
   {
     name: "Basic", type: "basic", icon: "2",

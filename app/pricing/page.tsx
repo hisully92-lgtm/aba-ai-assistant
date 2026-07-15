@@ -9,7 +9,7 @@ const PLANS = [
     id: "starter",
     name: "Starter",
     icon: "1",
-    desc: "Perfect for solo practitioners just getting started",
+    desc: "For small ABA teams of 2 or more getting started — purchased by your organization",
     monthly: 129,
     tiers: [
       { label: "Monthly", months: 1, price: 199, savings: 0 },
@@ -18,7 +18,7 @@ const PLANS = [
       { label: "9 Months", months: 9, price: 169, savings: 270 },
       { label: "12 Months (Annual)", months: 12, price: 159, savings: 480 },
     ],
-    features: ["1 clinician", "Up to 10 clients", "1 location", "Basic data collection", "Session notes", "Progress reports", "Email support", "HIPAA BAA included"],
+    features: ["Up to 2 clinicians", "Up to 10 clients", "1 location", "Basic data collection", "Session notes", "Progress reports", "Email support", "HIPAA BAA included"],
     highlight: false,
     cta: "Select Starter",
   },

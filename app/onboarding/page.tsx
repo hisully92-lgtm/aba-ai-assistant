@@ -21,7 +21,7 @@ const PLANS = [
     id: "starter",
     label: "Starter",
     price: 199,
-    desc: "1 clinician · Up to 10 clients · 1 location",
+    desc: "Up to 2 clinicians · Up to 10 clients · 1 location",
     features: ["Session notes", "Basic data collection", "Progress reports", "Email support"],
   },
   {

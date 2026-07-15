@@ -6,7 +6,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import Section from "@/components/ui/Section";
 
 const PLANS = [
-  { id: "starter", name: "Starter", price: 199, desc: "1 clinician, up to 10 clients, 1 location" },
+  { id: "starter", name: "Starter", price: 199, desc: "Up to 2 clinicians, up to 10 clients, 1 location" },
   { id: "basic", name: "Basic", price: 299, desc: "Up to 3 clinicians, up to 25 clients, 1 location" },
   { id: "professional", name: "Professional", price: 449, desc: "Up to 5 clinicians, unlimited clients, 2 locations", popular: true },
   { id: "growth", name: "Growth", price: 649, desc: "Up to 25 clinicians, unlimited clients, 5 locations" },
