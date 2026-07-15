@@ -127,6 +127,7 @@ export default function PricingPage() {
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Simple, honest pricing</h1>
           <p className="text-gray-500 text-lg max-w-xl mx-auto">Contracts of 3 months or longer include a free first month. No charge until your trial ends.</p>
           <p className="text-xs text-gray-400 mt-3">Extra locations beyond your plan limit: <strong>+$49/mo per location</strong></p>
+          <p className="text-sm text-gray-600 font-medium mt-4 max-w-xl mx-auto">All plans are licensed for use by an organization (2 or more team members) and are not sold for individual or personal use.</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-6">
