@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -207,9 +207,10 @@ export default function BIPDetailPage({ params }: { params: { id: string } }) {
     field("LMN", bip.lmn_obtained ? `Obtained — Dr. ${bip.lmn_physician} (${bip.lmn_date})` : "Not obtained");
     y += 4;
 
-    if (bip.client_strengths) {
+    if (bip.client_strengths || bip.client_weaknesses) {
       section("CLIENT BACKGROUND");
       field("Strengths", bip.client_strengths);
+      field("Weaknesses", bip.client_weaknesses);
       field("Preferences", bip.client_preferences);
       y += 4;
     }
