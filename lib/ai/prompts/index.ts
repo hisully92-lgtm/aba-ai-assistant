@@ -7,7 +7,8 @@ export type PromptType =
   | "client_timeline"
   | "export_report"
   | "session_note"
-  | "weekly_summary";
+  | "weekly_summary"
+  | "clinical_chat";
 
 // CLIENT SUMMARY
 export function buildClientSummaryPrompt(historyText: string): string {
@@ -28,6 +29,23 @@ Be objective, clinical, and concise.
 
 CLIENT HISTORY:
 ${historyText}
+`.trim();
+}
+
+// CLINICAL CHAT
+export function buildClinicalChatPrompt(historyText: string, question: string): string {
+  return `
+You are an expert ABA clinical assistant helping a clinician answer questions about a specific client.
+
+Use the client's recent session history below as context when it's relevant to the question. If the available history doesn't fully answer the question, say so clearly and still offer helpful general clinical guidance — don't simply decline to answer.
+
+CLIENT HISTORY:
+${historyText}
+
+CLINICIAN'S QUESTION:
+${question}
+
+Answer directly, clinically, and concisely.
 `.trim();
 }
 

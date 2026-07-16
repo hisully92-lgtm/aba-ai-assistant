@@ -8,7 +8,7 @@ export type StreamState = {
 };
 
 export type UseAIStreamReturn = StreamState & {
-  stream: (type: string, clientId: string) => Promise<void>;
+  stream: (type: string, clientId: string, message?: string) => Promise<void>;
   reset: () => void;
 };
 
@@ -22,7 +22,7 @@ export function useAIStream(): UseAIStreamReturn {
 
   const abortRef = useRef<AbortController | null>(null);
 
-  const stream = useCallback(async (type: string, clientId: string) => {
+  const stream = useCallback(async (type: string, clientId: string, message?: string) => {
     if (abortRef.current) abortRef.current.abort();
     abortRef.current = new AbortController();
 
@@ -32,7 +32,7 @@ export function useAIStream(): UseAIStreamReturn {
       const res = await fetch("/api/ai/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, client_id: clientId }),
+        body: JSON.stringify({ type, client_id: clientId, message }),
         signal: abortRef.current.signal,
       });
 

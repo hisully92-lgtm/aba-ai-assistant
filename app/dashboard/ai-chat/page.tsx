@@ -45,12 +45,10 @@ export default function AIChatPage() {
 
   async function handleSend() {
     if (!input.trim() || !clientId) return;
-
     const userMessage = input.trim();
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setInput("");
-
-    await stream("summary", clientId);
+    await stream("chat", clientId, userMessage);
   }
 
   return (

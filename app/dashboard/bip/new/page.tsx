@@ -156,6 +156,7 @@ export default function NewBIPPage() {
   const [clientPreferences, setClientPreferences] = useState("");
   const [learningHistory, setLearningHistory] = useState("");
   const [previousInterventions, setPreviousInterventions] = useState("");
+  const [clientWeaknesses, setClientWeaknesses] = useState("");
 
   // Step 5 — FBA (NEW)
   const [fbaCompleted, setFbaCompleted] = useState(false);
@@ -265,6 +266,7 @@ export default function NewBIPPage() {
       lmn_physician: lmnPhysician || null,
       lmn_date: lmnDate || null,
       client_strengths: clientStrengths || null,
+      client_weaknesses: clientWeaknesses || null,
       client_preferences: clientPreferences || null,
       learning_history: learningHistory || null,
       previous_interventions: previousInterventions || null,
@@ -635,6 +637,7 @@ export default function NewBIPPage() {
           <div className="space-y-4">
             {[
               { label: "Client Strengths", value: clientStrengths, setter: setClientStrengths, placeholder: "Describe the client's strengths, motivators, and positive attributes..." },
+              { label: "Client Weaknesses", value: clientWeaknesses, setter: setClientWeaknesses, placeholder: "Describe areas of difficulty, skill deficits, or challenges..." },
               { label: "Client Preferences & Reinforcers", value: clientPreferences, setter: setClientPreferences, placeholder: "Preferred items, activities, people, and reinforcers..." },
               { label: "Learning History", value: learningHistory, setter: setLearningHistory, placeholder: "Previous ABA services, response to interventions, progress made..." },
               { label: "Previous Interventions", value: previousInterventions, setter: setPreviousInterventions, placeholder: "Interventions previously tried, outcomes, what has/hasn't worked..." },

@@ -12,7 +12,8 @@ export type AITaskType =
   | "summary"
   | "timeline"
   | "report"
-  | "weekly_summary";
+  | "weekly_summary"
+  | "chat";
 
 export type ModelConfig = {
   model: AIModel;
@@ -46,7 +47,12 @@ export const MODEL_ROUTING: Record<AITaskType, ModelConfig> = {
     maxTokens: 600,
     reason: "Supervisor-grade clinical overview",
   },
-};
+  chat: {
+    model: "claude-sonnet-4-6",
+    maxTokens: 1000,
+    reason: "Conversational clinical Q&A",
+  },
+  }
 
 export function getModelConfig(type: AITaskType): ModelConfig {
   return MODEL_ROUTING[type] ?? {

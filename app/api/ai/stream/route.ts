@@ -6,7 +6,7 @@ import { logAccess } from "@/lib/observability/logAccess";
 import { logEvent } from "@/lib/observability/logEvent";
 import { toErrorResponse } from "@/lib/errors";
 import { decryptSessionFields } from "@/lib/security/encryptSession";
-import { buildClientSummaryPrompt } from "@/lib/ai/prompts";
+import { buildClientSummaryPrompt, buildClinicalChatPrompt } from "@/lib/ai/prompts";
 import { getModelConfig, logModelSelection, type AITaskType } from "@/lib/ai/modelRouter";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -44,10 +44,12 @@ export async function POST(req: Request) {
     // PARSE + SANITIZE
     const raw = await req.json();
     const sanitized = sanitizeObject(raw);
-    const { type, client_id } = sanitized as { type: string; client_id: string };
-
+    const { type, client_id, message } = sanitized as { type: string; client_id: string; message?: string };
     if (!type || !client_id) {
       return new Response(JSON.stringify({ error: "Missing type or client_id" }), { status: 400 });
+    }
+    if (type === "chat" && !message) {
+      return new Response(JSON.stringify({ error: "Missing message for chat request" }), { status: 400 });
     }
 
     // RESOLVE MODEL
@@ -86,7 +88,10 @@ Programs: ${decrypted.programs_targeted}
         })
         .join("\n") || "No session data available.";
 
-    const prompt = sanitizePrompt(buildClientSummaryPrompt(historyText));
+    const prompt =
+      type === "chat"
+        ? sanitizePrompt(buildClinicalChatPrompt(historyText, message!))
+        : sanitizePrompt(buildClientSummaryPrompt(historyText));
 
     // SSE STREAM
     const encoder = new TextEncoder();
