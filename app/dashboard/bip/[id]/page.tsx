@@ -60,6 +60,7 @@ export default function BIPDetailPage({ params }: { params: { id: string } }) {
   const [antecedentStrategies, setAntecedentStrategies] = useState<AntecedentStrategy[]>([]);
   const [consequenceStrategies, setConsequenceStrategies] = useState<ConsequenceStrategy[]>([]);
   const [replacementBehaviors, setReplacementBehaviors] = useState<ReplacementBehavior[]>([]);
+  const [fidelityChecks, setFidelityChecks] = useState<any[]>([]);
   const [caregiverTraining, setCaregiverTraining] = useState<CaregiverTraining[]>([]);
   const [reviews, setReviews] = useState<BIPReview[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +81,7 @@ export default function BIPDetailPage({ params }: { params: { id: string } }) {
       { data: antData },
       { data: conData },
       { data: repData },
+      { data: fidData },
       { data: careData },
       { data: reviewData },
     ] = await Promise.all([
@@ -89,6 +91,7 @@ export default function BIPDetailPage({ params }: { params: { id: string } }) {
       supabase.from("bip_antecedent_strategies").select("*").eq("bip_id", bipId),
       supabase.from("bip_consequence_strategies").select("*").eq("bip_id", bipId),
       supabase.from("bip_replacement_behaviors").select("*").eq("bip_id", bipId),
+      supabase.from("bip_treatment_fidelity").select("*").eq("bip_id", bipId),
       supabase.from("bip_caregiver_training").select("*").eq("bip_id", bipId),
       supabase.from("bip_reviews").select("*").eq("bip_id", bipId).order("review_date", { ascending: false }),
     ]);
@@ -99,6 +102,7 @@ export default function BIPDetailPage({ params }: { params: { id: string } }) {
     setAntecedentStrategies(antData ?? []);
     setConsequenceStrategies(conData ?? []);
     setReplacementBehaviors(repData ?? []);
+    setFidelityChecks(fidData ?? []);
     setCaregiverTraining(careData ?? []);
     setReviews(reviewData ?? []);
 
@@ -289,7 +293,7 @@ export default function BIPDetailPage({ params }: { params: { id: string } }) {
 
   const BIP_SECTIONS = ["Plan Details", "Background", "Functional Behavioral Assessment", "Target Behavior", "Hypothesis", "Crisis", "Curricular Assessments", "Instructional Goals", "Monitoring Outcomes and Action Plans", "Service Recommendations", "Overall Comments"];
   const [showSections, setShowSections] = useState(false);
-  const TABS = ["overview", "behaviors", "strategies", "programs", "training", "reauth", "reviews", "graphs"];
+  const TABS = ["overview", "behaviors", "plan", "training", "reauth", "reviews", "graphs"];
 
   if (loading) return <div className="p-8 text-gray-400">Loading BIP...</div>;
   if (!bip) return <div className="p-8 text-red-500">BIP not found.</div>;
@@ -400,7 +404,7 @@ export default function BIPDetailPage({ params }: { params: { id: string } }) {
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap capitalize transition-colors ${activeTab === tab ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
             {tab === "behaviors" ? `Behaviors (${behaviors.length})` :
-             tab === "programs" ? `Programs (${skillPrograms.length})` :
+             tab === "plan" ? `Plan (${Math.max(antecedentStrategies.length, consequenceStrategies.length, replacementBehaviors.length, skillPrograms.length, fidelityChecks.length)})` :
              tab === "training" ? `Training (${caregiverTraining.length})` :
              tab === "reviews" ? `Reviews (${reviews.length})` :
              tab.replace("_", " ")}
@@ -483,59 +487,86 @@ export default function BIPDetailPage({ params }: { params: { id: string } }) {
       )}
 
       {/* STRATEGIES TAB */}
-      {activeTab === "strategies" && (
-        <div className="space-y-4">
-          {antecedentStrategies.length > 0 && (
-            <div>
-              <p className="text-sm font-semibold text-gray-700 mb-2">Antecedent Strategies</p>
-              {antecedentStrategies.map((s: any) => (
-                <div key={s.id} className="border border-blue-100 rounded-xl p-4 bg-blue-50 mb-2">
-                  <p className="font-semibold text-blue-800">{s.strategy_name}</p>
-                  {s.strategy_type && <span className="text-xs px-2 py-0.5 bg-blue-200 text-blue-700 rounded-full">{s.strategy_type}</span>}
-                  {s.description && <p className="text-sm text-blue-700 mt-2">{s.description}</p>}
-                  {s.implementation_steps && <p className="text-xs text-blue-600 mt-1"><span className="font-medium">Steps:</span> {s.implementation_steps}</p>}
+      {/* PLAN TAB - Antecedent, Consequence, Replacement, Program, Fidelity grouped by item number */}
+      {activeTab === "plan" && (
+        <div className="space-y-6">
+          {Array.from({ length: Math.max(antecedentStrategies.length, consequenceStrategies.length, replacementBehaviors.length, skillPrograms.length, fidelityChecks.length) }).map((_, i) => {
+            const a: any = antecedentStrategies[i];
+            const c: any = consequenceStrategies[i];
+            const r: any = replacementBehaviors[i];
+            const p: any = skillPrograms[i];
+            const f: any = fidelityChecks[i];
+            if (!a && !c && !r && !p && !f) return null;
+            return (
+              <div key={i} className="border border-gray-200 rounded-2xl p-4 bg-gray-50">
+                <p className="text-sm font-bold text-gray-800 mb-3">Item {i + 1}</p>
+                <div className="space-y-3">
+                  {a && (
+                    <div className="border border-blue-100 rounded-xl p-4 bg-blue-50">
+                      <p className="text-xs font-semibold text-blue-800 uppercase tracking-wide mb-1">Antecedent Strategy</p>
+                      <p className="font-semibold text-blue-800">{a.strategy_name}</p>
+                      {a.strategy_type && <span className="text-xs px-2 py-0.5 bg-blue-200 text-blue-700 rounded-full">{a.strategy_type}</span>}
+                      {a.description && <p className="text-sm text-blue-700 mt-2">{a.description}</p>}
+                      {a.implementation_steps && <p className="text-xs text-blue-600 mt-1"><span className="font-medium">Steps:</span> {a.implementation_steps}</p>}
+                    </div>
+                  )}
+                  {c && (
+                    <div className="border border-purple-100 rounded-xl p-4 bg-purple-50">
+                      <p className="text-xs font-semibold text-purple-800 uppercase tracking-wide mb-1">Consequence Strategy</p>
+                      <p className="font-semibold text-purple-800">{c.strategy_name}</p>
+                      {c.strategy_type && <span className="text-xs px-2 py-0.5 bg-purple-200 text-purple-700 rounded-full">{c.strategy_type}</span>}
+                      {c.description && <p className="text-sm text-purple-700 mt-2">{c.description}</p>}
+                      {c.reinforcers_used && <p className="text-xs text-purple-600 mt-1"><span className="font-medium">Reinforcers:</span> {c.reinforcers_used}</p>}
+                      {c.implementation_steps && <p className="text-xs text-purple-600 mt-1"><span className="font-medium">Steps:</span> {c.implementation_steps}</p>}
+                    </div>
+                  )}
+                  {r && (
+                    <div className="border border-teal-100 rounded-xl p-4 bg-teal-50">
+                      <p className="text-xs font-semibold text-teal-800 uppercase tracking-wide mb-1">Replacement Behavior</p>
+                      <p className="font-semibold text-teal-800">{r.behavior_name}</p>
+                      {r.reinforcement_schedule && <p className="text-xs text-teal-600 mt-1"><span className="font-medium">Reinforcement Schedule:</span> {r.reinforcement_schedule}</p>}
+                      {r.rationale && <p className="text-sm text-teal-700 mt-2"><span className="font-medium">Rationale:</span> {r.rationale}</p>}
+                      {r.teaching_strategy && <p className="text-xs text-teal-600 mt-1"><span className="font-medium">Teaching Strategy:</span> {r.teaching_strategy}</p>}
+                    </div>
+                  )}
+                  {p && (
+                    <div className="border border-green-100 rounded-xl p-4 bg-white">
+                      <div className="flex items-center gap-2 mb-2">
+                        <p className="text-xs font-semibold text-green-800 uppercase tracking-wide">Skill Program</p>
+                        {p.domain && <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">{p.domain}</span>}
+                        {p.prompt_level && <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{p.prompt_level}</span>}
+                      </div>
+                      <p className="font-bold text-gray-800">{p.program_name}</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm mt-2">
+                        {p.objective && <div className="md:col-span-2"><p className="font-medium text-gray-600 text-xs uppercase tracking-wide mb-1">Objective</p><p className="text-gray-700">{p.objective}</p></div>}
+                        {p.teaching_procedure && <div><p className="font-medium text-gray-600 text-xs uppercase tracking-wide mb-1">Teaching Procedure</p><p className="text-gray-700">{p.teaching_procedure}</p></div>}
+                        {p.mastery_criteria && <div><p className="font-medium text-gray-600 text-xs uppercase tracking-wide mb-1">Mastery Criteria</p><p className="text-gray-700">{p.mastery_criteria}</p></div>}
+                        {p.baseline_performance && <div><p className="font-medium text-gray-600 text-xs uppercase tracking-wide mb-1">Baseline</p><p className="text-gray-700">{p.baseline_performance}</p></div>}
+                        {p.materials && <div><p className="font-medium text-gray-600 text-xs uppercase tracking-wide mb-1">Materials</p><p className="text-gray-700">{p.materials}</p></div>}
+                        {p.generalization_plan && <div><p className="font-medium text-gray-600 text-xs uppercase tracking-wide mb-1">Generalization Plan</p><p className="text-gray-700">{p.generalization_plan}</p></div>}
+                      </div>
+                    </div>
+                  )}
+                  {f && (
+                    <div className="border border-yellow-100 rounded-xl p-4 bg-yellow-50">
+                      <p className="text-xs font-semibold text-yellow-800 uppercase tracking-wide mb-1">Treatment Fidelity Check</p>
+                      <div className="flex items-center gap-2 mb-1">
+                        {f.check_date && <span className="text-xs text-yellow-700">{f.check_date}</span>}
+                        {f.fidelity_percentage && <span className="text-xs px-2 py-0.5 bg-yellow-200 text-yellow-800 rounded-full">{f.fidelity_percentage}%</span>}
+                      </div>
+                      {f.conducted_by && <p className="text-xs text-yellow-700"><span className="font-medium">Conducted By:</span> {f.conducted_by} {f.role ? `(${f.role})` : ""}</p>}
+                      {f.components_observed && <p className="text-sm text-yellow-700 mt-2"><span className="font-medium">Components Observed:</span> {f.components_observed}</p>}
+                      {f.areas_of_concern && <p className="text-xs text-yellow-700 mt-1"><span className="font-medium">Areas of Concern:</span> {f.areas_of_concern}</p>}
+                      {f.follow_up_plan && <p className="text-xs text-yellow-700 mt-1"><span className="font-medium">Follow-up Plan:</span> {f.follow_up_plan}</p>}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
-          {consequenceStrategies.length > 0 && (
-            <div>
-              <p className="text-sm font-semibold text-gray-700 mb-2">Consequence Strategies</p>
-              {consequenceStrategies.map((s: any) => (
-                <div key={s.id} className="border border-purple-100 rounded-xl p-4 bg-purple-50 mb-2">
-                  <p className="font-semibold text-purple-800">{s.strategy_name}</p>
-                  {s.strategy_type && <span className="text-xs px-2 py-0.5 bg-purple-200 text-purple-700 rounded-full">{s.strategy_type}</span>}
-                  {s.description && <p className="text-sm text-purple-700 mt-2">{s.description}</p>}
-                  {s.reinforcers_used && <p className="text-xs text-purple-600 mt-1"><span className="font-medium">Reinforcers:</span> {s.reinforcers_used}</p>}
-                  {s.implementation_steps && <p className="text-xs text-purple-600 mt-1"><span className="font-medium">Steps:</span> {s.implementation_steps}</p>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* PROGRAMS TAB */}
-      {activeTab === "programs" && (
-        <div className="space-y-3">
-          {skillPrograms.length === 0 && <p className="text-gray-400 text-sm">No skill programs added.</p>}
-          {skillPrograms.map((p: any) => (
-            <div key={p.id} className="border border-gray-100 rounded-xl p-4 bg-white">
-              <div className="flex items-center gap-2 mb-3">
-                <p className="font-bold text-gray-800">{p.program_name}</p>
-                {p.domain && <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">{p.domain}</span>}
-                <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{p.prompt_level}</span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                {p.objective && <div className="md:col-span-2"><p className="font-medium text-gray-600 text-xs uppercase tracking-wide mb-1">Objective</p><p className="text-gray-700">{p.objective}</p></div>}
-                {p.teaching_procedure && <div><p className="font-medium text-gray-600 text-xs uppercase tracking-wide mb-1">Teaching Procedure</p><p className="text-gray-700">{p.teaching_procedure}</p></div>}
-                {p.mastery_criteria && <div><p className="font-medium text-gray-600 text-xs uppercase tracking-wide mb-1">Mastery Criteria</p><p className="text-gray-700">{p.mastery_criteria}</p></div>}
-                {p.baseline_performance && <div><p className="font-medium text-gray-600 text-xs uppercase tracking-wide mb-1">Baseline</p><p className="text-gray-700">{p.baseline_performance}</p></div>}
-                {p.materials && <div><p className="font-medium text-gray-600 text-xs uppercase tracking-wide mb-1">Materials</p><p className="text-gray-700">{p.materials}</p></div>}
-                {p.generalization_plan && <div><p className="font-medium text-gray-600 text-xs uppercase tracking-wide mb-1">Generalization Plan</p><p className="text-gray-700">{p.generalization_plan}</p></div>}
-              </div>
-            </div>
-          ))}
+            );
+          })}
+          {antecedentStrategies.length === 0 && consequenceStrategies.length === 0 && replacementBehaviors.length === 0 && skillPrograms.length === 0 && fidelityChecks.length === 0 && (
+            <p className="text-gray-400 text-sm">No plan items added yet.</p>
+          )}
         </div>
       )}
 

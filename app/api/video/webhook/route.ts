@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import twilio from 'twilio';
 
@@ -14,7 +14,7 @@ const twilioClient = twilio(
 
 export async function POST(request: NextRequest) {
   try {
-    const form = await request.formData();
+    const form = (await request.formData()) as unknown as { get: (key: string) => { toString(): string } | null };
     const event = form.get('StatusCallbackEvent')?.toString();
     const roomSid = form.get('RoomSid')?.toString();
 
