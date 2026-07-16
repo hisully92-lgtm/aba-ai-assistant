@@ -548,7 +548,7 @@ if (joinExisting && !clinicCode.trim()) { setError("Please enter your clinic cod
   <input type="checkbox" checked={smsConsent} onChange={e => setSmsConsent(e.target.checked)}
     className="mt-0.5 rounded border-gray-300 text-blue-600" />
   <span className="text-xs text-gray-600">
-    I agree to receive SMS notifications from ABA AI Assistant including session reminders and clinic alerts. Message frequency varies. Msg & data rates may apply. Reply STOP to opt out. <a href="/privacy" className="text-blue-500 hover:underline">Privacy Policy</a>
+    I agree to receive SMS notifications from ABA AI Assistant including session reminders and clinic alerts. Message frequency varies. Msg & data rates may apply. Reply STOP to opt out. By continuing, you agree to our <a href="/terms" className="text-blue-500 hover:underline">Terms of Service</a> and <a href="/privacy" className="text-blue-500 hover:underline">Privacy Policy</a>
   </span>
 </label>
             <button type="button" onClick={handleProfileStep} className={btnPrimary}>
