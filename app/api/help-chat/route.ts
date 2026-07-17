@@ -11,7 +11,12 @@ const SYSTEM_CONTEXT =
 
 export async function POST(req: Request) {
   try {
-    const { data: auth } = await supabaseAdmin.auth.getUser();
+    const authHeader = req.headers.get("authorization") ?? "";
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const { data: auth } = await supabaseAdmin.auth.getUser(token);
     const user = auth?.user;
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
