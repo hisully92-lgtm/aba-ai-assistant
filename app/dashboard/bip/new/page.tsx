@@ -125,7 +125,7 @@ export default function NewBIPPage() {
   const [recommendedHours, setRecommendedHours] = useState(20);
   const [recommendedSetting, setRecommendedSetting] = useState("Home");
 
-  // Step 2 — Biographical Data (NEW)
+  // Step 2 — Biographical Data
   const [clientDob, setClientDob] = useState("");
   const [clientAge, setClientAge] = useState("");
   const [clientGender, setClientGender] = useState("");
@@ -145,7 +145,7 @@ export default function NewBIPPage() {
   const [schoolName, setSchoolName] = useState("");
   const [schoolContact, setSchoolContact] = useState("");
 
-  // Step 3 — Medications (NEW)
+  // Step 3 — Medications
   const [medications, setMedications] = useState([{ name: "", dosage: "", frequency: "", prescriber: "", purpose: "", start_date: "", notes: "" }]);
   const [medicationAllergies, setMedicationAllergies] = useState("");
   const [medicalHistory, setMedicalHistory] = useState("");
@@ -158,7 +158,7 @@ export default function NewBIPPage() {
   const [previousInterventions, setPreviousInterventions] = useState("");
   const [clientWeaknesses, setClientWeaknesses] = useState("");
 
-  // Step 5 — FBA (NEW)
+  // Step 5 — FBA
   const [fbaCompleted, setFbaCompleted] = useState(false);
   const [fbaDate, setFbaDate] = useState("");
   const [fbaConductedBy, setFbaConductedBy] = useState("");
@@ -183,31 +183,29 @@ export default function NewBIPPage() {
     measurement_method: "Frequency", goal_target: "", antecedents: [], consequences: [], priority: 1,
   }]);
 
-  // Step 8 — Antecedent Strategies
+  // Step 8 — Plan (Antecedent + Consequence + Replacement Behavior + Skill Program + Fidelity, grouped by index)
   const [antecedentStrategies, setAntecedentStrategies] = useState<AntecedentStrategy[]>([{
     strategy_name: "", strategy_type: "", description: "", implementation_steps: "",
   }]);
-
-  // Step 9 — Consequence Strategies + Replacement Behaviors
   const [consequenceStrategies, setConsequenceStrategies] = useState<ConsequenceStrategy[]>([{
     strategy_name: "", strategy_type: "", description: "", implementation_steps: "", reinforcers_used: "",
   }]);
   const [replacementBehaviors, setReplacementBehaviors] = useState<ReplacementBehavior[]>([{
     behavior_name: "", rationale: "", teaching_strategy: "", reinforcement_schedule: "",
   }]);
-
-  // Step 10 — Skill Programs + Caregiver Training + Treatment Fidelity (NEW)
   const [skillPrograms, setSkillPrograms] = useState<SkillProgram[]>([{
     program_name: "", domain: "", objective: "", teaching_procedure: "",
     prompt_level: "Gesture", mastery_criteria: "80% over 3 consecutive sessions",
     materials: "", generalization_plan: "", maintenance_plan: "", baseline_performance: "",
   }]);
+  const [fidelityChecks, setFidelityChecks] = useState([{
+    check_date: "", conducted_by: "", role: "", fidelity_percentage: "", components_observed: "", areas_of_concern: "", follow_up_plan: "",
+  }]);
+
+  // Step 9 — Caregiver Training (its own step)
   const [caregiverTraining, setCaregiverTraining] = useState<CaregiverTraining[]>([{
     training_topic: "", training_method: "BST", caregiver_name: "", trainer_name: "",
     completion_date: "", completed: false, notes: "",
-  }]);
-  const [fidelityChecks, setFidelityChecks] = useState([{
-    check_date: "", conducted_by: "", role: "", fidelity_percentage: "", components_observed: "", areas_of_concern: "", follow_up_plan: "",
   }]);
 
   useEffect(() => { init(); }, []);
@@ -239,6 +237,27 @@ export default function NewBIPPage() {
   }
   function updateFidelity(index: number, field: string, value: string) {
     setFidelityChecks((prev) => prev.map((f, i) => i === index ? { ...f, [field]: value } : f));
+  }
+
+  // Plan tab: the five arrays are grouped and indexed together, so add/remove
+  // operate on all five in lockstep to keep indices aligned across the group.
+  function addPlanItem() {
+    setAntecedentStrategies((prev) => [...prev, { strategy_name: "", strategy_type: "", description: "", implementation_steps: "" }]);
+    setConsequenceStrategies((prev) => [...prev, { strategy_name: "", strategy_type: "", description: "", implementation_steps: "", reinforcers_used: "" }]);
+    setReplacementBehaviors((prev) => [...prev, { behavior_name: "", rationale: "", teaching_strategy: "", reinforcement_schedule: "" }]);
+    setSkillPrograms((prev) => [...prev, {
+      program_name: "", domain: "", objective: "", teaching_procedure: "",
+      prompt_level: "Gesture", mastery_criteria: "80% over 3 consecutive sessions",
+      materials: "", generalization_plan: "", maintenance_plan: "", baseline_performance: "",
+    }]);
+    setFidelityChecks((prev) => [...prev, { check_date: "", conducted_by: "", role: "", fidelity_percentage: "", components_observed: "", areas_of_concern: "", follow_up_plan: "" }]);
+  }
+  function removePlanItem(index: number) {
+    setAntecedentStrategies((prev) => prev.filter((_, i) => i !== index));
+    setConsequenceStrategies((prev) => prev.filter((_, i) => i !== index));
+    setReplacementBehaviors((prev) => prev.filter((_, i) => i !== index));
+    setSkillPrograms((prev) => prev.filter((_, i) => i !== index));
+    setFidelityChecks((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function handleSave() {
@@ -360,10 +379,13 @@ export default function NewBIPPage() {
   const STEPS = [
     "Basic Info", "Biographical Data", "Medications", "Background",
     "FBA", "Medical Necessity", "Target Behaviors",
-    "Antecedent Strategies", "Consequence Strategies", "Skill Programs & Fidelity",
+    "Plan", "Caregiver Training", "Summary",
   ];
 
   const inputClass = "w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300";
+
+  // Number of grouped Plan items — the five arrays are kept in lockstep by addPlanItem/removePlanItem.
+  const planItemCount = antecedentStrategies.length;
 
   return (
     <div className="space-y-6">
@@ -827,344 +849,283 @@ export default function NewBIPPage() {
         </div>
       )}
 
-      {/* STEP 8 — ANTECEDENT STRATEGIES */}
+      {/* STEP 8 — PLAN (Antecedent + Consequence + Replacement Behavior + Skill Program + Fidelity, grouped by index) */}
       {currentStep === 8 && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-lg font-bold text-gray-800">Antecedent Strategies</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Proactive strategies to prevent or reduce problem behaviors before they occur</p>
+              <h2 className="text-lg font-bold text-gray-800">Plan</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Each numbered item groups the antecedent strategy, consequence strategy, replacement behavior, skill program, and fidelity check that belong together</p>
             </div>
-            <Button variant="outline" onClick={() => addItem<AntecedentStrategy>(setAntecedentStrategies, { strategy_name: "", strategy_type: "", description: "", implementation_steps: "" })}>+ Add Strategy</Button>
+            <Button variant="outline" onClick={addPlanItem}>+ Add Plan Item</Button>
           </div>
-          {antecedentStrategies.map((strategy, i) => (
-            <Section key={i} title={`Antecedent Strategy ${i + 1}${strategy.strategy_name ? ` — ${strategy.strategy_name}` : ""}`}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Strategy Name *</label>
-                  <input type="text" value={strategy.strategy_name} onChange={(e) => updateItem<AntecedentStrategy>(setAntecedentStrategies, i, "strategy_name", e.target.value)} placeholder="e.g. Visual schedule" className={inputClass} />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Strategy Type</label>
-                  <select value={strategy.strategy_type} onChange={(e) => updateItem<AntecedentStrategy>(setAntecedentStrategies, i, "strategy_type", e.target.value)} className={inputClass}>
-                    <option value="">Select type...</option>
-                    {STRATEGY_TYPES_ANTECEDENT.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div className="md:col-span-2">
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Description</label>
-                  <textarea value={strategy.description} onChange={(e) => updateItem<AntecedentStrategy>(setAntecedentStrategies, i, "description", e.target.value)} rows={3} placeholder="Describe the strategy and its rationale..." className={inputClass} />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Implementation Steps</label>
-                  <textarea value={strategy.implementation_steps} onChange={(e) => updateItem<AntecedentStrategy>(setAntecedentStrategies, i, "implementation_steps", e.target.value)} rows={3} placeholder="Step-by-step instructions..." className={inputClass} />
-                </div>
-              </div>
-              {antecedentStrategies.length > 1 && (
-                <button type="button" onClick={() => removeItem<AntecedentStrategy>(setAntecedentStrategies, i)} className="mt-3 text-xs text-red-500 hover:text-red-700">Remove this strategy</button>
-              )}
-            </Section>
-          ))}
-        </div>
-      )}
 
-      {/* STEP 9 — CONSEQUENCE STRATEGIES + REPLACEMENT BEHAVIORS */}
-      {currentStep === 9 && (
-        <div className="space-y-6">
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-bold text-gray-800">Consequence Strategies</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Reactive strategies to respond to behaviors after they occur</p>
+          {Array.from({ length: planItemCount }).map((_, i) => (
+            <div key={i} className="border-2 border-blue-100 rounded-2xl p-4 space-y-4 bg-blue-50/30">
+              <div className="flex justify-between items-center">
+                <h3 className="text-base font-bold text-gray-800">Plan Item {i + 1}</h3>
+                {planItemCount > 1 && (
+                  <button type="button" onClick={() => removePlanItem(i)} className="text-xs text-red-500 hover:text-red-700">
+                    Remove this item
+                  </button>
+                )}
               </div>
-              <Button variant="outline" onClick={() => addItem<ConsequenceStrategy>(setConsequenceStrategies, { strategy_name: "", strategy_type: "", description: "", implementation_steps: "", reinforcers_used: "" })}>+ Add Strategy</Button>
-            </div>
-            {consequenceStrategies.map((strategy, i) => (
-              <Section key={i} title={`Consequence Strategy ${i + 1}${strategy.strategy_name ? ` — ${strategy.strategy_name}` : ""}`}>
+
+              {/* Antecedent Strategy */}
+              <Section title={`Antecedent Strategy ${i + 1}${antecedentStrategies[i]?.strategy_name ? ` — ${antecedentStrategies[i].strategy_name}` : ""}`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Strategy Name *</label>
-                    <input type="text" value={strategy.strategy_name} onChange={(e) => updateItem<ConsequenceStrategy>(setConsequenceStrategies, i, "strategy_name", e.target.value)} placeholder="e.g. DRA, Extinction" className={inputClass} />
+                    <input type="text" value={antecedentStrategies[i]?.strategy_name ?? ""} onChange={(e) => updateItem<AntecedentStrategy>(setAntecedentStrategies, i, "strategy_name", e.target.value)} placeholder="e.g. Visual schedule" className={inputClass} />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Strategy Type</label>
-                    <select value={strategy.strategy_type} onChange={(e) => updateItem<ConsequenceStrategy>(setConsequenceStrategies, i, "strategy_type", e.target.value)} className={inputClass}>
+                    <select value={antecedentStrategies[i]?.strategy_type ?? ""} onChange={(e) => updateItem<AntecedentStrategy>(setAntecedentStrategies, i, "strategy_type", e.target.value)} className={inputClass}>
+                      <option value="">Select type...</option>
+                      {STRATEGY_TYPES_ANTECEDENT.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Description</label>
+                    <textarea value={antecedentStrategies[i]?.description ?? ""} onChange={(e) => updateItem<AntecedentStrategy>(setAntecedentStrategies, i, "description", e.target.value)} rows={3} placeholder="Describe the strategy and its rationale..." className={inputClass} />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Implementation Steps</label>
+                    <textarea value={antecedentStrategies[i]?.implementation_steps ?? ""} onChange={(e) => updateItem<AntecedentStrategy>(setAntecedentStrategies, i, "implementation_steps", e.target.value)} rows={3} placeholder="Step-by-step instructions..." className={inputClass} />
+                  </div>
+                </div>
+              </Section>
+
+              {/* Consequence Strategy */}
+              <Section title={`Consequence Strategy ${i + 1}${consequenceStrategies[i]?.strategy_name ? ` — ${consequenceStrategies[i].strategy_name}` : ""}`}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Strategy Name *</label>
+                    <input type="text" value={consequenceStrategies[i]?.strategy_name ?? ""} onChange={(e) => updateItem<ConsequenceStrategy>(setConsequenceStrategies, i, "strategy_name", e.target.value)} placeholder="e.g. DRA, Extinction" className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Strategy Type</label>
+                    <select value={consequenceStrategies[i]?.strategy_type ?? ""} onChange={(e) => updateItem<ConsequenceStrategy>(setConsequenceStrategies, i, "strategy_type", e.target.value)} className={inputClass}>
                       <option value="">Select type...</option>
                       {STRATEGY_TYPES_CONSEQUENCE.map((t) => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Reinforcers Used</label>
-                    <input type="text" value={strategy.reinforcers_used} onChange={(e) => updateItem<ConsequenceStrategy>(setConsequenceStrategies, i, "reinforcers_used", e.target.value)} placeholder="e.g. iPad access, verbal praise" className={inputClass} />
+                    <input type="text" value={consequenceStrategies[i]?.reinforcers_used ?? ""} onChange={(e) => updateItem<ConsequenceStrategy>(setConsequenceStrategies, i, "reinforcers_used", e.target.value)} placeholder="e.g. iPad access, verbal praise" className={inputClass} />
                   </div>
                   <div className="md:col-span-2">
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Implementation Steps</label>
-                    <textarea value={strategy.implementation_steps} onChange={(e) => updateItem<ConsequenceStrategy>(setConsequenceStrategies, i, "implementation_steps", e.target.value)} rows={3} placeholder="Step-by-step instructions..." className={inputClass} />
+                    <textarea value={consequenceStrategies[i]?.implementation_steps ?? ""} onChange={(e) => updateItem<ConsequenceStrategy>(setConsequenceStrategies, i, "implementation_steps", e.target.value)} rows={3} placeholder="Step-by-step instructions..." className={inputClass} />
                   </div>
                 </div>
-                {consequenceStrategies.length > 1 && (
-                  <button type="button" onClick={() => removeItem<ConsequenceStrategy>(setConsequenceStrategies, i)} className="mt-3 text-xs text-red-500 hover:text-red-700">Remove this strategy</button>
-                )}
               </Section>
-            ))}
-          </div>
 
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-bold text-gray-800">Replacement Behaviors</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Functionally equivalent replacement behaviors to teach instead of problem behaviors</p>
-              </div>
-              <Button variant="outline" onClick={() => addItem<ReplacementBehavior>(setReplacementBehaviors, { behavior_name: "", rationale: "", teaching_strategy: "", reinforcement_schedule: "" })}>+ Add Replacement</Button>
-            </div>
-            {replacementBehaviors.map((rb, i) => (
-              <Section key={i} title={`Replacement Behavior ${i + 1}${rb.behavior_name ? ` — ${rb.behavior_name}` : ""}`}>
+              {/* Replacement Behavior */}
+              <Section title={`Replacement Behavior ${i + 1}${replacementBehaviors[i]?.behavior_name ? ` — ${replacementBehaviors[i].behavior_name}` : ""}`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Replacement Behavior *</label>
-                    <input type="text" value={rb.behavior_name} onChange={(e) => updateItem<ReplacementBehavior>(setReplacementBehaviors, i, "behavior_name", e.target.value)} placeholder="e.g. Requesting a break using PECS" className={inputClass} />
+                    <input type="text" value={replacementBehaviors[i]?.behavior_name ?? ""} onChange={(e) => updateItem<ReplacementBehavior>(setReplacementBehaviors, i, "behavior_name", e.target.value)} placeholder="e.g. Requesting a break using PECS" className={inputClass} />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Reinforcement Schedule</label>
-                    <input type="text" value={rb.reinforcement_schedule} onChange={(e) => updateItem<ReplacementBehavior>(setReplacementBehaviors, i, "reinforcement_schedule", e.target.value)} placeholder="e.g. CRF initially, then VR-3" className={inputClass} />
+                    <input type="text" value={replacementBehaviors[i]?.reinforcement_schedule ?? ""} onChange={(e) => updateItem<ReplacementBehavior>(setReplacementBehaviors, i, "reinforcement_schedule", e.target.value)} placeholder="e.g. CRF initially, then VR-3" className={inputClass} />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Rationale</label>
-                    <textarea value={rb.rationale} onChange={(e) => updateItem<ReplacementBehavior>(setReplacementBehaviors, i, "rationale", e.target.value)} rows={2} placeholder="Why this serves the same function..." className={inputClass} />
+                    <textarea value={replacementBehaviors[i]?.rationale ?? ""} onChange={(e) => updateItem<ReplacementBehavior>(setReplacementBehaviors, i, "rationale", e.target.value)} rows={2} placeholder="Why this serves the same function..." className={inputClass} />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Teaching Strategy</label>
-                    <textarea value={rb.teaching_strategy} onChange={(e) => updateItem<ReplacementBehavior>(setReplacementBehaviors, i, "teaching_strategy", e.target.value)} rows={2} placeholder="How this will be taught..." className={inputClass} />
+                    <textarea value={replacementBehaviors[i]?.teaching_strategy ?? ""} onChange={(e) => updateItem<ReplacementBehavior>(setReplacementBehaviors, i, "teaching_strategy", e.target.value)} rows={2} placeholder="How this will be taught..." className={inputClass} />
                   </div>
                 </div>
-                {replacementBehaviors.length > 1 && (
-                  <button type="button" onClick={() => removeItem<ReplacementBehavior>(setReplacementBehaviors, i)} className="mt-3 text-xs text-red-500 hover:text-red-700">Remove this replacement behavior</button>
-                )}
               </Section>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {/* STEP 10 — SKILL PROGRAMS + TREATMENT FIDELITY + CAREGIVER TRAINING */}
-      {currentStep === 10 && (
-        <div className="space-y-6">
-          {/* SKILL PROGRAMS */}
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-bold text-gray-800">Skill Acquisition Programs</h2>
-                <p className="text-xs text-gray-500">Programs to teach new skills across developmental domains</p>
-              </div>
-              <Button variant="outline" onClick={() => addItem<SkillProgram>(setSkillPrograms, {
-                program_name: "", domain: "", objective: "", teaching_procedure: "",
-                prompt_level: "Gesture", mastery_criteria: "80% over 3 consecutive sessions",
-                materials: "", generalization_plan: "", maintenance_plan: "", baseline_performance: "",
-              })}>+ Add Program</Button>
-            </div>
-            {skillPrograms.map((program, i) => (
-              <Section key={i} title={`Program ${i + 1}${program.program_name ? ` — ${program.program_name}` : ""}`}>
+              {/* Skill Program */}
+              <Section title={`Program ${i + 1}${skillPrograms[i]?.program_name ? ` — ${skillPrograms[i].program_name}` : ""}`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Program Name *</label>
-                    <input type="text" value={program.program_name} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "program_name", e.target.value)} placeholder="e.g. Requesting preferred items" className={inputClass} />
+                    <input type="text" value={skillPrograms[i]?.program_name ?? ""} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "program_name", e.target.value)} placeholder="e.g. Requesting preferred items" className={inputClass} />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Domain</label>
-                    <select value={program.domain} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "domain", e.target.value)} className={inputClass}>
+                    <select value={skillPrograms[i]?.domain ?? ""} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "domain", e.target.value)} className={inputClass}>
                       <option value="">Select domain...</option>
                       {DOMAINS.map((d) => <option key={d} value={d}>{d}</option>)}
                     </select>
                   </div>
                   <div className="md:col-span-2">
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Objective</label>
-                    <textarea value={program.objective} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "objective", e.target.value)} rows={2} placeholder="Given [SD], client will [behavior] with [criteria]..." className={inputClass} />
+                    <textarea value={skillPrograms[i]?.objective ?? ""} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "objective", e.target.value)} rows={2} placeholder="Given [SD], client will [behavior] with [criteria]..." className={inputClass} />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Teaching Procedure</label>
-                    <select value={program.teaching_procedure} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "teaching_procedure", e.target.value)} className={inputClass}>
+                    <select value={skillPrograms[i]?.teaching_procedure ?? ""} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "teaching_procedure", e.target.value)} className={inputClass}>
                       <option value="">Select procedure...</option>
                       {TEACHING_PROCEDURES.map((p) => <option key={p} value={p}>{p}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Current Prompt Level</label>
-                    <select value={program.prompt_level} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "prompt_level", e.target.value)} className={inputClass}>
+                    <select value={skillPrograms[i]?.prompt_level ?? "Gesture"} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "prompt_level", e.target.value)} className={inputClass}>
                       {PROMPT_LEVELS.map((p) => <option key={p} value={p}>{p}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Mastery Criteria</label>
-                    <input type="text" value={program.mastery_criteria} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "mastery_criteria", e.target.value)} className={inputClass} />
+                    <input type="text" value={skillPrograms[i]?.mastery_criteria ?? ""} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "mastery_criteria", e.target.value)} className={inputClass} />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Baseline Performance</label>
-                    <input type="text" value={program.baseline_performance} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "baseline_performance", e.target.value)} placeholder="e.g. 0% independent" className={inputClass} />
+                    <input type="text" value={skillPrograms[i]?.baseline_performance ?? ""} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "baseline_performance", e.target.value)} placeholder="e.g. 0% independent" className={inputClass} />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Materials</label>
-                    <input type="text" value={program.materials} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "materials", e.target.value)} placeholder="Flashcards, reinforcers, token board..." className={inputClass} />
+                    <input type="text" value={skillPrograms[i]?.materials ?? ""} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "materials", e.target.value)} placeholder="Flashcards, reinforcers, token board..." className={inputClass} />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Generalization Plan</label>
-                    <textarea value={program.generalization_plan} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "generalization_plan", e.target.value)} rows={2} placeholder="How skill will generalize across settings and people..." className={inputClass} />
+                    <textarea value={skillPrograms[i]?.generalization_plan ?? ""} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "generalization_plan", e.target.value)} rows={2} placeholder="How skill will generalize across settings and people..." className={inputClass} />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Maintenance Plan</label>
-                    <textarea value={program.maintenance_plan} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "maintenance_plan", e.target.value)} rows={2} placeholder="How skill will be maintained after mastery..." className={inputClass} />
+                    <textarea value={skillPrograms[i]?.maintenance_plan ?? ""} onChange={(e) => updateItem<SkillProgram>(setSkillPrograms, i, "maintenance_plan", e.target.value)} rows={2} placeholder="How skill will be maintained after mastery..." className={inputClass} />
                   </div>
                 </div>
-                {skillPrograms.length > 1 && (
-                  <button type="button" onClick={() => removeItem<SkillProgram>(setSkillPrograms, i)} className="mt-3 text-xs text-red-500 hover:text-red-700">Remove this program</button>
-                )}
               </Section>
-            ))}
-          </div>
 
-          {/* TREATMENT FIDELITY */}
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-bold text-gray-800">Treatment Fidelity</h2>
-                <p className="text-xs text-gray-500">Document fidelity checks to ensure BIP is being implemented correctly</p>
-              </div>
-              <Button variant="outline" onClick={() => setFidelityChecks((prev) => [...prev, { check_date: "", conducted_by: "", role: "", fidelity_percentage: "", components_observed: "", areas_of_concern: "", follow_up_plan: "" }])}>
-                + Add Fidelity Check
-              </Button>
-            </div>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-xs text-yellow-700">
-              <p className="font-bold mb-1">Treatment Fidelity Requirement</p>
-              <p>BCBAs must conduct regular treatment fidelity checks to ensure RBTs and caregivers are implementing the BIP as designed. Document each observation here. Fidelity checks are required for supervision hours and insurance compliance.</p>
-            </div>
-            {fidelityChecks.map((check, i) => (
-              <Section key={i} title={`Fidelity Check ${i + 1}${check.check_date ? ` — ${check.check_date}` : ""}`}>
+              {/* Fidelity Check */}
+              <Section title={`Fidelity Check ${i + 1}${fidelityChecks[i]?.check_date ? ` — ${fidelityChecks[i].check_date}` : ""}`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Date of Observation</label>
-                    <input type="date" value={check.check_date} onChange={(e) => updateFidelity(i, "check_date", e.target.value)} className={inputClass} />
+                    <input type="date" value={fidelityChecks[i]?.check_date ?? ""} onChange={(e) => updateFidelity(i, "check_date", e.target.value)} className={inputClass} />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Conducted By</label>
-                    <input type="text" value={check.conducted_by} onChange={(e) => updateFidelity(i, "conducted_by", e.target.value)} placeholder="BCBA name" className={inputClass} />
+                    <input type="text" value={fidelityChecks[i]?.conducted_by ?? ""} onChange={(e) => updateFidelity(i, "conducted_by", e.target.value)} placeholder="BCBA name" className={inputClass} />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Role of Person Observed</label>
-                    <select value={check.role} onChange={(e) => updateFidelity(i, "role", e.target.value)} className={inputClass}>
+                    <select value={fidelityChecks[i]?.role ?? ""} onChange={(e) => updateFidelity(i, "role", e.target.value)} className={inputClass}>
                       <option value="">Select role...</option>
                       {FIDELITY_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Fidelity Score (%)</label>
-                    <input type="text" value={check.fidelity_percentage} onChange={(e) => updateFidelity(i, "fidelity_percentage", e.target.value)} placeholder="e.g. 92%" className={inputClass} />
+                    <input type="text" value={fidelityChecks[i]?.fidelity_percentage ?? ""} onChange={(e) => updateFidelity(i, "fidelity_percentage", e.target.value)} placeholder="e.g. 92%" className={inputClass} />
                   </div>
                   <div className="md:col-span-2">
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Components Observed</label>
-                    <textarea value={check.components_observed} onChange={(e) => updateFidelity(i, "components_observed", e.target.value)}
+                    <textarea value={fidelityChecks[i]?.components_observed ?? ""} onChange={(e) => updateFidelity(i, "components_observed", e.target.value)}
                       placeholder="Which BIP components were observed? (e.g. antecedent strategies, reinforcement delivery, data collection)" rows={2} className={inputClass} />
                   </div>
                   <div className="md:col-span-2">
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Areas of Concern</label>
-                    <textarea value={check.areas_of_concern} onChange={(e) => updateFidelity(i, "areas_of_concern", e.target.value)}
+                    <textarea value={fidelityChecks[i]?.areas_of_concern ?? ""} onChange={(e) => updateFidelity(i, "areas_of_concern", e.target.value)}
                       placeholder="Any areas where implementation was incorrect or inconsistent..." rows={2} className={inputClass} />
                   </div>
                   <div className="md:col-span-2">
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Follow-up Plan</label>
-                    <textarea value={check.follow_up_plan} onChange={(e) => updateFidelity(i, "follow_up_plan", e.target.value)}
+                    <textarea value={fidelityChecks[i]?.follow_up_plan ?? ""} onChange={(e) => updateFidelity(i, "follow_up_plan", e.target.value)}
                       placeholder="Action items, retraining needed, next check date..." rows={2} className={inputClass} />
                   </div>
                 </div>
-                {fidelityChecks.length > 1 && (
-                  <button type="button" onClick={() => setFidelityChecks((prev) => prev.filter((_, idx) => idx !== i))}
-                    className="mt-3 text-xs text-red-500 hover:text-red-700">Remove this check</button>
-                )}
               </Section>
-            ))}
-          </div>
-
-          {/* CAREGIVER TRAINING */}
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-bold text-gray-800">Caregiver Training Plan</h2>
-                <p className="text-xs text-gray-500">Required for insurance reauthorization</p>
-              </div>
-              <Button variant="outline" onClick={() => addItem<CaregiverTraining>(setCaregiverTraining, { training_topic: "", training_method: "BST", caregiver_name: "", trainer_name: "", completion_date: "", completed: false, notes: "" })}>
-                + Add Training
-              </Button>
             </div>
-            {caregiverTraining.map((training, i) => (
-              <Section key={i} title={`Training ${i + 1}${training.training_topic ? ` — ${training.training_topic}` : ""}`}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">Training Topic *</label>
-                    <select value={training.training_topic} onChange={(e) => updateItem<CaregiverTraining>(setCaregiverTraining, i, "training_topic", e.target.value)} className={inputClass}>
-                      <option value="">Select topic...</option>
-                      {TRAINING_TOPICS.map((t) => <option key={t} value={t}>{t}</option>)}
-                      <option value="Custom">Custom topic...</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">Training Method</label>
-                    <select value={training.training_method} onChange={(e) => updateItem<CaregiverTraining>(setCaregiverTraining, i, "training_method", e.target.value)} className={inputClass}>
-                      {TRAINING_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">Caregiver Name</label>
-                    <input type="text" value={training.caregiver_name} onChange={(e) => updateItem<CaregiverTraining>(setCaregiverTraining, i, "caregiver_name", e.target.value)} placeholder="Name of caregiver trained" className={inputClass} />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">Trainer Name</label>
-                    <input type="text" value={training.trainer_name} onChange={(e) => updateItem<CaregiverTraining>(setCaregiverTraining, i, "trainer_name", e.target.value)} placeholder="BCBA or clinician" className={inputClass} />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">Completion Date</label>
-                    <input type="date" value={training.completion_date} onChange={(e) => updateItem<CaregiverTraining>(setCaregiverTraining, i, "completion_date", e.target.value)} className={inputClass} />
-                  </div>
-                  <div className="flex items-center gap-3 mt-4">
-                    <button type="button" onClick={() => updateItem<CaregiverTraining>(setCaregiverTraining, i, "completed", !training.completed)}
-                      className={`w-12 h-6 rounded-full transition-all relative ${training.completed ? "bg-green-500" : "bg-gray-300"}`}>
-                      <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${training.completed ? "left-7" : "left-1"}`} />
-                    </button>
-                    <span className="text-sm text-gray-700">{training.completed ? "✓ Completed" : "Not yet completed"}</span>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">Notes</label>
-                    <textarea value={training.notes} onChange={(e) => updateItem<CaregiverTraining>(setCaregiverTraining, i, "notes", e.target.value)} rows={2} placeholder="Training notes, caregiver feedback..." className={inputClass} />
-                  </div>
-                </div>
-                {caregiverTraining.length > 1 && (
-                  <button type="button" onClick={() => removeItem<CaregiverTraining>(setCaregiverTraining, i)} className="mt-3 text-xs text-red-500 hover:text-red-700">Remove this training</button>
-                )}
-              </Section>
-            ))}
-          </div>
-
-          {/* FINAL SUMMARY */}
-          <Section title="📋 BIP Summary Before Saving">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
-              {[
-                { label: "Target Behaviors", value: targetBehaviors.filter((b) => b.behavior_name).length, color: "text-red-500" },
-                { label: "Antecedent Strategies", value: antecedentStrategies.filter((s) => s.strategy_name).length, color: "text-blue-600" },
-                { label: "Consequence Strategies", value: consequenceStrategies.filter((s) => s.strategy_name).length, color: "text-purple-600" },
-                { label: "Skill Programs", value: skillPrograms.filter((p) => p.program_name).length, color: "text-green-600" },
-                { label: "Replacement Behaviors", value: replacementBehaviors.filter((r) => r.behavior_name).length, color: "text-orange-500" },
-                { label: "Caregiver Trainings", value: caregiverTraining.filter((t) => t.training_topic).length, color: "text-teal-600" },
-                { label: "Fidelity Checks", value: fidelityChecks.filter((f) => f.check_date).length, color: "text-yellow-600" },
-                { label: "Medications", value: medications.filter((m) => m.name).length, color: "text-pink-600" },
-                { label: "LMN Obtained", value: lmnObtained ? "Yes" : "No", color: lmnObtained ? "text-green-600" : "text-red-500" },
-                { label: "FBA Completed", value: fbaCompleted ? "Yes" : "No", color: fbaCompleted ? "text-green-600" : "text-orange-500" },
-                { label: "Hours/Week", value: recommendedHours, color: "text-blue-600" },
-              ].map((item) => (
-                <div key={item.label} className="border rounded-lg p-3 bg-white">
-                  <p className={`text-xl font-bold ${item.color}`}>{item.value}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{item.label}</p>
-                </div>
-              ))}
-            </div>
-          </Section>
+          ))}
         </div>
+      )}
+
+      {/* STEP 9 — CAREGIVER TRAINING */}
+      {currentStep === 9 && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-lg font-bold text-gray-800">Caregiver Training Plan</h2>
+              <p className="text-xs text-gray-500">Required for insurance reauthorization</p>
+            </div>
+            <Button variant="outline" onClick={() => addItem<CaregiverTraining>(setCaregiverTraining, { training_topic: "", training_method: "BST", caregiver_name: "", trainer_name: "", completion_date: "", completed: false, notes: "" })}>
+              + Add Training
+            </Button>
+          </div>
+          {caregiverTraining.map((training, i) => (
+            <Section key={i} title={`Training ${i + 1}${training.training_topic ? ` — ${training.training_topic}` : ""}`}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Training Topic *</label>
+                  <select value={training.training_topic} onChange={(e) => updateItem<CaregiverTraining>(setCaregiverTraining, i, "training_topic", e.target.value)} className={inputClass}>
+                    <option value="">Select topic...</option>
+                    {TRAINING_TOPICS.map((t) => <option key={t} value={t}>{t}</option>)}
+                    <option value="Custom">Custom topic...</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Training Method</label>
+                  <select value={training.training_method} onChange={(e) => updateItem<CaregiverTraining>(setCaregiverTraining, i, "training_method", e.target.value)} className={inputClass}>
+                    {TRAINING_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Caregiver Name</label>
+                  <input type="text" value={training.caregiver_name} onChange={(e) => updateItem<CaregiverTraining>(setCaregiverTraining, i, "caregiver_name", e.target.value)} placeholder="Name of caregiver trained" className={inputClass} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Trainer Name</label>
+                  <input type="text" value={training.trainer_name} onChange={(e) => updateItem<CaregiverTraining>(setCaregiverTraining, i, "trainer_name", e.target.value)} placeholder="BCBA or clinician" className={inputClass} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Completion Date</label>
+                  <input type="date" value={training.completion_date} onChange={(e) => updateItem<CaregiverTraining>(setCaregiverTraining, i, "completion_date", e.target.value)} className={inputClass} />
+                </div>
+                <div className="flex items-center gap-3 mt-4">
+                  <button type="button" onClick={() => updateItem<CaregiverTraining>(setCaregiverTraining, i, "completed", !training.completed)}
+                    className={`w-12 h-6 rounded-full transition-all relative ${training.completed ? "bg-green-500" : "bg-gray-300"}`}>
+                    <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${training.completed ? "left-7" : "left-1"}`} />
+                  </button>
+                  <span className="text-sm text-gray-700">{training.completed ? "✓ Completed" : "Not yet completed"}</span>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Notes</label>
+                  <textarea value={training.notes} onChange={(e) => updateItem<CaregiverTraining>(setCaregiverTraining, i, "notes", e.target.value)} rows={2} placeholder="Training notes, caregiver feedback..." className={inputClass} />
+                </div>
+              </div>
+              {caregiverTraining.length > 1 && (
+                <button type="button" onClick={() => removeItem<CaregiverTraining>(setCaregiverTraining, i)} className="mt-3 text-xs text-red-500 hover:text-red-700">Remove this training</button>
+              )}
+            </Section>
+          ))}
+        </div>
+      )}
+
+      {/* STEP 10 — FINAL SUMMARY */}
+      {currentStep === 10 && (
+        <Section title="📋 BIP Summary Before Saving">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+            {[
+              { label: "Target Behaviors", value: targetBehaviors.filter((b) => b.behavior_name).length, color: "text-red-500" },
+              { label: "Antecedent Strategies", value: antecedentStrategies.filter((s) => s.strategy_name).length, color: "text-blue-600" },
+              { label: "Consequence Strategies", value: consequenceStrategies.filter((s) => s.strategy_name).length, color: "text-purple-600" },
+              { label: "Skill Programs", value: skillPrograms.filter((p) => p.program_name).length, color: "text-green-600" },
+              { label: "Replacement Behaviors", value: replacementBehaviors.filter((r) => r.behavior_name).length, color: "text-orange-500" },
+              { label: "Caregiver Trainings", value: caregiverTraining.filter((t) => t.training_topic).length, color: "text-teal-600" },
+              { label: "Fidelity Checks", value: fidelityChecks.filter((f) => f.check_date).length, color: "text-yellow-600" },
+              { label: "Medications", value: medications.filter((m) => m.name).length, color: "text-pink-600" },
+              { label: "LMN Obtained", value: lmnObtained ? "Yes" : "No", color: lmnObtained ? "text-green-600" : "text-red-500" },
+              { label: "FBA Completed", value: fbaCompleted ? "Yes" : "No", color: fbaCompleted ? "text-green-600" : "text-orange-500" },
+              { label: "Hours/Week", value: recommendedHours, color: "text-blue-600" },
+            ].map((item) => (
+              <div key={item.label} className="border rounded-lg p-3 bg-white">
+                <p className={`text-xl font-bold ${item.color}`}>{item.value}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{item.label}</p>
+              </div>
+            ))}
+          </div>
+        </Section>
       )}
 
       {/* NAV BUTTONS */}
