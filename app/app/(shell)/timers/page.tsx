@@ -52,7 +52,7 @@ export default function TimersPage() {
                 <p className="text-sm font-semibold text-gray-700">{opt.label}</p>
                 <p className="text-xs text-gray-400 mt-0.5">{opt.desc}</p>
               </div>
-              {sound === opt.value && <span className="text-lg font-bold" style={{ color: "#2563eb" }}>✓</span>}
+              {sound === opt.value && <span className="text-lg font-bold" style={{ color: "#2563eb"}}>✓</span>}
             </button>
           ))}
           <button onClick={() => setShowSound(false)} className="w-full text-center pt-3 text-gray-500 text-sm">Close</button>
@@ -102,7 +102,7 @@ export default function TimersPage() {
           ) : (
             timers.map(timer => {
               const isCountdown = timer.durationSeconds !== null;
-              const remaining = isCountdown ? Math.max(0, timer.durationSeconds! - timer.elapsed) : null;
+              const remaining = isCountdown ? Math.max(0, timer.durationSeconds! - timer.elapsed) :null;
               const display = isCountdown ? fmt(remaining!) : fmt(timer.elapsed);
               const done = isCountdown && remaining === 0;
               const urgent = isCountdown && remaining !== null && remaining <= 30 && remaining > 0;
