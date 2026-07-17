@@ -93,6 +93,19 @@ export default function HelpPage() {
     }
   }
 
+  function renderWithLinks(content: string) {
+    const parts = content.split(/(\/dashboard\/[a-zA-Z0-9\-\/]*)/g);
+    return parts.map((part, i) =>
+      /^\/dashboard\//.test(part) ? (
+        <a key={i} href={part} className="underline text-blue-600 hover:text-blue-800">
+          {part}
+        </a>
+      ) : (
+        <span key={i}>{part}</span>
+      )
+    );
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader title="Help Center">
@@ -182,7 +195,7 @@ export default function HelpPage() {
                   {msg.role === "assistant" && (
                     <p className="text-xs font-semibold text-blue-600 mb-1">ABA AI Assistant</p>
                   )}
-                  {msg.content}
+                  {msg.role === "assistant" ? renderWithLinks(msg.content) : msg.content}
                 </div>
               </div>
             ))}
