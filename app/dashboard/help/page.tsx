@@ -67,13 +67,10 @@ export default function HelpPage() {
     setInput("");
     setSending(true);
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/help-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 500,
-          system: SYSTEM_CONTEXT,
           messages: [
             ...messages.map((m) => ({ role: m.role, content: m.content })),
             { role: "user", content: msg },
@@ -81,7 +78,7 @@ export default function HelpPage() {
         }),
       });
       const data = await res.json();
-      const reply = data.content?.[0]?.text ?? "Sorry, I couldn't process that. Please try again.";
+      const reply = data.reply ?? data.error ?? "Sorry, I couldn't process that. Please try again.";
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
     } catch {
       setMessages((prev) => [...prev, { role: "assistant", content: "Sorry, something went wrong. Please try again." }]);
