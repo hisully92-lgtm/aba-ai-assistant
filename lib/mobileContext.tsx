@@ -24,6 +24,21 @@ function playAlert(sound: SoundOption) {
   }
 }
 
+// Fire-and-forget push notification so the user is alerted even if this tab
+// is backgrounded. Never throws — a failed push should never break the timer.
+async function notifyTimerComplete(label: string) {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return;
+    fetch("/api/push/notify-timer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ label, url: "/app/timers" }),
+    }).catch(() => {});
+  } catch {}
+}
+
 type Timer = { id: string; label: string; elapsed: number; running: boolean; durationSeconds: number | null; alerted: boolean };
 type TimerContextType = {
   timers: Timer[];
@@ -51,6 +66,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
         const newElapsed = t.elapsed + 1;
         if (t.durationSeconds !== null && t.durationSeconds - newElapsed <= 0 && !t.alerted) {
           playAlert(soundRef.current);
+          notifyTimerComplete(t.label);
           return { ...t, elapsed: newElapsed, alerted: true };
         }
         return { ...t, elapsed: newElapsed };
@@ -65,7 +81,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   const pauseTimer = useCallback((id: string) => setTimers(prev => prev.map(t => t.id === id ? { ...t, running: false } : t)), []);
   const resumeTimer = useCallback((id: string) => setTimers(prev => prev.map(t => t.id === id ? { ...t, running: true } : t)), []);
   const resetTimer = useCallback((id: string) => setTimers(prev => prev.map(t => t.id === id ? { ...t, elapsed: 0, alerted: false, running: true } : t)), []);
-  const removeTimer = useCallback((id: string) => setTimers(prev => prev.filter(t => t.id !== id)), []);
+  const removeTimer = useCallback((id: string) => setTimers(prev => prev.filter(t => t.id !== id)),[]);
 
   return (
     <TimerContext.Provider value={{ timers, sound, setSound, addTimer, pauseTimer, resumeTimer, resetTimer, removeTimer }}>

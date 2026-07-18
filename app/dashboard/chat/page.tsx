@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -34,6 +34,25 @@ const QUICK_MESSAGES = [
 ];
 
 const PRIVILEGED_ROLES = ["bcba", "admin", "clinical_director"];
+
+// Fire-and-forget push notification to chat recipients. Never throws —
+// a failed push should never block or roll back a sent message.
+async function notifyChat(
+  kind: "team" | "group",
+  opts: { clientId?: string; groupId?: string },
+  message: string
+) {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return;
+    fetch("/api/push/notify-chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ kind, ...opts, message, url: "/dashboard/chat" }),
+    }).catch(() => {});
+  } catch {}
+}
 
 export default function ChatPage() {
   const [tab, setTab] = useState<"team" | "groups">("team");
@@ -159,7 +178,7 @@ export default function ChatPage() {
         .in("group_chat_id", groupIds);
       (memberRows ?? []).forEach((m: any) => {
         if (!membersByGroup[m.group_chat_id]) membersByGroup[m.group_chat_id] = [];
-        membersByGroup[m.group_chat_id].push({ user_id: m.user_id, full_name: m.profiles?.full_name ?? "Unknown", role: "" });
+        membersByGroup[m.group_chat_id].push({ user_id: m.user_id, full_name: m.profiles?.full_name?? "Unknown", role: "" });
       });
     }
     const built: GroupChat[] = (data ?? []).map((g: any) => ({
@@ -249,11 +268,13 @@ export default function ChatPage() {
         client_id: selectedClient.id, user_id: userId, message: text, sender_name: userName, sender_role: userRole,
       });
       if (error) setMessages(prev => prev.filter(m => m.id !== optimistic.id));
+      else notifyChat("team", { clientId: selectedClient.id }, text);
     } else if (tab === "groups" && selectedGroup) {
       const { error } = await supabase.from("group_chat_messages").insert({
         group_chat_id: selectedGroup.id, user_id: userId, message: text, sender_name: userName, sender_role: userRole,
       });
       if (error) setMessages(prev => prev.filter(m => m.id !== optimistic.id));
+      else notifyChat("group", { groupId: selectedGroup.id }, text);
     }
     setSending(false);
   }
@@ -298,7 +319,7 @@ export default function ChatPage() {
             {clients.map((client) => (
               <button key={client.id} onClick={() => selectClient(client)}
                 className="bg-white border border-gray-100 hover:border-blue-300 rounded-xl p-4 text-left transition-all flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold shrink-0">
+                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-centertext-white font-bold shrink-0">
                   {client.full_name.charAt(0)}
                 </div>
                 <div>
@@ -321,7 +342,7 @@ export default function ChatPage() {
           )}
           {groups.length === 0 ? (
             <div className="text-center py-16">
-              <p className="text-3xl mb-2">ðŸ‘¥</p>
+              <p className="text-3xl mb-2">👥</p>
               <p className="text-gray-500 font-medium">No groups yet</p>
               <p className="text-gray-400 text-sm">{isPrivileged ? "Click + New Group to create one." : "Ask a BCBA or admin to add you to one."}</p>
             </div>
@@ -329,11 +350,11 @@ export default function ChatPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {groups.map(g => (
                 <button key={g.id} onClick={() => selectGroup(g)}
-                  className="bg-white border border-gray-100 hover:border-purple-300 rounded-xl p-4 text-left transition-all flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white font-bold shrink-0">ðŸ‘¥</div>
+                  className="bg-white border border-gray-100 hover:border-purple-300 rounded-xl p-4text-left transition-all flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white font-bold shrink-0">👥</div>
                   <div>
                     <p className="font-semibold text-gray-800">{groupLabel(g)}</p>
-                    <p className="text-xs text-gray-400">{g.members.length} member{g.members.length !== 1 ? "s" : ""}</p>
+                    <p className="text-xs text-gray-400">{g.members.length} member{g.members.length!== 1 ? "s" : ""}</p>
                   </div>
                 </button>
               ))}
@@ -356,7 +377,7 @@ export default function ChatPage() {
             </div>
             {tab === "groups" && isPrivileged && (
               <button onClick={openManageMembers} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-600 text-white">
-                ðŸ‘¥ Manage Members
+                👥 Manage Members
               </button>
             )}
           </div>
@@ -375,7 +396,7 @@ export default function ChatPage() {
           <div className="flex-1 overflow-y-auto bg-gray-50 rounded-xl border border-gray-100 p-4 space-y-3 mb-3">
             {messages.length === 0 && (
               <div className="text-center py-16">
-                <p className="text-3xl mb-2">ðŸ’¬</p>
+                <p className="text-3xl mb-2">💬</p>
                 <p className="text-gray-500 font-medium">No messages yet</p>
                 <p className="text-gray-400 text-sm">Start the conversation</p>
               </div>
@@ -465,11 +486,11 @@ export default function ChatPage() {
           <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[85vh] overflow-y-auto">
             <p className="text-xl font-bold text-gray-900 mb-4">Manage Members</p>
 
-            <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Current Members ({selectedGroup.members.length})</label>
+            <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Current Members({selectedGroup.members.length})</label>
             <div className="mb-5 border rounded-lg divide-y">
               {selectedGroup.members.map(m => (
                 <div key={m.user_id} className="flex items-center gap-3 p-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-xs">{m.full_name.charAt(0)}</div>
+                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-centertext-white font-bold text-xs">{m.full_name.charAt(0)}</div>
                   <span className="flex-1 text-sm font-semibold text-gray-900">{m.full_name}{m.user_id === userId ? " (you)" : ""}</span>
                   {m.user_id !== userId && (
                     <button onClick={() => removeMemberFromGroup(m.user_id)} className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-red-50 text-red-600">
@@ -486,7 +507,7 @@ export default function ChatPage() {
                 <p className="text-sm text-gray-400 py-3 text-center">Everyone is already in this group.</p>
               ) : availableToAdd.map(s => (
                 <button key={s.user_id} onClick={() => addMemberToGroup(s)} className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-50">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs ${roleBg(s.role)}`}>{s.full_name.charAt(0)}</div>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-whitefont-bold text-xs ${roleBg(s.role)}`}>{s.full_name.charAt(0)}</div>
                   <div className="flex-1">
                     <p className="text-sm font-semibold text-gray-900">{s.full_name}</p>
                     <p className="text-xs text-gray-400">{s.role?.toUpperCase()}</p>
@@ -503,6 +524,3 @@ export default function ChatPage() {
     </div>
   );
 }
-
-
-

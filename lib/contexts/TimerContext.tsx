@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
+import { supabase } from "@/lib/supabase/client";
 
 export type TimerType = "session" | "bathroom" | "dra" | "activity" | "custom";
 export type SoundOption = "chime" | "bell" | "ding" | "soft" | "none";
@@ -86,6 +87,21 @@ function playSound(sound: SoundOption) {
   } catch {}
 }
 
+// Fire-and-forget push notification so the user is alerted even if this tab
+// is backgrounded. Never throws — a failed push should never break the timer.
+async function notifyTimerComplete(label: string) {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return;
+    fetch("/api/push/notify-timer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ label, url: "/dashboard/timers" }),
+    }).catch(() => {});
+  } catch {}
+}
+
 const STORAGE_KEY = "aba_timers";
 const SOUND_KEY = "aba_timer_sound";
 
@@ -140,6 +156,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
             const remaining = t.durationSeconds - elapsed;
             if (remaining <= 0 && !t.alerted) {
               playSound(soundRef.current);
+              notifyTimerComplete(t.label);
               return { ...t, elapsed, alerted: true };
             }
           }

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
@@ -42,6 +42,21 @@ type GroupMessage = {
   user_id: string;
   created_at: string;
 };
+
+// Fire-and-forget push notification to group chat recipients. Never throws —
+// a failed push should never block or roll back a sent message.
+async function notifyChat(groupId: string, message: string) {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return;
+    fetch("/api/push/notify-chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ kind: "group", groupId, message, url: "/parent/dashboard" }),
+    }).catch(() => {});
+  } catch {}
+}
 
 export default function ParentDashboardPage() {
   const router = useRouter();
@@ -172,7 +187,7 @@ export default function ParentDashboardPage() {
 
       (memberRows ?? []).forEach((m: any) => {
         if (!membersByGroup[m.group_chat_id]) membersByGroup[m.group_chat_id] = [];
-        membersByGroup[m.group_chat_id].push({ user_id: m.user_id, full_name: m.profiles?.full_name ?? "Unknown" });
+        membersByGroup[m.group_chat_id].push({ user_id: m.user_id, full_name: m.profiles?.full_name?? "Unknown" });
       });
     }
 
@@ -251,6 +266,8 @@ export default function ParentDashboardPage() {
 
     if (error) {
       setGroupMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
+    } else {
+      notifyChat(selectedGroup.id, text);
     }
     setSendingGroupMessage(false);
   }
@@ -319,7 +336,7 @@ export default function ParentDashboardPage() {
           <div className="text-center py-12 border border-dashed border-gray-200 rounded-2xl bg-white">
             <p className="text-4xl mb-3">Note</p>
             <p className="font-semibold text-gray-700">No clients linked to your account</p>
-            <p className="text-sm text-gray-400 mt-1">Contact your clinic to link your child&apos;s profile.</p>
+            <p className="text-sm text-gray-400 mt-1">Contact your clinic to link your child&apos;sprofile.</p>
           </div>
         ) : (
           <>
@@ -327,7 +344,7 @@ export default function ParentDashboardPage() {
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {clients.map(c => (
                   <button key={c.id} onClick={() => loadClientData(c)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${selectedClient?.id === c.id ? "bg-blue-600 text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-blue-300"}`}>
+                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${selectedClient?.id === c.id ? "bg-blue-600 text-white" : "bg-white border border-gray-200text-gray-600 hover:border-blue-300"}`}>
                     {c.full_name}
                   </button>
                 ))}
@@ -369,7 +386,7 @@ export default function ParentDashboardPage() {
                           <p className="text-sm font-medium text-gray-800">
                             {s.date ? new Date(s.date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) : new Date(s.created_at).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
                           </p>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.status === "completed" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.status=== "completed" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
                             {s.status}
                           </span>
                         </div>
@@ -418,7 +435,7 @@ export default function ParentDashboardPage() {
                       <div key={doc.id} className="bg-white border border-gray-100 rounded-xl p-4 flex justify-between items-center">
                         <div>
                           <p className="text-sm font-medium text-gray-800">{doc.name}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">{doc.file_type ?? "Document"} - {new Date(doc.created_at).toLocaleDateString()}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{doc.file_type ?? "Document"}- {new Date(doc.created_at).toLocaleDateString()}</p>
                         </div>
                         {doc.file_url && (
                           <button onClick={() => window.open(doc.file_url!, "_blank")}
@@ -462,12 +479,12 @@ export default function ParentDashboardPage() {
                           <button onClick={() => setSelectedGroup(null)} className="text-sm text-blue-600 font-medium">
                             Back
                           </button>
-                          <p className="font-semibold text-gray-800 text-sm">{selectedGroup.name || "Unnamed Group"}</p>
+                          <p className="font-semibold text-gray-800 text-sm">{selectedGroup.name ||"Unnamed Group"}</p>
                           <div style={{ width: 40 }} />
                         </div>
                         <div className="flex-1 overflow-y-auto p-3 space-y-2">
                           {groupMessages.map((m) => (
-                            <div key={m.id} className={`flex ${m.user_id === userId ? "justify-end" : "justify-start"}`}>
+                            <div key={m.id} className={`flex ${m.user_id === userId ? "justify-end": "justify-start"}`}>
                               <div className={`max-w-[75%] rounded-xl px-3 py-2 ${m.user_id === userId ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-800"}`}>
                                 {m.user_id !== userId && <p className="text-xs font-semibold mb-0.5">{m.sender_name}</p>}
                                 <p className="text-sm">{m.message}</p>
@@ -568,4 +585,3 @@ export default function ParentDashboardPage() {
     </div>
   );
 }
-

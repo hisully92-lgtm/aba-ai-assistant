@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -36,6 +36,25 @@ const QUICK_MESSAGES = [
 
 const PRIVILEGED_ROLES = ["bcba", "admin", "clinical_director"];
 
+// Fire-and-forget push notification to chat recipients. Never throws —
+// a failed push should never block or roll back a sent message.
+async function notifyChat(
+  kind: "team" | "group" | "channel",
+  opts: { clientId?: string; groupId?: string; channel?: "students" | "supervisors"; companyId?: string },
+  message: string
+) {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return;
+    fetch("/api/push/notify-chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ kind, ...opts, message, url: "/app/chat" }),
+    }).catch(() => {});
+  } catch {}
+}
+
 export default function ChatPage() {
   const [mode, setMode] = useState<ChatMode>("team");
   const [clients, setClients] = useState<Client[]>([]);
@@ -67,7 +86,7 @@ export default function ChatPage() {
   useEffect(() => {
     if (mode === "team" && selectedClient) {
       const channel = supabase.channel(`chat-${selectedClient.id}`)
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "client_team_messages", filter: `client_id=eq.${selectedClient.id}` },
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "client_team_messages",filter: `client_id=eq.${selectedClient.id}` },
           (payload: any) => { setMessages(prev => [...prev, payload.new as Message]); setTimeout(scrollToEnd, 100); })
         .subscribe();
       return () => { supabase.removeChannel(channel); };
@@ -109,7 +128,7 @@ export default function ChatPage() {
     setUserId(user.id);
     const [{ data: profile }, { data: cu }] = await Promise.all([
       supabase.from("profiles").select("full_name, role").eq("id", user.id).single(),
-      supabase.from("company_users").select("company_id, role").eq("user_id", user.id).eq("status", "active").limit(1).maybeSingle(),
+      supabase.from("company_users").select("company_id, role").eq("user_id", user.id).eq("status","active").limit(1).maybeSingle(),
     ]);
     setUserName(profile?.full_name ?? "");
     setUserRole(cu?.role ?? profile?.role ?? "");
@@ -165,7 +184,7 @@ export default function ChatPage() {
         .in("group_chat_id", groupIds);
       (memberRows ?? []).forEach((m: any) => {
         if (!membersByGroup[m.group_chat_id]) membersByGroup[m.group_chat_id] = [];
-        membersByGroup[m.group_chat_id].push({ user_id: m.user_id, full_name: m.profiles?.full_name ?? "Unknown", role: "" });
+        membersByGroup[m.group_chat_id].push({ user_id: m.user_id, full_name: m.profiles?.full_name?? "Unknown", role: "" });
       });
     }
 
@@ -261,16 +280,19 @@ export default function ChatPage() {
         client_id: selectedClient.id, user_id: userId, message: text, sender_name: userName, sender_role: userRole,
       });
       if (error) { setMessages(prev => prev.filter(m => m.id !== optimistic.id)); alert(error.message); }
+      else notifyChat("team", { clientId: selectedClient.id }, text);
     } else if (mode === "groups" && selectedGroup) {
       const { error } = await supabase.from("group_chat_messages").insert({
         group_chat_id: selectedGroup.id, user_id: userId, message: text, sender_name: userName, sender_role: userRole,
       });
       if (error) { setMessages(prev => prev.filter(m => m.id !== optimistic.id)); alert(error.message); }
+      else notifyChat("group", { groupId: selectedGroup.id }, text);
     } else {
       const { error } = await supabase.from("student_chat_messages").insert({
         company_id: companyId, user_id: userId, message: text, sender_name: userName, sender_role: userRole, channel: mode,
       });
       if (error) { setMessages(prev => prev.filter(m => m.id !== optimistic.id)); alert(error.message); }
+      else notifyChat("channel", { channel: mode as "students" | "supervisors", companyId }, text);
     }
     setSending(false);
   }
@@ -332,12 +354,12 @@ export default function ChatPage() {
             )}
             {groups.length === 0 ? (
               <div className="flex flex-col items-center py-16">
-                <p className="text-4xl mb-3">ðŸ‘¥</p>
+                <p className="text-4xl mb-3">👥</p>
                 <p className="text-sm text-gray-400 text-center">No groups yet.{isPrivileged ? " Tap + New Group to create one." : " Ask a BCBA or admin to add you to one."}</p>
               </div>
             ) : groups.map(g => (
-              <button key={g.id} onClick={() => selectGroup(g)} className="w-full flex items-center gap-3 bg-white rounded-xl p-3.5 mb-2 shadow-sm text-left">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style={{ backgroundColor: "#7c3aed" }}>ðŸ‘¥</div>
+              <button key={g.id} onClick={() => selectGroup(g)} className="w-full flex items-centergap-3 bg-white rounded-xl p-3.5 mb-2 shadow-sm text-left">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style={{ backgroundColor: "#7c3aed" }}>👥</div>
                 <div className="flex-1">
                   <p className="text-[15px] font-semibold text-gray-900">{groupLabel(g)}</p>
                   <p className="text-xs text-gray-400 mt-0.5">{g.members.length} member{g.members.length !== 1 ? "s" : ""}</p>
@@ -364,14 +386,14 @@ export default function ChatPage() {
                 </button>
                 {isPrivileged && (
                   <button onClick={openManageMembers} className="text-xs font-semibold px-3 py-1.5 rounded-full" style={{ backgroundColor: "#2563eb", color: "#fff" }}>
-                    ðŸ‘¥ Manage
+                    👥 Manage
                   </button>
                 )}
               </div>
             )}
 
             {(mode === "students" || mode === "supervisors") && (
-              <div className="px-4 py-2 border-b" style={{ backgroundColor: "#eff6ff", borderColor: "#dbeafe" }}>
+              <div className="px-4 py-2 border-b" style={{ backgroundColor: "#eff6ff", borderColor:"#dbeafe" }}>
                 <p className="text-xs" style={{ color: "#3b82f6" }}>
                   {mode === "students" ? "Chat with other student analysts" : "Chat with BCBAs, supervisors, and directors"}
                 </p>
@@ -391,7 +413,7 @@ export default function ChatPage() {
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4" style={{ minHeight: 300, maxHeight: "50vh" }}>
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center py-16">
-                  <p className="text-4xl mb-3">ðŸ’¬</p>
+                  <p className="text-4xl mb-3">💬</p>
                   <p className="text-sm text-gray-400 text-center">No messages yet. Start the conversation!</p>
                 </div>
               ) : (
@@ -407,7 +429,7 @@ export default function ChatPage() {
                       <div className="max-w-[75%] rounded-2xl p-3 shadow-sm" style={isMe ? { backgroundColor: "#2563eb", borderBottomRightRadius: 4 } : { backgroundColor: "#fff", borderBottomLeftRadius: 4 }}>
                         {!isMe && <p className="text-[11px] font-bold mb-1" style={{ color: roleColor(item.sender_role) }}>{item.sender_name ?? "Unknown"} - {item.sender_role?.toUpperCase()}</p>}
                         <p className="text-sm leading-relaxed" style={{ color: isMe ? "#fff" : "#111827" }}>{item.message}</p>
-                        <p className="text-[10px] mt-1 text-right" style={{ color: isMe ? "#93c5fd" : "#9ca3af" }}>{new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                        <p className="text-[10px] mt-1 text-right" style={{ color: isMe ? "#93c5fd": "#9ca3af" }}>{new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
                       </div>
                     </div>
                   );
@@ -419,7 +441,7 @@ export default function ChatPage() {
               <textarea value={messageText} onChange={e => setMessageText(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                 placeholder={mode === "team" ? "Message the team..." : mode === "students" ? "Message students..." : mode === "groups" ? "Message the group..." : "Message supervisors..."}
-                className="flex-1 border border-gray-300 rounded-2xl px-4 py-2.5 text-sm bg-gray-50 resize-none" style={{ maxHeight: 100 }} rows={1} />
+                className="flex-1 border border-gray-300 rounded-2xl px-4 py-2.5 text-sm bg-gray-50resize-none" style={{ maxHeight: 100 }} rows={1} />
               <button onClick={() => handleSend()} disabled={!messageText.trim() || sending}
                 className="w-10 h-10 rounded-full flex items-center justify-center text-white text-lg font-bold shrink-0 disabled:opacity-50"
                 style={{ backgroundColor: !messageText.trim() ? "#93c5fd" : "#2563eb" }}>
@@ -513,5 +535,3 @@ export default function ChatPage() {
     </AppShell>
   );
 }
-
-
