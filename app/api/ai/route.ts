@@ -58,8 +58,28 @@ export async function POST(req: Request) {
       );
     }
 
-    // AUTH
-    const { data: auth } = await supabaseAdmin.auth.getUser();
+    // AUTH — extract the caller's Bearer token and resolve the real user.
+    // supabaseAdmin is a service-role client with no request-bound session,
+    // so auth.getUser() with no token never identifies anyone; it must be
+    // passed the token explicitly, same pattern used in the push routes.
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.replace("Bearer ", "");
+
+    if (!token) {
+      await safe(logAccess, {
+        userId: "anonymous",
+        resource: "api/ai",
+        action: "read",
+        ip,
+        metadata: { reason: "missing_token" },
+      });
+      return NextResponse.json(
+        { error: "Unauthorized", code: "UNAUTHORIZED" },
+        { status: 401 }
+      );
+    }
+
+    const { data: auth } = await supabaseAdmin.auth.getUser(token);
     user = auth?.user;
 
     if (!user) {

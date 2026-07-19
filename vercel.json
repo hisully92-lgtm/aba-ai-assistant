@@ -19,6 +19,10 @@
     {
       "path": "/api/cron/schedule-reminders",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/queue/worker",
+      "schedule": "*/2 * * * *"
     }
   ]
 }

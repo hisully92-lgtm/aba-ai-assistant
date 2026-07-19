@@ -95,9 +95,9 @@ const TEMPLATES: Record<string, any> = {
 const CPT_BY_ROLE: Record<string, { code: string; label: string }[]> = {
   bt: [{ code: "97153", label: "97153 — Adaptive Behavior Treatment (BT)" }, { code: "97154", label: "97154 — Group ABA Treatment" }],
   rbt: [{ code: "97153", label: "97153 — Adaptive Behavior Treatment (RBT)" }, { code: "97154", label: "97154 — Group ABA Treatment" }],
-  bcba: [{ code: "97151", label: "97151 — Behavior Identification Assessment" }, { code: "97155", label: "97155 — Protocol Modification by BCBA" }, { code: "97156", label: "97156 — Family Guidance by BCBA" }, { code: "97157", label: "97157 — Multiple Family Group" }, { code: "97158", label: "97158 — Group Protocol Modification" }],
+  bcba: [{ code: "97151", label: "97151 — Behavior Identification Assessment" }, { code: "97155",label: "97155 — Protocol Modification by BCBA" }, { code: "97156", label: "97156 — Family Guidance by BCBA" }, { code: "97157", label: "97157 — Multiple Family Group" }, { code: "97158", label:"97158 — Group Protocol Modification" }],
   bcaba: [{ code: "97155", label: "97155 — Protocol Modification by BCaBA" }, { code: "97156", label: "97156 — Family Guidance" }],
-  supervisor: [{ code: "97155", label: "97155 — Protocol Modification" }, { code: "97151", label: "97151 — Behavior Identification Assessment" }],
+  supervisor: [{ code: "97155", label: "97155 — Protocol Modification" }, { code: "97151", label:"97151 — Behavior Identification Assessment" }],
 };
 
 function detectRole(staffMember: string): string {
@@ -183,6 +183,12 @@ export default function SessionsPage() {
   const [showSOAP, setShowSOAP] = useState(false);
   const [soap, setSoap] = useState({ subjective: "", objective: "", assessment: "", plan: "" });
 
+  // AI NOTE GENERATION
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiNoteText, setAiNoteText] = useState<string | null>(null);
+  const aiPollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     init();
     const savedStart = localStorage.getItem("session_timer_start");
@@ -193,14 +199,15 @@ export default function SessionsPage() {
       setSessionStartTime(new Date(Number(savedStart)).toISOString());
       setShowForm(true);
     }
+    return () => { if (aiPollRef.current) clearTimeout(aiPollRef.current); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!timerRunning) return;
-    const tick = () => { if (timerStartRef.current !== null) setTimerSeconds(Math.floor((Date.now() - timerStartRef.current) / 1000)); };
+    const tick = () => { if (timerStartRef.current !== null) setTimerSeconds(Math.floor((Date.now()- timerStartRef.current) / 1000)); };
     const interval = setInterval(tick, 500);
     document.addEventListener("visibilitychange", tick);
-    return () => { clearInterval(interval); document.removeEventListener("visibilitychange", tick); };
+    return () => { clearInterval(interval); document.removeEventListener("visibilitychange", tick);};
   }, [timerRunning]);
 
   useEffect(() => {
@@ -238,7 +245,7 @@ export default function SessionsPage() {
   function recordBehavior(name: string, behaviorId: string | null, severityId: string | null, severityLabel: string | null, isCustom: boolean) {
     setBehaviorEntries(prev => {
       const existing = prev.find(e => e.behaviorName === name && e.severityId === severityId);
-      if (existing) return prev.map(e => e.behaviorName === name && e.severityId === severityId ? { ...e, frequency: e.frequency + 1 } : e);
+      if (existing) return prev.map(e => e.behaviorName === name && e.severityId === severityId ? {...e, frequency: e.frequency + 1 } : e);
       return [...prev, { behaviorId, behaviorName: name, severityId, severityLabel, frequency: 1, isCustom }];
     });
     setSeverityModal(null);
@@ -282,6 +289,118 @@ export default function SessionsPage() {
     setTimerRunning(false); setTimerSeconds(0); timerStartRef.current = null;
     setSessionStartTime(null); setSessionEndTime(null);
     setShowForm(false); setSelectedTemplate(null); setActiveTarget(null);
+    setAiGenerating(false); setAiError(null); setAiNoteText(null);
+    if (aiPollRef.current) { clearTimeout(aiPollRef.current); aiPollRef.current = null; }
+  }
+
+  // =========================
+  // AI NOTE GENERATION
+  // =========================
+  async function generateAINote() {
+    if (!clientId) { setAiError("Select a client first."); return; }
+    setAiGenerating(true);
+    setAiError(null);
+    setAiNoteText(null);
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) { setAiError("Not authenticated."); setAiGenerating(false); return; }
+
+      const clientName = clients.find(c => c.id === clientId)?.full_name ?? "Client";
+      const behaviorsStr = behaviorEntries.map(e => `${e.behaviorName}${e.severityLabel ? ` (${e.severityLabel})` : ""} x${e.frequency}`).join(", ") || selectedPrograms.join(", ") || "No behaviors observed";
+      const trialsStr = [...new Set(trialEntries.map(t => `${t.programName}: ${t.targetName}`))].join(", ") || selectedPrograms.join(", ");
+
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          type: "note",
+          client_id: clientId,
+          client_name: clientName,
+          behaviors_observed: behaviorsStr,
+          interventions_used: selectedInterventions.join(", "),
+          client_response: clientResponse,
+          programs_targeted: trialsStr,
+          date,
+          staff_member: staffMember,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setAiError(data?.error || "Failed to generate note.");
+        setAiGenerating(false);
+        return;
+      }
+
+      if (data.cached && data.result) {
+        applyAIResult(data.result);
+        setAiGenerating(false);
+        return;
+      }
+
+      if (data.jobId) {
+        pollJob(data.jobId, token, 0);
+      } else {
+        setAiError("No job was queued.");
+        setAiGenerating(false);
+      }
+    } catch (err: any) {
+      setAiError(err?.message || "Failed to generate note.");
+      setAiGenerating(false);
+    }
+  }
+
+  function applyAIResult(result: any) {
+    const text = typeof result === "string" ? result : result?.text;
+    if (text) setAiNoteText(text);
+    else setAiError("AI returned an empty result.");
+  }
+
+  async function pollJob(jobId: string, token: string, attempt: number) {
+    const MAX_ATTEMPTS = 20; // ~2 minutes at 6s intervals
+    if (attempt >= MAX_ATTEMPTS) {
+      setAiError("Note is taking longer than expected. Check back shortly.");
+      setAiGenerating(false);
+      return;
+    }
+    aiPollRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/jobs/status?id=${jobId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          setAiError(data?.error || "Failed to check note status.");
+          setAiGenerating(false);
+          return;
+        }
+
+        if (data.job?.status === "complete") {
+          applyAIResult(data.job.result);
+          setAiGenerating(false);
+          return;
+        }
+        if (data.job?.status === "dead") {
+          setAiError(data.job.error || "AI note generation failed.");
+          setAiGenerating(false);
+          return;
+        }
+        // still pending/processing — poll again
+        pollJob(jobId, token, attempt + 1);
+      } catch (err: any) {
+        setAiError(err?.message || "Failed to check note status.");
+        setAiGenerating(false);
+      }
+    }, 6000);
+  }
+
+  function insertAINoteIntoNotes() {
+    if (!aiNoteText) return;
+    setNotes(prev => (prev ? `${prev}\n\n${aiNoteText}` : aiNoteText));
   }
 
   async function handleSave() {
@@ -385,7 +504,7 @@ export default function SessionsPage() {
                 <p className="text-xs text-gray-400 mb-2">Recent durations — click to reuse:</p>
                 <div className="flex flex-wrap gap-2">
                   {recentDurations.map((d, i) => (
-                    <button key={i} type="button" onClick={() => { const now = Date.now(); timerStartRef.current = now - d * 1000; localStorage.setItem("session_timer_start", String(now - d * 1000)); setTimerSeconds(d); setTimerRunning(true); setSessionStartTime(new Date(now - d * 1000).toISOString()); }}
+                    <button key={i} type="button" onClick={() => { const now = Date.now(); timerStartRef.current = now - d * 1000; localStorage.setItem("session_timer_start", String(now - d * 1000));setTimerSeconds(d); setTimerRunning(true); setSessionStartTime(new Date(now - d * 1000).toISOString()); }}
                       className="text-xs px-2 py-1 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-100">{formatTimer(d)}</button>
                   ))}
                 </div>
@@ -635,8 +754,45 @@ export default function SessionsPage() {
           <div className="mt-4">
             <label className="text-sm font-medium text-gray-700 mb-1 block">Session Notes</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Additional session notes..." rows={3}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2focus:ring-blue-300" />
           </div>
+
+          {/* AI SESSION NOTE GENERATION */}
+          {aiGate.allowed ? (
+            <div className="mt-4 border border-purple-100 rounded-xl p-4 bg-purple-50">
+              <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                <p className="text-sm font-semibold text-purple-700">✨ AI Session Note</p>
+                <Button
+                  onClick={generateAINote}
+                  loading={aiGenerating}
+                  disabled={!clientId}
+                  variant="secondary"
+                >
+                  Generate AI Note
+                </Button>
+              </div>
+              <p className="text-xs text-purple-500 mb-2">
+                Uses the behaviors, interventions, and programs entered above to draft a clinical, insurance-ready note.
+              </p>
+              {aiGenerating && (
+                <p className="text-xs text-purple-600">Generating your note — this can take up to a minute...</p>
+              )}
+              {aiError && <p className="text-xs text-red-600 mt-1">{aiError}</p>}
+              {aiNoteText && (
+                <div className="mt-3 bg-white border border-purple-200 rounded-lg p-3">
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{aiNoteText}</p>
+                  <button type="button" onClick={insertAINoteIntoNotes}
+                    className="mt-3 text-xs font-semibold px-3 py-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700">
+                    Insert into Session Notes
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="mt-4">
+              <UpgradePrompt reason={`AI-generated session notes require the Professional plan or higher. You are on the ${planName} plan.`} upgradeTo={aiGate.upgradeTo} feature="AI Session Notes" inline />
+            </div>
+          )}
 
           {/* SOAP */}
           {aiGate.allowed ? (
@@ -663,11 +819,7 @@ export default function SessionsPage() {
                 </div>
               )}
             </div>
-          ) : (
-            <div className="mt-4">
-              <UpgradePrompt reason={`AI-powered SOAP notes require the Professional plan or higher. You are on the ${planName} plan.`} upgradeTo={aiGate.upgradeTo} feature="AI SOAP Notes" inline />
-            </div>
-          )}
+          ) : null}
 
           <div className="mt-4 flex gap-2 flex-wrap">
             <Button onClick={handleSave} loading={saving}>Save Session Note</Button>
@@ -722,7 +874,7 @@ export default function SessionsPage() {
                 <p className="font-semibold text-gray-800 truncate">{clientMap.get(session.client_id) ?? "Unknown"}</p>
                 <div className="flex flex-wrap gap-2 mt-0.5 text-xs text-gray-400">
                   <span>{session.date ?? new Date(session.created_at).toLocaleDateString()}</span>
-                  {session.start_time && <span>{new Date(session.start_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}{session.end_time && ` → ${new Date(session.end_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}</span>}
+                  {session.start_time && <span>{new Date(session.start_time).toLocaleTimeString([],{ hour: "2-digit", minute: "2-digit" })}{session.end_time && ` → ${new Date(session.end_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}</span>}
                   {session.cpt_code && <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded font-medium">{session.cpt_code}</span>}
                 </div>
                 {session.behaviors_observed && <p className="text-xs text-gray-500 mt-1 truncate">Behaviors: {session.behaviors_observed}</p>}
@@ -782,13 +934,13 @@ export default function SessionsPage() {
 function GeofenceCheck() {
   const [status, setStatus] = useState<"idle" | "checking" | "inside" | "skipped">("idle");
   if (status === "inside") return <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4 text-xs font-medium text-green-700">✓ Location verified — you are at the session location</div>;
-  if (status === "skipped") return <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-4 text-xs text-gray-500">📍 Location check skipped</div>;
+  if (status === "skipped") return <div className="bg-gray-50 border border-gray-200 rounded-xl p-3mb-4 text-xs text-gray-500">📍 Location check skipped</div>;
   return (
     <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <p className="text-xs font-semibold text-gray-700">📍 Location Verification</p>
-          <p className="text-xs text-gray-500 mt-0.5">Verify you are at the session location before starting.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Verify you are at the session location beforestarting.</p>
         </div>
         <div className="flex gap-2">
           <button type="button" onClick={() => { setStatus("checking"); navigator.geolocation.getCurrentPosition(() => setStatus("inside"), () => setStatus("skipped")); }}
@@ -796,7 +948,7 @@ function GeofenceCheck() {
             className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
             {status === "checking" ? "Checking..." : "Check Location"}
           </button>
-          <button type="button" onClick={() => setStatus("skipped")} className="text-xs px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-100">Skip</button>
+          <button type="button" onClick={() => setStatus("skipped")} className="text-xs px-3 py-1.5border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-100">Skip</button>
         </div>
       </div>
     </div>
