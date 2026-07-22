@@ -149,9 +149,10 @@ export default function HomePage() {
           <h2 className="text-3xl font-bold text-gray-900 mb-4">Simple, honest pricing</h2>
           <p className="text-gray-500 mb-4">Contracts of 3+ months include a free first month.</p>
           <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-4 py-2 rounded-full text-sm font-medium mb-12">Free first month on 3+ month contracts</div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             {[
               { name: "Starter", icon: "🌱", price: "$199", desc: "Small teams (2+ clinicians)", features: ["Up to 2 clinicians", "10 clients", "1 location", "Session notes"], highlight: false },
+              { name: "Basic", icon: "🌿", price: "$299", desc: "Small practices, growing client base", features: ["3 clinicians", "25 clients", "1 location", "AI session notes"], highlight: false },
               { name: "Professional", icon: "⚡", price: "$449", desc: "Growing practices", features: ["5 clinicians", "Unlimited clients", "2 locations", "AI features"], highlight: true },
               { name: "Growth", icon: "📈", price: "$649", desc: "Mid-size clinics", features: ["25 clinicians", "Unlimited clients", "5 locations", "Advanced reports"], highlight: false },
               { name: "Enterprise", icon: "🏢", price: "$849", desc: "Large organizations", features: ["75 clinicians", "Unlimited clients", "15 locations", "EDI claims"], highlight: false },
