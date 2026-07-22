@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -36,6 +36,17 @@ type Assignment = {
   is_primary: boolean;
 };
 
+type Addon = {
+  id: string;
+  company_id: string;
+  location_id: string | null;
+  addon_type: string;
+  status: string;
+  monthly_price: number;
+  included_units: number;
+  overage_rate: number;
+};
+
 const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 
 const emptyForm = {
@@ -43,10 +54,34 @@ const emptyForm = {
   phone: "", lat: "", lng: "", radius: "300",
 };
 
+// Estimate based on ~45-min average telehealth session, 5-10 sessions/week/staff,
+// 3-4 SMS/day/staff, ~4.33 weeks and ~22 business days per month.
+// Video: $0.004/participant-minute actual cost, $60/mo base w/ 3,000 min included, $0.025/min overage.
+// SMS: ~$0.0125/segment actual cost, $35/mo base w/ 2,000 segments included, $0.02/segment overage.
+function estimateAddonCost(staffCount: number) {
+  if (staffCount <= 0) return null;
+
+  const videoMinLow = staffCount * 5 * 45 * 4.33;
+  const videoMinHigh = staffCount * 10 * 45 * 4.33;
+  const videoCostLow = 60 + Math.max(0, videoMinLow - 3000) * 0.025;
+  const videoCostHigh = 60 + Math.max(0, videoMinHigh - 3000) * 0.025;
+
+  const smsMsgsLow = staffCount * 3 * 22;
+  const smsMsgsHigh = staffCount * 4 * 22;
+  const smsCostLow = 35 + Math.max(0, smsMsgsLow - 2000) * 0.02;
+  const smsCostHigh = 35 + Math.max(0, smsMsgsHigh - 2000) * 0.02;
+
+  return {
+    video: { low: Math.round(videoCostLow), high: Math.round(videoCostHigh) },
+    sms: { low: Math.round(smsCostLow), high: Math.round(smsCostHigh) },
+  };
+}
+
 export default function LocationsPage() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [addons, setAddons] = useState<Addon[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -61,6 +96,9 @@ export default function LocationsPage() {
   const { canAddLocation, limits, planName } = usePlanGate();
   const [urlMessage, setUrlMessage] = useState<string | null>(null);
   const [requestSent, setRequestSent] = useState(false);
+  const [requestingAddon, setRequestingAddon] = useState<string | null>(null); // `${locationId}:${addonType}`
+  const [addonError, setAddonError] = useState<string | null>(null);
+  const [addonMessage, setAddonMessage] = useState<string | null>(null);
 
   useEffect(() => { init(); }, []);
 
@@ -88,15 +126,17 @@ export default function LocationsPage() {
       .single();
     if (company) setCompanyName(company.name);
 
-    const [{ data: locData }, { data: profileData }, { data: assignData }] = await Promise.all([
+    const [{ data: locData }, { data: profileData }, { data: assignData }, { data: addonData }] = await Promise.all([
       supabase.from("locations").select("*").eq("company_id", companyUser.company_id).order("name"),
       supabase.from("profiles").select("id, full_name, role, email"),
       supabase.from("user_location_assignments").select("user_id, location_id, is_primary"),
+      supabase.from("company_addons").select("*").eq("company_id", companyUser.company_id).not("location_id", "is", null),
     ]);
 
     setLocations(locData ?? []);
     setProfiles(profileData ?? []);
     setAssignments(assignData ?? []);
+    setAddons(addonData ?? []);
     setLoading(false);
   }
 
@@ -223,6 +263,42 @@ export default function LocationsPage() {
     return profiles.filter(p => isAssigned(p.id, locationId));
   }
 
+  function getAddonForLocation(locationId: string, addonType: string): Addon | undefined {
+    return addons.find(a => a.location_id === locationId && a.addon_type === addonType);
+  }
+
+  async function requestAddon(location: Location, addonType: "telehealth_video" | "sms") {
+    if (!companyId) return;
+    const key = `${location.id}:${addonType}`;
+    setRequestingAddon(key);
+    setAddonError(null);
+    setAddonMessage(null);
+
+    const res = await fetch("/api/admin/request-addon", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        companyId,
+        companyName,
+        locationId: location.id,
+        locationName: location.name,
+        addonType,
+        requestedBy: userId,
+      }),
+    });
+
+    const result = await res.json();
+    if (!res.ok) {
+      setAddonError(result.error ?? "Failed to request add-on.");
+      setRequestingAddon(null);
+      return;
+    }
+
+    setAddons(prev => [...prev, result.addon]);
+    setAddonMessage(`${addonType === "telehealth_video" ? "Video" : "SMS"} add-on requested for ${location.name}. Our team will follow up to set up billing.`);
+    setRequestingAddon(null);
+  }
+
   const roleColor: Record<string, string> = {
     admin: "bg-red-100 text-red-700",
     director: "bg-purple-100 text-purple-700",
@@ -250,6 +326,17 @@ export default function LocationsPage() {
       {requestSent && (
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700">
           Location added. Our team will follow up to set up billing for this location.
+        </div>
+      )}
+
+      {addonMessage && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700">
+          {addonMessage}
+        </div>
+      )}
+      {addonError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+          {addonError}
         </div>
       )}
 
@@ -356,6 +443,9 @@ export default function LocationsPage() {
           const assignedUsers = getUsersForLocation(loc.id);
           const isExpanded = expandedLocation === loc.id;
           const hasCoords = loc.lat && loc.lng;
+          const estimate = estimateAddonCost(assignedUsers.length);
+          const videoAddon = getAddonForLocation(loc.id, "telehealth_video");
+          const smsAddon = getAddonForLocation(loc.id, "sms");
 
           return (
             <div key={loc.id} className={"border rounded-xl bg-white " + (!loc.is_active ? "opacity-60 border-gray-100" : "border-gray-200")}>
@@ -422,6 +512,70 @@ export default function LocationsPage() {
                   </div>
                 </div>
 
+                {/* VIDEO & SMS ADD-ONS */}
+                <div className="mt-4 border-t border-gray-100 pt-4">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">Video & SMS Add-ons for {loc.name}</p>
+                  {assignedUsers.length === 0 ? (
+                    <p className="text-xs text-gray-400">Assign staff to this location to see estimated add-on costs.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {/* VIDEO */}
+                      <div className="border border-gray-100 rounded-lg p-3 bg-gray-50">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-sm font-medium text-gray-800">Telehealth Video</p>
+                          {videoAddon ? (
+                            <span className={"text-xs px-2 py-0.5 rounded-full font-medium " + (videoAddon.status === "active" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700")}>
+                              {videoAddon.status === "active" ? "Active" : "Pending"}
+                            </span>
+                          ) : (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Not enrolled</span>
+                          )}
+                        </div>
+                        {estimate && (
+                          <p className="text-xs text-gray-500 mb-2">
+                            Est. ${estimate.video.low}-${estimate.video.high}/mo based on {assignedUsers.length} staff (5-10 sessions/wk each, $60 base + usage)
+                          </p>
+                        )}
+                        {!videoAddon && (
+                          <button
+                            onClick={() => requestAddon(loc, "telehealth_video")}
+                            disabled={requestingAddon === `${loc.id}:telehealth_video`}
+                            className="text-xs px-3 py-1.5 border border-purple-200 text-purple-600 rounded-lg hover:bg-purple-50 disabled:opacity-50">
+                            {requestingAddon === `${loc.id}:telehealth_video` ? "Requesting..." : "Request Video Add-on"}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* SMS */}
+                      <div className="border border-gray-100 rounded-lg p-3 bg-gray-50">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-sm font-medium text-gray-800">SMS Notifications</p>
+                          {smsAddon ? (
+                            <span className={"text-xs px-2 py-0.5 rounded-full font-medium " + (smsAddon.status === "active" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700")}>
+                              {smsAddon.status === "active" ? "Active" : "Pending"}
+                            </span>
+                          ) : (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Not enrolled</span>
+                          )}
+                        </div>
+                        {estimate && (
+                          <p className="text-xs text-gray-500 mb-2">
+                            Est. ${estimate.sms.low}-${estimate.sms.high}/mo based on {assignedUsers.length} staff (3-4 texts/day each, $35 base + usage)
+                          </p>
+                        )}
+                        {!smsAddon && (
+                          <button
+                            onClick={() => requestAddon(loc, "sms")}
+                            disabled={requestingAddon === `${loc.id}:sms`}
+                            className="text-xs px-3 py-1.5 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 disabled:opacity-50">
+                            {requestingAddon === `${loc.id}:sms` ? "Requesting..." : "Request SMS Add-on"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {editingCoords === loc.id && (
                   <div className="mt-4 border border-blue-100 rounded-xl p-4 bg-blue-50">
                     <p className="text-sm font-semibold text-blue-700 mb-2">Geofence Coordinates</p>
@@ -472,7 +626,7 @@ export default function LocationsPage() {
                                 {(profile.full_name ?? "?")[0].toUpperCase()}
                               </div>
                               <div>
-                                <p className="text-sm font-medium text-gray-800">{profile.full_name ?? "Unknown"}</p>
+                                <p className="text-sm font-medium text-gray-800">{profile.full_name?? "Unknown"}</p>
                                 <div className="flex items-center gap-2 mt-0.5">
                                   {profile.role && (
                                     <span className={"text-xs px-2 py-0.5 rounded-full font-medium " + (roleColor[profile.role] ?? "bg-gray-100 text-gray-600")}>
