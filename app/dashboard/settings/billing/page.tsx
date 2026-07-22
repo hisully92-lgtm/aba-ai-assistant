@@ -39,13 +39,13 @@ const PLANS = [
     name: "Starter", type: "starter", icon: "1",
     description: "For small ABA teams of 2 or more getting started — purchased by your organization",
     pricing: { 1: 199, 3: 189, 6: 179, 9: 169, 12: 159 },
-    features: ["Up to 2 clinicians", "Up to 10 clients", "1 location", "Basic data collection", "Session notes", "Progress reports", "Email support"],
+    features: ["Up to 2 clinicians", "Up to 10 clients", "1 location", "Basic data collection", "Session notes", "Progress reports", "Parent portal", "Visual analytics + graphs", "Email support"],
   },
   {
     name: "Basic", type: "basic", icon: "2",
     description: "For small practices with a growing client base",
     pricing: { 1: 299, 3: 284, 6: 269, 9: 254, 12: 239 },
-    features: ["Up to 3 clinicians", "Up to 25 clients", "1 location", "All data collection tools", "AI session notes", "Parent portal", "Priority support"],
+    features: ["Up to 3 clinicians", "Up to 25 clients", "1 location", "All data collection tools", "AI session notes", "Parent portal", "Visual analytics + graphs", "Priority support"],
   },
   {
     name: "Professional", type: "professional", icon: "3", popular: true,

@@ -15,8 +15,8 @@ export const PLAN_LIMITS = {
 };
 
 export const PLAN_FEATURES = {
-  starter:      { ai: false, insurance: false, edi: false, quickbooks: false, customBranding: false, whiteLabel: false, api: false, safmeds: false, parentPortal: false, analytics: false },
-  basic:        { ai: true,  insurance: false, edi: false, quickbooks: false, customBranding: false, whiteLabel: false, api: false, safmeds: false, parentPortal: true,  analytics: false },
+  starter:      { ai: false, insurance: false, edi: false, quickbooks: false, customBranding: false, whiteLabel: false, api: false, safmeds: false, parentPortal: true,  analytics: true  },
+  basic:        { ai: true,  insurance: false, edi: false, quickbooks: false, customBranding: false, whiteLabel: false, api: false, safmeds: false, parentPortal: true,  analytics: true  },
   professional: { ai: true,  insurance: true,  edi: false, quickbooks: false, customBranding: false, whiteLabel: false, api: false, safmeds: true,  parentPortal: true,  analytics: true  },
   growth:       { ai: true,  insurance: true,  edi: false, quickbooks: false, customBranding: false, whiteLabel: false, api: false, safmeds: true,  parentPortal: true,  analytics: true  },
   enterprise:   { ai: true,  insurance: true,  edi: true,  quickbooks: true,  customBranding: true,  whiteLabel: false, api: false, safmeds: true,  parentPortal: true,  analytics: true  },
