@@ -1,97 +1,121 @@
 "use client";
 
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
+import Section from "@/components/ui/Section";
+import PageHeader from "@/components/layout/PageHeader";
+import Button from "@/components/ui/Button";
 
-const SETTINGS_SECTIONS = [
-  {
-    href: "/dashboard/settings/profile",
-    icon: "👤",
-    title: "My Profile",
-    desc: "Name, photo, credentials, license number",
-    color: "border-blue-100 hover:border-blue-300 hover:bg-blue-50",
-  },
-  {
-    href: "/dashboard/settings/security",
-    icon: "🔒",
-    title: "Security",
-    desc: "Password reset, magic link, two-factor authentication",
-    color: "border-purple-100 hover:border-purple-300 hover:bg-purple-50",
-  },
-  {
-    href: "/dashboard/settings/notifications",
-    icon: "🔔",
-    title: "Notifications",
-    desc: "Push notifications and in-app alert preferences",
-    color: "border-yellow-100 hover:border-yellow-300 hover:bg-yellow-50",
-  },
-  {
-    href: "/dashboard/settings/sms",
-    icon: "📱",
-    title: "SMS Alerts",
-    desc: "Text message alerts for sessions, pings, and reminders",
-    color: "border-green-100 hover:border-green-300 hover:bg-green-50",
-  },
-  {
-    href: "/dashboard/settings/billing",
-    icon: "💳",
-    title: "Plan & Billing",
-    desc: "Subscription plan, payment method, invoices",
-    color: "border-indigo-100 hover:border-indigo-300 hover:bg-indigo-50",
-  },
-  {
-    href: "/dashboard/locations",
-    icon: "📍",
-    title: "Locations",
-    desc: "Manage your clinic locations and addresses",
-    color: "border-orange-100 hover:border-orange-300 hover:bg-orange-50",
-  },
-  {
-    href: "/dashboard/settings/branding",
-    icon: "🎨",
-    title: "Custom Branding",
-    desc: "Logo, colors, and clinic identity (Enterprise+)",
-    color: "border-pink-100 hover:border-pink-300 hover:bg-pink-50",
-  },
-];
+export default function BrandingSettingsPage() {
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [orgName, setOrgName] = useState("");
+  const [originalName, setOriginalName] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-export default function SettingsPage() {
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    window.location.href = "/login";
+  useEffect(() => { init(); }, []);
+
+  async function init() {
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth?.user;
+    if (!user) { setLoading(false); return; }
+
+    const { data: companyUser } = await supabase
+      .from("company_users")
+      .select("company_id, role")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle();
+
+    if (!companyUser?.company_id) { setLoading(false); return; }
+    setCompanyId(companyUser.company_id);
+    setIsAdmin(companyUser.role === "admin");
+
+    const { data: company } = await supabase
+      .from("companies")
+      .select("name")
+      .eq("id", companyUser.company_id)
+      .single();
+
+    if (company) {
+      setOrgName(company.name);
+      setOriginalName(company.name);
+    }
+    setLoading(false);
   }
+
+  async function handleSave() {
+    if (!companyId || !orgName.trim()) return;
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) { setError("Not authenticated."); setSaving(false); return; }
+
+    const res = await fetch("/api/admin/update-company-name", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ companyId, name: orgName.trim() }),
+    });
+
+    const result = await res.json();
+    if (!res.ok) {
+      setError(result.error ?? "Failed to update organization name.");
+      setSaving(false);
+      return;
+    }
+
+    setOriginalName(orgName.trim());
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+    setSaving(false);
+  }
+
+  const hasChanges = orgName.trim() !== originalName && orgName.trim().length > 0;
+
+  if (loading) return <div className="p-8 text-gray-400">Loading...</div>;
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-500 text-sm mt-1">Manage your account, profile, and preferences.</p>
-      </div>
+      <PageHeader title="Organization & Branding">
+        <p className="text-gray-500 text-sm">Manage your organization's name and identity.</p>
+      </PageHeader>
 
-      <div className="space-y-3">
-        {SETTINGS_SECTIONS.map(section => (
-          <Link key={section.href} href={section.href}
-            className={`flex items-center gap-4 p-4 border rounded-xl bg-white transition-all ${section.color}`}>
-            <span className="text-2xl shrink-0">{section.icon}</span>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-gray-800">{section.title}</p>
-              <p className="text-sm text-gray-500 mt-0.5">{section.desc}</p>
+      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{error}</div>}
+      {saved && <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">✓ Organization name updated.</div>}
+
+      <Section title="Organization Name">
+        {!isAdmin ? (
+          <p className="text-sm text-gray-500">Only an admin of your organization can rename it. Contact your clinic admin if this needs to change.</p>
+        ) : (
+          <div className="space-y-3 max-w-md">
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Organization Name</label>
+              <input
+                type="text"
+                value={orgName}
+                onChange={e => setOrgName(e.target.value)}
+                placeholder="Your clinic or organization name"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+              <p className="text-xs text-gray-400 mt-1">This name appears throughout your dashboard, on invoices, and in messages to your staff and clients.</p>
             </div>
-            <span className="text-gray-300 shrink-0">→</span>
-          </Link>
-        ))}
-      </div>
-
-      <div className="pt-2 border-t border-gray-100">
-        <button onClick={handleLogout}
-          className="flex items-center gap-4 p-4 border border-red-100 rounded-xl bg-white w-full text-left hover:bg-red-50 hover:border-red-300 transition-all">
-          <span className="text-2xl shrink-0">🚪</span>
-          <div>
-            <p className="font-semibold text-red-600">Log Out</p>
-            <p className="text-sm text-gray-400 mt-0.5">Sign out of your account on this device</p>
+            <Button onClick={handleSave} loading={saving} disabled={!hasChanges}>
+              Save Organization Name
+            </Button>
           </div>
-        </button>
-      </div>
+        )}
+      </Section>
+
+      <Section title="Logo & Colors">
+        <p className="text-sm text-gray-400">Custom logo and color branding coming soon.</p>
+      </Section>
     </div>
   );
 }

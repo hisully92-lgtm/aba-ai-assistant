@@ -1,8 +1,6 @@
 "use client";
-
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
-
 const SETTINGS_SECTIONS = [
   {
     href: "/dashboard/settings/profile",
@@ -39,21 +37,32 @@ const SETTINGS_SECTIONS = [
     desc: "Subscription plan, payment method, invoices",
     color: "border-indigo-100 hover:border-indigo-300 hover:bg-indigo-50",
   },
+  {
+    href: "/dashboard/locations",
+    icon: "📍",
+    title: "Locations",
+    desc: "Manage your clinic locations and addresses",
+    color: "border-orange-100 hover:border-orange-300 hover:bg-orange-50",
+  },
+  {
+    href: "/dashboard/settings/branding",
+    icon: "🎨",
+    title: "Organization & Branding",
+    desc: "Organization name, logo, and clinic identity",
+    color: "border-pink-100 hover:border-pink-300 hover:bg-pink-50",
+  },
 ];
-
 export default function SettingsPage() {
   async function handleLogout() {
     await supabase.auth.signOut();
     window.location.href = "/login";
   }
-
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
         <p className="text-gray-500 text-sm mt-1">Manage your account, profile, and preferences.</p>
       </div>
-
       <div className="space-y-3">
         {SETTINGS_SECTIONS.map(section => (
           <Link key={section.href} href={section.href}
@@ -67,7 +76,6 @@ export default function SettingsPage() {
           </Link>
         ))}
       </div>
-
       <div className="pt-2 border-t border-gray-100">
         <button onClick={handleLogout}
           className="flex items-center gap-4 p-4 border border-red-100 rounded-xl bg-white w-full text-left hover:bg-red-50 hover:border-red-300 transition-all">
