@@ -29,31 +29,30 @@ const TRIGGER_TYPES = [
   { value: "session_cancelled", label: "Session Cancelled", desc: "Sent when a session is cancelled" },
   { value: "auth_expiring", label: "Authorization Expiring", desc: "Sent when insurance auth is expiring" },
   { value: "staff_invite", label: "Staff Invite", desc: "Sent when a new staff member is invited" },
-  { value: "parent_update", label: "Parent Update", desc: "Sent to parents with session updates" },
   { value: "custom", label: "Custom Message", desc: "Manual message blast" },
 ];
 
-const VARIABLES = ["{client_name}", "{date}", "{time}", "{clinician}", "{clinic_name}", "{days_remaining}"];
+const VARIABLES = ["{date}", "{time}", "{clinician}", "{clinic_name}", "{days_remaining}"];
 
 const DEFAULT_TEMPLATES = [
   {
     trigger_type: "appointment_reminder",
     name: "Appointment Reminder",
-    message_template: "Hi! This is a reminder from {clinic_name} that {client_name} has an appointment on {date} at {time} with {clinician}. Reply STOP to unsubscribe.",
+    message_template: "Reminder from {clinic_name}: you have a session scheduled on {date} at {time}. Reply STOP to unsubscribe.",
     timing_hours: 24,
     enabled: true,
   },
   {
     trigger_type: "session_cancelled",
     name: "Session Cancelled",
-    message_template: "{clinic_name}: The session for {client_name} on {date} at {time} has been cancelled. Please contact us to reschedule. Reply STOP to unsubscribe.",
+    message_template: "{clinic_name}: A session on {date} at {time} has been cancelled. Please check your schedule for updates. Reply STOP to unsubscribe.",
     timing_hours: 0,
     enabled: true,
   },
   {
     trigger_type: "auth_expiring",
     name: "Authorization Expiring",
-    message_template: "{clinic_name}: The insurance authorization for {client_name} expires in {days_remaining} days. Please contact us to renew. Reply STOP to unsubscribe.",
+    message_template: "{clinic_name}: An insurance authorization is expiring in {days_remaining} days. Please check your dashboard for details. Reply STOP to unsubscribe.",
     timing_hours: 0,
     enabled: true,
   },
@@ -61,13 +60,6 @@ const DEFAULT_TEMPLATES = [
     trigger_type: "staff_invite",
     name: "Staff Invite",
     message_template: "You have been invited to join {clinic_name} on ABA AI Assistant. Check your email for your magic link to get started!",
-    timing_hours: 0,
-    enabled: true,
-  },
-  {
-    trigger_type: "parent_update",
-    name: "Parent Update",
-    message_template: "{clinic_name}: {client_name} had a great session today with {clinician}. Log in to your parent portal to see the full update!",
     timing_hours: 0,
     enabled: true,
   },
