@@ -40,6 +40,8 @@ type SkillTarget = {
   mastery_session_window_m: number | null;
   advancement_mode: string | null;
   prompted_counts_as: string | null;
+  mastery_min_trials_per_session: number | null;
+  mastery_min_therapists: number | null;
   prompt_levels: PromptLevel[];
 };
 
@@ -58,6 +60,8 @@ type MasteryEditForm = {
   mastery_session_window_m: number;
   advancement_mode: string;
   prompted_counts_as: string;
+  mastery_min_trials_per_session: number;
+  mastery_min_therapists: number;
 };
 
 type SequenceStep = {
@@ -81,6 +85,8 @@ const DEFAULT_MASTERY_FORM: MasteryEditForm = {
   mastery_session_window_m: 5,
   advancement_mode: "flag_for_review",
   prompted_counts_as: "incorrect",
+  mastery_min_trials_per_session: 1,
+  mastery_min_therapists: 1,
 };
 
 const CRITERIA_LABELS: Record<string, string> = {
@@ -125,10 +131,20 @@ function masterySummary(t: SkillTarget): string {
   const m = t.mastery_session_window_m;
   const mode = ADVANCEMENT_LABELS[t.advancement_mode ?? "flag_for_review"];
 
-  if (type === "single_session") return `${pct}% single session · ${mode}`;
-  if (type === "consecutive_sessions") return `${pct}% × ${n} consecutive · ${mode}`;
-  if (type === "x_of_last_m") return `${pct}% in ${n} of last ${m ?? "?"} · ${mode}`;
-  return `Custom criteria · ${mode}`;
+  let base = "Custom criteria";
+  if (type === "single_session") base = `${pct}% single session`;
+  else if (type === "consecutive_sessions") base = `${pct}% × ${n} consecutive`;
+  else if (type === "x_of_last_m") base = `${pct}% in ${n} of last ${m ?? "?"}`;
+
+  const extras: string[] = [];
+  if (t.mastery_min_trials_per_session && t.mastery_min_trials_per_session > 1) {
+    extras.push(`min ${t.mastery_min_trials_per_session} trials/session`);
+  }
+  if (t.mastery_min_therapists && t.mastery_min_therapists > 1) {
+    extras.push(`${t.mastery_min_therapists}+ therapists`);
+  }
+
+  return [base, ...extras, mode].join(" · ");
 }
 
 export default function TargetsPage() {
@@ -300,6 +316,8 @@ export default function TargetsPage() {
       mastery_session_window_m: newTargetMastery.mastery_criteria_type === "x_of_last_m" ? newTargetMastery.mastery_session_window_m : null,
       advancement_mode: newTargetMastery.advancement_mode,
       prompted_counts_as: newTargetMastery.prompted_counts_as,
+      mastery_min_trials_per_session: newTargetMastery.mastery_min_trials_per_session,
+      mastery_min_therapists: newTargetMastery.mastery_min_therapists,
     }).select().single();
 
     if (target) {
@@ -360,6 +378,8 @@ export default function TargetsPage() {
       mastery_session_window_m: t.mastery_session_window_m ?? 5,
       advancement_mode: t.advancement_mode ?? "flag_for_review",
       prompted_counts_as: t.prompted_counts_as ?? "incorrect",
+      mastery_min_trials_per_session: t.mastery_min_trials_per_session ?? 1,
+      mastery_min_therapists: t.mastery_min_therapists ?? 1,
     });
   }
 
@@ -372,6 +392,8 @@ export default function TargetsPage() {
       mastery_session_window_m: editForm.mastery_criteria_type === "x_of_last_m" ? editForm.mastery_session_window_m : null,
       advancement_mode: editForm.advancement_mode,
       prompted_counts_as: editForm.prompted_counts_as,
+      mastery_min_trials_per_session: editForm.mastery_min_trials_per_session,
+      mastery_min_therapists: editForm.mastery_min_therapists,
     }).eq("id", targetId);
     setEditingId(null);
     await loadData();
@@ -730,6 +752,22 @@ export default function TargetsPage() {
                             <option value="correct">Correct</option>
                           </select>
                         </div>
+
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Minimum trials per session</label>
+                          <input type="number" min={1} value={newTargetMastery.mastery_min_trials_per_session}
+                            onChange={e => setNewTargetMastery(prev => ({ ...prev, mastery_min_trials_per_session: Number(e.target.value) }))}
+                            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300" />
+                          <p className="text-xs text-gray-400 mt-1">Sessions with fewer trials than this won't count toward mastery.</p>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Minimum different therapists</label>
+                          <input type="number" min={1} value={newTargetMastery.mastery_min_therapists}
+                            onChange={e => setNewTargetMastery(prev => ({ ...prev, mastery_min_therapists: Number(e.target.value) }))}
+                            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300" />
+                          <p className="text-xs text-gray-400 mt-1">Requires this many distinct staff represented across the qualifying sessions.</p>
+                        </div>
                       </div>
                       <p className="text-xs text-gray-500">
                         {newTargetMastery.advancement_mode === "auto" && "The system will advance this target automatically the moment criteria is met — you'll just get a notification."}
@@ -926,6 +964,20 @@ export default function TargetsPage() {
                                 <option value="incorrect">Incorrect</option>
                                 <option value="correct">Correct</option>
                               </select>
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-medium text-gray-600 mb-1 block">Minimum trials per session</label>
+                              <input type="number" min={1} value={editForm.mastery_min_trials_per_session}
+                                onChange={e => setEditForm(prev => ({ ...prev, mastery_min_trials_per_session: Number(e.target.value) }))}
+                                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300" />
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-medium text-gray-600 mb-1 block">Minimum different therapists</label>
+                              <input type="number" min={1} value={editForm.mastery_min_therapists}
+                                onChange={e => setEditForm(prev => ({ ...prev, mastery_min_therapists: Number(e.target.value) }))}
+                                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300" />
                             </div>
                           </div>
                           <div className="flex gap-2">
