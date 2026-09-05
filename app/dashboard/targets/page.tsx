@@ -157,11 +157,28 @@ export default function TargetsPage() {
   const [addTargetSelection, setAddTargetSelection] = useState<Record<string, string>>({});
   const [sequenceBusyId, setSequenceBusyId] = useState<string | null>(null);
 
+  const [isAssignedToClient, setIsAssignedToClient] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (selectedClient) loadData(); }, [selectedClient]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { checkAssignment(); }, [selectedClient, role, userId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function checkAssignment() {
+    if (!selectedClient || role !== "clinician") {
+      setIsAssignedToClient(false);
+      return;
+    }
+    const { data } = await supabase
+      .from("client_assignments")
+      .select("id")
+      .eq("client_id", selectedClient)
+      .eq("user_id", userId)
+      .maybeSingle();
+    setIsAssignedToClient(!!data);
+  }
 
   async function init() {
     const { data: auth } = await supabase.auth.getUser();
@@ -432,7 +449,7 @@ export default function TargetsPage() {
     setSequenceBusyId(null);
   }
 
-  const canEdit = ["bcba", "supervisor", "admin", "clinical_director"].includes(role);
+  const canEdit = role === "admin" || role === "supervisor" || (role === "clinician" && isAssignedToClient);
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>;
 
@@ -442,7 +459,7 @@ export default function TargetsPage() {
 
       {!canEdit && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-sm text-yellow-700">
-          ⚠️ Only BCBAs and supervisors can create and manage targets.
+          ⚠️ Only admins, supervisors, and the assigned clinician for this client can create and manage behaviors and targets.
         </div>
       )}
 

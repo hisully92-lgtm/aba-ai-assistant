@@ -6,7 +6,7 @@ import Section from "@/components/ui/Section";
 import PageHeader from "@/components/layout/PageHeader";
 import Button from "@/components/ui/Button";
 
-type Notification = { id: string; message: string; type: string; read: boolean; created_at: string };
+type Notification = { id: string; message: string; type: string; read: boolean; created_at: string; metadata: any | null };
 type NotificationPrefs = {
   notify_high_severity: boolean;
   notify_session_submitted: boolean;
@@ -48,6 +48,7 @@ export default function NotificationsPage() {
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [role, setRole] = useState("");
   const [prefsId, setPrefsId] = useState<string | null>(null);
+  const [actingId, setActingId] = useState<string | null>(null);
 
   useEffect(() => {
     load();
@@ -125,6 +126,29 @@ export default function NotificationsPage() {
     setNotifications(prev => prev.filter(n => n.id !== id));
   }
 
+  async function actOnMasteryNotification(n: Notification, action: "approve-advancement" | "reject-advancement" | "manual-advance") {
+    const targetId = n.metadata?.target_id;
+    if (!targetId) return;
+    setActingId(n.id);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      const res = await fetch(`/api/targets/${targetId}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alert(body?.error ?? "Action failed.");
+      } else {
+        await markRead(n.id);
+      }
+    } finally {
+      setActingId(null);
+    }
+  }
+
   function typeIcon(type: string) {
     if (type === "ping") return "🔔";
     if (type === "supervisor") return "📢";
@@ -144,7 +168,7 @@ export default function NotificationsPage() {
 
   const filtered = typeFilter === "all" ? notifications : notifications.filter(n => n.type === typeFilter);
   const unreadCount = notifications.filter(n => !n.read).length;
-  const canConfigurePrefs = ["bcba", "supervisor", "admin", "clinical_director"].includes(role);
+  const canConfigurePrefs = ["admin", "supervisor", "clinician"].includes(role);
 
   return (
     <div className="space-y-6">
@@ -158,7 +182,7 @@ export default function NotificationsPage() {
       {/* NOTIFICATION PREFERENCES */}
       {showPrefs && canConfigurePrefs && (
         <Section title="Notification Preferences">
-          <p className="text-xs text-gray-500 mb-4">Control which notifications you receive. As a supervisor/BCBA, you can limit alerts to avoid notification overload.</p>
+          <p className="text-xs text-gray-500 mb-4">Control which notifications you receive. As a supervisor/clinician, you can limit alerts to avoid notification overload.</p>
 
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -166,7 +190,7 @@ export default function NotificationsPage() {
                 { key: "notify_high_severity", label: "🔴 High severity behaviors", desc: "Only behaviors at or above your threshold" },
                 { key: "notify_session_submitted", label: "📋 Session notes submitted", desc: "When staff submit a session for review" },
                 { key: "notify_session_started", label: "▶ Session started", desc: "When a staff member clocks in" },
-                { key: "notify_target_mastered", label: "🎯 Target mastered", desc: "When a client reaches 80% accuracy" },
+                { key: "notify_target_mastered", label: "🎯 Target mastered", desc: "Mastery updates and advancement approvals" },
                 { key: "notify_missed_session", label: "⚠️ Missed session", desc: "When a session is marked cancelled" },
                 { key: "notify_schedule_change", label: "📅 Schedule changes", desc: "When your schedule is modified" },
                 { key: "notify_team_chat", label: "💬 Team chat messages", desc: "New messages in client team chats" },
@@ -251,24 +275,53 @@ export default function NotificationsPage() {
         {loading && <p className="text-gray-400 text-sm">Loading...</p>}
         {!loading && filtered.length === 0 && <p className="text-gray-400 text-sm">No notifications found.</p>}
         <div className="space-y-2">
-          {filtered.map(n => (
-            <div key={n.id} className={`border rounded-lg p-3 flex justify-between items-start transition-colors ${n.read ? "bg-white border-gray-100" : "bg-blue-50 border-blue-200"}`}>
-              <div className="flex gap-3 items-start flex-1 cursor-pointer" onClick={() => !n.read && markRead(n.id)}>
-                <span className="text-lg">{typeIcon(n.type)}</span>
-                <div>
-                  <p className={`text-sm ${n.read ? "text-gray-600" : "text-gray-800 font-medium"}`}>{n.message}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${typeBadge(n.type)}`}>{n.type}</span>
-                    <p className="text-xs text-gray-400">{new Date(n.created_at).toLocaleString()}</p>
+          {filtered.map(n => {
+            const isMasteryAction = n.type === "alert" && n.metadata?.kind === "mastery_advancement" && n.metadata?.actionable;
+            const isActing = actingId === n.id;
+            return (
+              <div key={n.id} className={`border rounded-lg p-3 flex justify-between items-start transition-colors ${n.read ? "bg-white border-gray-100" : "bg-blue-50 border-blue-200"}`}>
+                <div className="flex gap-3 items-start flex-1 cursor-pointer" onClick={() => !n.read && markRead(n.id)}>
+                  <span className="text-lg">{typeIcon(n.type)}</span>
+                  <div className="flex-1">
+                    <p className={`text-sm ${n.read ? "text-gray-600" : "text-gray-800 font-medium"}`}>{n.message}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${typeBadge(n.type)}`}>{n.type}</span>
+                      <p className="text-xs text-gray-400">{new Date(n.created_at).toLocaleString()}</p>
+                    </div>
+                    {isMasteryAction && (
+                      <div className="flex gap-2 mt-2">
+                        {n.metadata?.advancement_mode === "flag_for_review" && (
+                          <>
+                            <button disabled={isActing}
+                              onClick={e => { e.stopPropagation(); actOnMasteryNotification(n, "approve-advancement"); }}
+                              className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50">
+                              {isActing ? "Working..." : "✓ Approve"}
+                            </button>
+                            <button disabled={isActing}
+                              onClick={e => { e.stopPropagation(); actOnMasteryNotification(n, "reject-advancement"); }}
+                              className="px-3 py-1 bg-white border border-gray-200 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50">
+                              Dismiss
+                            </button>
+                          </>
+                        )}
+                        {n.metadata?.advancement_mode === "manual" && (
+                          <button disabled={isActing}
+                            onClick={e => { e.stopPropagation(); actOnMasteryNotification(n, "manual-advance"); }}
+                            className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
+                            {isActing ? "Working..." : "Advance now"}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
+                <div className="flex items-center gap-2 ml-2">
+                  {!n.read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />}
+                  <button onClick={() => deleteNotification(n.id)} className="text-gray-300 hover:text-red-400 text-xs">✕</button>
+                </div>
               </div>
-              <div className="flex items-center gap-2 ml-2">
-                {!n.read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />}
-                <button onClick={() => deleteNotification(n.id)} className="text-gray-300 hover:text-red-400 text-xs">✕</button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Section>
     </div>

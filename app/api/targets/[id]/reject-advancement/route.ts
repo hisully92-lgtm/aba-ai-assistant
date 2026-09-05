@@ -1,6 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
+async function isAuthorizedForClient(userId: string, companyId: string, clientId: string) {
+  const { data: membership } = await supabaseAdmin
+    .from("company_users")
+    .select("role, status")
+    .eq("user_id", userId)
+    .eq("company_id", companyId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (!membership) return false;
+  if (membership.role === "admin" || membership.role === "supervisor") return true;
+  if (membership.role === "clinician") {
+    const { data: assignment } = await supabaseAdmin
+      .from("client_assignments")
+      .select("id")
+      .eq("client_id", clientId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    return !!assignment;
+  }
+  return false;
+}
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const authHeader = req.headers.get("authorization");
@@ -22,16 +45,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (!target) return NextResponse.json({ error: "Target not found" }, { status: 404 });
 
-    const { data: membership } = await supabaseAdmin
-      .from("company_users")
-      .select("role, status")
-      .eq("user_id", user.id)
-      .eq("company_id", target.company_id)
-      .eq("status", "active")
-      .maybeSingle();
-
-    if (!membership || !["admin", "bcba"].includes(membership.role)) {
-      return NextResponse.json({ error: "Only an admin or BCBA can reject advancement." }, { status: 403 });
+    const authorized = await isAuthorizedForClient(user.id, target.company_id, target.client_id);
+    if (!authorized) {
+      return NextResponse.json(
+        { error: "Only an admin, supervisor, or the assigned clinician for this client can reject advancement." },
+        { status: 403 }
+      );
     }
 
     if (!target.pending_advancement) {
