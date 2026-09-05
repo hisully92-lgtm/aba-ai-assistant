@@ -96,6 +96,28 @@ const ADVANCEMENT_LABELS: Record<string, string> = {
   manual: "Manual",
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  new: "New",
+  active: "Active",
+  hold: "On hold",
+  mastered: "Mastered",
+};
+
+const STATUS_STYLES: Record<string, string> = {
+  new: "bg-gray-100 text-gray-600",
+  active: "bg-blue-100 text-blue-700",
+  hold: "bg-amber-100 text-amber-700",
+  mastered: "bg-green-100 text-green-700",
+};
+
+function statusLabel(status: string | null): string {
+  return STATUS_LABELS[status ?? "new"] ?? "New";
+}
+
+function statusStyle(status: string | null): string {
+  return STATUS_STYLES[status ?? "new"] ?? STATUS_STYLES.new;
+}
+
 function masterySummary(t: SkillTarget): string {
   const type = t.mastery_criteria_type ?? "consecutive_sessions";
   const pct = t.mastery_threshold_pct ?? 80;
@@ -270,7 +292,7 @@ export default function TargetsPage() {
       goal: targetGoal.trim() || null,
       mastery_criteria: masteryCriteria.trim() || null,
       created_by: userId,
-      status: "in_progress",
+      status: "new",
       current_prompt_level: promptLevels[0]?.label || null,
       mastery_criteria_type: newTargetMastery.mastery_criteria_type,
       mastery_threshold_pct: newTargetMastery.mastery_threshold_pct,
@@ -315,6 +337,12 @@ export default function TargetsPage() {
 
   async function deactivateTarget(id: string) {
     await supabase.from("skill_targets").update({ is_active: false }).eq("id", id);
+    await loadData();
+  }
+
+  async function toggleHold(target: SkillTarget) {
+    const nextStatus = target.status === "hold" ? "active" : "hold";
+    await supabase.from("skill_targets").update({ status: nextStatus }).eq("id", target.id);
     await loadData();
   }
 
@@ -756,11 +784,12 @@ export default function TargetsPage() {
                 {targets.map(target => {
                   const isPending = !!target.pending_advancement;
                   const isMastered = target.status === "mastered";
+                  const isOnHold = target.status === "hold";
                   const isEditingThis = editingId === target.id;
                   const isActingOnThis = actionLoadingId === target.id;
 
                   return (
-                    <div key={target.id} className={`border rounded-xl p-4 bg-white ${isPending ? "border-amber-300 bg-amber-50/40" : "border-gray-100"}`}>
+                    <div key={target.id} className={`border rounded-xl p-4 bg-white ${isPending ? "border-amber-300 bg-amber-50/40" : isOnHold ? "border-gray-200 bg-gray-50/60" : "border-gray-100"}`}>
                       <div className="flex justify-between items-start mb-3">
                         <div>
                           <p className="text-xs text-blue-600 font-medium">{target.program_name}</p>
@@ -768,9 +797,9 @@ export default function TargetsPage() {
                           {target.description && <p className="text-xs text-gray-500 mt-0.5">{target.description}</p>}
                           {target.goal && <p className="text-xs text-gray-400 mt-1">Goal: {target.goal}</p>}
                           <div className="flex flex-wrap items-center gap-2 mt-2">
-                            {isMastered && (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">✓ Mastered</span>
-                            )}
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusStyle(target.status)}`}>
+                              {statusLabel(target.status)}
+                            </span>
                             {target.current_prompt_level && !isMastered && (
                               <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">
                                 Current: {target.current_prompt_level}
@@ -788,6 +817,12 @@ export default function TargetsPage() {
                               className="text-xs text-purple-500 hover:text-purple-700 transition-colors">
                               {isEditingThis ? "Close settings" : "⚙ Mastery Settings"}
                             </button>
+                            {!isMastered && (
+                              <button onClick={() => toggleHold(target)}
+                                className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                                {isOnHold ? "▶ Resume" : "⏸ Put on hold"}
+                              </button>
+                            )}
                             <button onClick={() => deactivateTarget(target.id)}
                               className="text-xs text-gray-300 hover:text-red-400 transition-colors">Remove</button>
                           </div>
