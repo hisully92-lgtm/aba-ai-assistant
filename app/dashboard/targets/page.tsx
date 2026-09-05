@@ -31,6 +31,15 @@ type SkillTarget = {
   goal: string | null;
   mastery_criteria: string | null;
   is_active: boolean;
+  status: string | null;
+  current_prompt_level: string | null;
+  pending_advancement: boolean | null;
+  mastery_criteria_type: string | null;
+  mastery_threshold_pct: number | null;
+  mastery_session_window_n: number | null;
+  mastery_session_window_m: number | null;
+  advancement_mode: string | null;
+  prompted_counts_as: string | null;
   prompt_levels: PromptLevel[];
 };
 
@@ -41,6 +50,50 @@ type PromptLevel = {
   abbreviation: string | null;
   description: string | null;
 };
+
+type MasteryEditForm = {
+  mastery_criteria_type: string;
+  mastery_threshold_pct: number;
+  mastery_session_window_n: number;
+  mastery_session_window_m: number;
+  advancement_mode: string;
+  prompted_counts_as: string;
+};
+
+const DEFAULT_MASTERY_FORM: MasteryEditForm = {
+  mastery_criteria_type: "consecutive_sessions",
+  mastery_threshold_pct: 80,
+  mastery_session_window_n: 3,
+  mastery_session_window_m: 5,
+  advancement_mode: "flag_for_review",
+  prompted_counts_as: "incorrect",
+};
+
+const CRITERIA_LABELS: Record<string, string> = {
+  single_session: "Single session",
+  consecutive_sessions: "Consecutive sessions",
+  x_of_last_m: "X of last M sessions",
+  custom: "Custom (manual only)",
+};
+
+const ADVANCEMENT_LABELS: Record<string, string> = {
+  auto: "Auto-advance",
+  flag_for_review: "Flag for review",
+  manual: "Manual",
+};
+
+function masterySummary(t: SkillTarget): string {
+  const type = t.mastery_criteria_type ?? "consecutive_sessions";
+  const pct = t.mastery_threshold_pct ?? 80;
+  const n = t.mastery_session_window_n ?? 3;
+  const m = t.mastery_session_window_m;
+  const mode = ADVANCEMENT_LABELS[t.advancement_mode ?? "flag_for_review"];
+
+  if (type === "single_session") return `${pct}% single session · ${mode}`;
+  if (type === "consecutive_sessions") return `${pct}% × ${n} consecutive · ${mode}`;
+  if (type === "x_of_last_m") return `${pct}% in ${n} of last ${m ?? "?"} · ${mode}`;
+  return `Custom criteria · ${mode}`;
+}
 
 export default function TargetsPage() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -76,8 +129,14 @@ export default function TargetsPage() {
     { label: "Full Physical", abbreviation: "FP", description: "" },
     { label: "No Response", abbreviation: "NR", description: "" },
   ]);
+  const [newTargetMastery, setNewTargetMastery] = useState<MasteryEditForm>(DEFAULT_MASTERY_FORM);
+
+  // Per-target mastery settings editing
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<MasteryEditForm>(DEFAULT_MASTERY_FORM);
 
   const [saving, setSaving] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   useEffect(() => { init(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (selectedClient) loadData(); }, [selectedClient]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -162,6 +221,14 @@ export default function TargetsPage() {
       goal: targetGoal.trim() || null,
       mastery_criteria: masteryCriteria.trim() || null,
       created_by: userId,
+      status: "in_progress",
+      current_prompt_level: promptLevels[0]?.label || null,
+      mastery_criteria_type: newTargetMastery.mastery_criteria_type,
+      mastery_threshold_pct: newTargetMastery.mastery_threshold_pct,
+      mastery_session_window_n: newTargetMastery.mastery_session_window_n,
+      mastery_session_window_m: newTargetMastery.mastery_criteria_type === "x_of_last_m" ? newTargetMastery.mastery_session_window_m : null,
+      advancement_mode: newTargetMastery.advancement_mode,
+      prompted_counts_as: newTargetMastery.prompted_counts_as,
     }).select().single();
 
     if (target) {
@@ -186,6 +253,7 @@ export default function TargetsPage() {
       { label: "Full Physical", abbreviation: "FP", description: "" },
       { label: "No Response", abbreviation: "NR", description: "" },
     ]);
+    setNewTargetMastery(DEFAULT_MASTERY_FORM);
     setShowTargetForm(false);
     await loadData();
     setSaving(false);
@@ -199,6 +267,53 @@ export default function TargetsPage() {
   async function deactivateTarget(id: string) {
     await supabase.from("skill_targets").update({ is_active: false }).eq("id", id);
     await loadData();
+  }
+
+  function startEdit(t: SkillTarget) {
+    setEditingId(t.id);
+    setEditForm({
+      mastery_criteria_type: t.mastery_criteria_type ?? "consecutive_sessions",
+      mastery_threshold_pct: t.mastery_threshold_pct ?? 80,
+      mastery_session_window_n: t.mastery_session_window_n ?? 3,
+      mastery_session_window_m: t.mastery_session_window_m ?? 5,
+      advancement_mode: t.advancement_mode ?? "flag_for_review",
+      prompted_counts_as: t.prompted_counts_as ?? "incorrect",
+    });
+  }
+
+  async function saveMasterySettings(targetId: string) {
+    setSaving(true);
+    await supabase.from("skill_targets").update({
+      mastery_criteria_type: editForm.mastery_criteria_type,
+      mastery_threshold_pct: editForm.mastery_threshold_pct,
+      mastery_session_window_n: editForm.mastery_session_window_n,
+      mastery_session_window_m: editForm.mastery_criteria_type === "x_of_last_m" ? editForm.mastery_session_window_m : null,
+      advancement_mode: editForm.advancement_mode,
+      prompted_counts_as: editForm.prompted_counts_as,
+    }).eq("id", targetId);
+    setEditingId(null);
+    await loadData();
+    setSaving(false);
+  }
+
+  async function callAdvancementApi(targetId: string, action: "approve-advancement" | "reject-advancement" | "manual-advance") {
+    setActionLoadingId(targetId);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      const res = await fetch(`/api/targets/${targetId}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alert(body?.error ?? "Action failed.");
+      }
+      await loadData();
+    } finally {
+      setActionLoadingId(null);
+    }
   }
 
   const canEdit = ["bcba", "supervisor", "admin", "clinical_director"].includes(role);
@@ -379,11 +494,82 @@ export default function TargetsPage() {
                           className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-gray-700 mb-1 block">Mastery Criteria</label>
+                        <label className="text-sm font-medium text-gray-700 mb-1 block">Mastery Criteria (description)</label>
                         <input type="text" value={masteryCriteria} onChange={e => setMasteryCriteria(e.target.value)}
                           placeholder="e.g. 80% across 3 consecutive sessions"
                           className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
                       </div>
+                    </div>
+
+                    {/* MASTERY & ADVANCEMENT CONFIG */}
+                    <div className="border border-purple-100 bg-purple-50/40 rounded-xl p-4 space-y-3">
+                      <p className="text-sm font-medium text-purple-800">🎯 Mastery & Advancement Rules</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Criteria Type</label>
+                          <select value={newTargetMastery.mastery_criteria_type}
+                            onChange={e => setNewTargetMastery(prev => ({ ...prev, mastery_criteria_type: e.target.value }))}
+                            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300">
+                            {Object.entries(CRITERIA_LABELS).map(([val, label]) => (
+                              <option key={val} value={val}>{label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Advancement Mode</label>
+                          <select value={newTargetMastery.advancement_mode}
+                            onChange={e => setNewTargetMastery(prev => ({ ...prev, advancement_mode: e.target.value }))}
+                            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300">
+                            {Object.entries(ADVANCEMENT_LABELS).map(([val, label]) => (
+                              <option key={val} value={val}>{label}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {newTargetMastery.mastery_criteria_type !== "custom" && (
+                          <div>
+                            <label className="text-xs font-medium text-gray-600 mb-1 block">Threshold %</label>
+                            <input type="number" min={0} max={100} value={newTargetMastery.mastery_threshold_pct}
+                              onChange={e => setNewTargetMastery(prev => ({ ...prev, mastery_threshold_pct: Number(e.target.value) }))}
+                              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300" />
+                          </div>
+                        )}
+
+                        {(newTargetMastery.mastery_criteria_type === "consecutive_sessions" || newTargetMastery.mastery_criteria_type === "x_of_last_m") && (
+                          <div>
+                            <label className="text-xs font-medium text-gray-600 mb-1 block">
+                              {newTargetMastery.mastery_criteria_type === "consecutive_sessions" ? "Consecutive sessions (N)" : "Sessions meeting threshold (N)"}
+                            </label>
+                            <input type="number" min={1} value={newTargetMastery.mastery_session_window_n}
+                              onChange={e => setNewTargetMastery(prev => ({ ...prev, mastery_session_window_n: Number(e.target.value) }))}
+                              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300" />
+                          </div>
+                        )}
+
+                        {newTargetMastery.mastery_criteria_type === "x_of_last_m" && (
+                          <div>
+                            <label className="text-xs font-medium text-gray-600 mb-1 block">Out of last M sessions</label>
+                            <input type="number" min={1} value={newTargetMastery.mastery_session_window_m}
+                              onChange={e => setNewTargetMastery(prev => ({ ...prev, mastery_session_window_m: Number(e.target.value) }))}
+                              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300" />
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Prompted trials count as</label>
+                          <select value={newTargetMastery.prompted_counts_as}
+                            onChange={e => setNewTargetMastery(prev => ({ ...prev, prompted_counts_as: e.target.value }))}
+                            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300">
+                            <option value="incorrect">Incorrect</option>
+                            <option value="correct">Correct</option>
+                          </select>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {newTargetMastery.advancement_mode === "auto" && "The system will advance this target automatically the moment criteria is met — you'll just get a notification."}
+                        {newTargetMastery.advancement_mode === "flag_for_review" && "When criteria is met, this target is flagged and waits for your approval before advancing."}
+                        {newTargetMastery.advancement_mode === "manual" && "When criteria is met, you'll see a badge — advancing is entirely up to you, whenever you're ready."}
+                      </p>
                     </div>
 
                     <div>
@@ -394,6 +580,7 @@ export default function TargetsPage() {
                           + Add Level
                         </button>
                       </div>
+                      <p className="text-xs text-gray-400 mb-2">List from most independent to most support (e.g. Independent → Gesture → Vocal → Partial Physical → Full Physical). Fading advances toward the top of this list.</p>
                       <div className="space-y-2">
                         {promptLevels.map((level, i) => (
                           <div key={i} className="flex gap-2 items-center border border-gray-100 rounded-lg p-3">
@@ -433,32 +620,160 @@ export default function TargetsPage() {
               )}
 
               <div className="space-y-3">
-                {targets.map(target => (
-                  <div key={target.id} className="border border-gray-100 rounded-xl p-4 bg-white">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <p className="text-xs text-blue-600 font-medium">{target.program_name}</p>
-                        <p className="font-semibold text-gray-800">{target.target_name}</p>
-                        {target.description && <p className="text-xs text-gray-500 mt-0.5">{target.description}</p>}
-                        {target.goal && <p className="text-xs text-gray-400 mt-1">Goal: {target.goal}</p>}
-                        {target.mastery_criteria && <p className="text-xs text-gray-400">Mastery: {target.mastery_criteria}</p>}
-                      </div>
-                      {canEdit && (
-                        <button onClick={() => deactivateTarget(target.id)}
-                          className="text-xs text-gray-300 hover:text-red-400 transition-colors">Remove</button>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {(target.prompt_levels ?? []).sort((a, b) => a.level_number - b.level_number).map(level => (
-                        <div key={level.id} className="px-2 py-1 bg-purple-50 border border-purple-100 rounded-lg text-xs">
-                          <span className="font-bold text-purple-700">{level.abbreviation}</span>
-                          {level.abbreviation && <span className="text-gray-400 mx-1">·</span>}
-                          <span className="text-gray-600">{level.label}</span>
+                {targets.map(target => {
+                  const isPending = !!target.pending_advancement;
+                  const isMastered = target.status === "mastered";
+                  const isEditingThis = editingId === target.id;
+                  const isActingOnThis = actionLoadingId === target.id;
+
+                  return (
+                    <div key={target.id} className={`border rounded-xl p-4 bg-white ${isPending ? "border-amber-300 bg-amber-50/40" : "border-gray-100"}`}>
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <p className="text-xs text-blue-600 font-medium">{target.program_name}</p>
+                          <p className="font-semibold text-gray-800">{target.target_name}</p>
+                          {target.description && <p className="text-xs text-gray-500 mt-0.5">{target.description}</p>}
+                          {target.goal && <p className="text-xs text-gray-400 mt-1">Goal: {target.goal}</p>}
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            {isMastered && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">✓ Mastered</span>
+                            )}
+                            {target.current_prompt_level && !isMastered && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">
+                                Current: {target.current_prompt_level}
+                              </span>
+                            )}
+                            {isPending && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 font-medium">⏳ Criteria met — pending action</span>
+                            )}
+                            <span className="text-xs text-gray-400">{masterySummary(target)}</span>
+                          </div>
                         </div>
-                      ))}
+                        {canEdit && (
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <button onClick={() => isEditingThis ? setEditingId(null) : startEdit(target)}
+                              className="text-xs text-purple-500 hover:text-purple-700 transition-colors">
+                              {isEditingThis ? "Close settings" : "⚙ Mastery Settings"}
+                            </button>
+                            <button onClick={() => deactivateTarget(target.id)}
+                              className="text-xs text-gray-300 hover:text-red-400 transition-colors">Remove</button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* PENDING ACTION BUTTONS */}
+                      {isPending && canEdit && (
+                        <div className="flex gap-2 mb-3">
+                          {target.advancement_mode === "flag_for_review" && (
+                            <>
+                              <button disabled={isActingOnThis} onClick={() => callAdvancementApi(target.id, "approve-advancement")}
+                                className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50">
+                                {isActingOnThis ? "Working..." : "✓ Approve advancement"}
+                              </button>
+                              <button disabled={isActingOnThis} onClick={() => callAdvancementApi(target.id, "reject-advancement")}
+                                className="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50">
+                                Dismiss
+                              </button>
+                            </>
+                          )}
+                          {target.advancement_mode === "manual" && (
+                            <button disabled={isActingOnThis} onClick={() => callAdvancementApi(target.id, "manual-advance")}
+                              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
+                              {isActingOnThis ? "Working..." : "Advance now"}
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* INLINE MASTERY SETTINGS EDITOR */}
+                      {isEditingThis && (
+                        <div className="border border-purple-100 bg-purple-50/40 rounded-xl p-4 space-y-3 mb-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs font-medium text-gray-600 mb-1 block">Criteria Type</label>
+                              <select value={editForm.mastery_criteria_type}
+                                onChange={e => setEditForm(prev => ({ ...prev, mastery_criteria_type: e.target.value }))}
+                                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300">
+                                {Object.entries(CRITERIA_LABELS).map(([val, label]) => (
+                                  <option key={val} value={val}>{label}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium text-gray-600 mb-1 block">Advancement Mode</label>
+                              <select value={editForm.advancement_mode}
+                                onChange={e => setEditForm(prev => ({ ...prev, advancement_mode: e.target.value }))}
+                                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300">
+                                {Object.entries(ADVANCEMENT_LABELS).map(([val, label]) => (
+                                  <option key={val} value={val}>{label}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {editForm.mastery_criteria_type !== "custom" && (
+                              <div>
+                                <label className="text-xs font-medium text-gray-600 mb-1 block">Threshold %</label>
+                                <input type="number" min={0} max={100} value={editForm.mastery_threshold_pct}
+                                  onChange={e => setEditForm(prev => ({ ...prev, mastery_threshold_pct: Number(e.target.value) }))}
+                                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300" />
+                              </div>
+                            )}
+
+                            {(editForm.mastery_criteria_type === "consecutive_sessions" || editForm.mastery_criteria_type === "x_of_last_m") && (
+                              <div>
+                                <label className="text-xs font-medium text-gray-600 mb-1 block">
+                                  {editForm.mastery_criteria_type === "consecutive_sessions" ? "Consecutive sessions (N)" : "Sessions meeting threshold (N)"}
+                                </label>
+                                <input type="number" min={1} value={editForm.mastery_session_window_n}
+                                  onChange={e => setEditForm(prev => ({ ...prev, mastery_session_window_n: Number(e.target.value) }))}
+                                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300" />
+                              </div>
+                            )}
+
+                            {editForm.mastery_criteria_type === "x_of_last_m" && (
+                              <div>
+                                <label className="text-xs font-medium text-gray-600 mb-1 block">Out of last M sessions</label>
+                                <input type="number" min={1} value={editForm.mastery_session_window_m}
+                                  onChange={e => setEditForm(prev => ({ ...prev, mastery_session_window_m: Number(e.target.value) }))}
+                                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300" />
+                              </div>
+                            )}
+
+                            <div>
+                              <label className="text-xs font-medium text-gray-600 mb-1 block">Prompted trials count as</label>
+                              <select value={editForm.prompted_counts_as}
+                                onChange={e => setEditForm(prev => ({ ...prev, prompted_counts_as: e.target.value }))}
+                                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300">
+                                <option value="incorrect">Incorrect</option>
+                                <option value="correct">Correct</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => saveMasterySettings(target.id)} disabled={saving}
+                              className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-medium hover:bg-purple-700 disabled:opacity-50">
+                              {saving ? "Saving..." : "Save Settings"}
+                            </button>
+                            <button onClick={() => setEditingId(null)}
+                              className="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50">
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-2">
+                        {(target.prompt_levels ?? []).sort((a, b) => a.level_number - b.level_number).map(level => (
+                          <div key={level.id} className={`px-2 py-1 rounded-lg border text-xs ${level.label === target.current_prompt_level ? "bg-purple-100 border-purple-300" : "bg-purple-50 border-purple-100"}`}>
+                            <span className="font-bold text-purple-700">{level.abbreviation}</span>
+                            {level.abbreviation && <span className="text-gray-400 mx-1">·</span>}
+                            <span className="text-gray-600">{level.label}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
