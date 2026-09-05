@@ -60,6 +60,20 @@ type MasteryEditForm = {
   prompted_counts_as: string;
 };
 
+type SequenceStep = {
+  id: string;
+  position: number;
+  target_id: string;
+  target: { id: string; target_name: string; program_name: string; status: string | null } | null;
+};
+
+type TargetSequence = {
+  id: string;
+  name: string;
+  created_at: string;
+  target_sequence_steps: SequenceStep[];
+};
+
 const DEFAULT_MASTERY_FORM: MasteryEditForm = {
   mastery_criteria_type: "consecutive_sessions",
   mastery_threshold_pct: 80,
@@ -100,8 +114,9 @@ export default function TargetsPage() {
   const [selectedClient, setSelectedClient] = useState("");
   const [behaviors, setBehaviors] = useState<Behavior[]>([]);
   const [targets, setTargets] = useState<SkillTarget[]>([]);
+  const [sequences, setSequences] = useState<TargetSequence[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"behaviors" | "targets">("behaviors");
+  const [activeTab, setActiveTab] = useState<"behaviors" | "targets" | "sequences">("behaviors");
   const [companyId, setCompanyId] = useState("");
   const [role, setRole] = useState("");
   const [userId, setUserId] = useState("");
@@ -135,6 +150,13 @@ export default function TargetsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<MasteryEditForm>(DEFAULT_MASTERY_FORM);
 
+  // Sequence builder state
+  const [showSequenceForm, setShowSequenceForm] = useState(false);
+  const [newSequenceName, setNewSequenceName] = useState("");
+  const [expandedSequenceId, setExpandedSequenceId] = useState<string | null>(null);
+  const [addTargetSelection, setAddTargetSelection] = useState<Record<string, string>>({});
+  const [sequenceBusyId, setSequenceBusyId] = useState<string | null>(null);
+
   const [saving, setSaving] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
@@ -164,16 +186,26 @@ export default function TargetsPage() {
   }
 
   async function loadData() {
-    const [{ data: behaviorData }, { data: targetData }] = await Promise.all([
+    const [{ data: behaviorData }, { data: targetData }, { data: sequenceData }] = await Promise.all([
       supabase.from("custom_behaviors").select("*, severity_levels:behavior_severity_levels(*)")
         .eq("company_id", companyId).eq("client_id", selectedClient)
         .eq("is_active", true).order("display_order"),
       supabase.from("skill_targets").select("*, prompt_levels(*)")
         .eq("company_id", companyId).eq("client_id", selectedClient)
         .eq("is_active", true).order("display_order"),
+      supabase.from("target_sequences")
+        .select("id, name, created_at, target_sequence_steps(id, position, target_id, target:skill_targets(id, target_name, program_name, status))")
+        .eq("company_id", companyId).eq("client_id", selectedClient)
+        .order("created_at"),
     ]);
     setBehaviors(behaviorData ?? []);
     setTargets(targetData ?? []);
+
+    const normalizedSequences = (sequenceData ?? []).map((s: any) => ({
+      ...s,
+      target_sequence_steps: (s.target_sequence_steps ?? []).sort((a: SequenceStep, b: SequenceStep) => a.position - b.position),
+    }));
+    setSequences(normalizedSequences);
   }
 
   async function saveBehavior() {
@@ -316,6 +348,90 @@ export default function TargetsPage() {
     }
   }
 
+  // ---- SEQUENCE BUILDER ----
+
+  async function createSequence() {
+    if (!newSequenceName.trim() || !selectedClient) return;
+    setSaving(true);
+    await supabase.from("target_sequences").insert({
+      company_id: companyId,
+      client_id: selectedClient,
+      name: newSequenceName.trim(),
+      created_by: userId,
+    });
+    setNewSequenceName("");
+    setShowSequenceForm(false);
+    await loadData();
+    setSaving(false);
+  }
+
+  async function deleteSequence(sequenceId: string) {
+    setSequenceBusyId(sequenceId);
+    await supabase.from("target_sequences").delete().eq("id", sequenceId);
+    if (expandedSequenceId === sequenceId) setExpandedSequenceId(null);
+    await loadData();
+    setSequenceBusyId(null);
+  }
+
+  async function reindexSteps(orderedStepIds: string[]) {
+    // Two-phase to avoid colliding with the (sequence_id, position) unique constraint
+    for (let i = 0; i < orderedStepIds.length; i++) {
+      await supabase.from("target_sequence_steps").update({ position: -(i + 1) }).eq("id", orderedStepIds[i]);
+    }
+    for (let i = 0; i < orderedStepIds.length; i++) {
+      await supabase.from("target_sequence_steps").update({ position: i + 1 }).eq("id", orderedStepIds[i]);
+    }
+  }
+
+  async function addStepToSequence(sequence: TargetSequence) {
+    const targetId = addTargetSelection[sequence.id];
+    if (!targetId) return;
+    setSequenceBusyId(sequence.id);
+
+    const nextPosition = sequence.target_sequence_steps.length + 1;
+
+    await supabase.from("target_sequence_steps").insert({
+      sequence_id: sequence.id,
+      target_id: targetId,
+      position: nextPosition,
+    });
+
+    // If this is the first step in the sequence, activate the target if it isn't already set
+    if (nextPosition === 1) {
+      const target = targets.find(t => t.id === targetId);
+      if (target && target.status !== "mastered" && target.status !== "active") {
+        await supabase.from("skill_targets").update({ status: "active" }).eq("id", targetId);
+      }
+    }
+
+    setAddTargetSelection(prev => ({ ...prev, [sequence.id]: "" }));
+    await loadData();
+    setSequenceBusyId(null);
+  }
+
+  async function removeStep(sequence: TargetSequence, stepId: string) {
+    setSequenceBusyId(sequence.id);
+    await supabase.from("target_sequence_steps").delete().eq("id", stepId);
+    const remainingIds = sequence.target_sequence_steps.filter(s => s.id !== stepId).map(s => s.id);
+    await reindexSteps(remainingIds);
+    await loadData();
+    setSequenceBusyId(null);
+  }
+
+  async function moveStep(sequence: TargetSequence, stepId: string, direction: "up" | "down") {
+    const ids = sequence.target_sequence_steps.map(s => s.id);
+    const idx = ids.indexOf(stepId);
+    const swapWith = direction === "up" ? idx - 1 : idx + 1;
+    if (swapWith < 0 || swapWith >= ids.length) return;
+
+    setSequenceBusyId(sequence.id);
+    const reordered = [...ids];
+    [reordered[idx], reordered[swapWith]] = [reordered[swapWith], reordered[idx]];
+    await reindexSteps(reordered);
+    await loadData();
+    setSequenceBusyId(null);
+  }
+
   const canEdit = ["bcba", "supervisor", "admin", "clinical_director"].includes(role);
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>;
@@ -343,10 +459,10 @@ export default function TargetsPage() {
         <>
           {/* TABS */}
           <div className="flex border-b border-gray-200">
-            {(["behaviors", "targets"] as const).map(tab => (
+            {(["behaviors", "targets", "sequences"] as const).map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)}
                 className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
-                {tab === "behaviors" ? "🧠 Behaviors" : "🎯 Skill Targets"}
+                {tab === "behaviors" ? "🧠 Behaviors" : tab === "targets" ? "🎯 Skill Targets" : "🔗 Sequences"}
               </button>
             ))}
           </div>
@@ -771,6 +887,134 @@ export default function TargetsPage() {
                           </div>
                         ))}
                       </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* SEQUENCES TAB */}
+          {activeTab === "sequences" && (
+            <div className="space-y-4">
+              <p className="text-xs text-gray-500">
+                Chain targets together so mastering one automatically unlocks the next. Works for either a curriculum of separate targets, or a single skill broken into stages — your call.
+              </p>
+
+              {canEdit && (
+                <button onClick={() => setShowSequenceForm(s => !s)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+                  {showSequenceForm ? "Cancel" : "+ New Sequence"}
+                </button>
+              )}
+
+              {showSequenceForm && canEdit && (
+                <Section title="New Sequence">
+                  <div className="flex gap-2">
+                    <input type="text" value={newSequenceName} onChange={e => setNewSequenceName(e.target.value)}
+                      placeholder="e.g. Mand Training Progression, Colors Curriculum"
+                      className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                    <button onClick={createSequence} disabled={saving || !newSequenceName.trim()}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                      {saving ? "Creating..." : "Create"}
+                    </button>
+                  </div>
+                </Section>
+              )}
+
+              {sequences.length === 0 && (
+                <div className="text-center py-12 border border-dashed border-gray-200 rounded-2xl">
+                  <p className="text-3xl mb-3">🔗</p>
+                  <p className="text-gray-600 font-medium">No sequences yet</p>
+                  <p className="text-gray-400 text-sm mt-1">Create a sequence to chain targets together for this client.</p>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                {sequences.map(seq => {
+                  const isExpanded = expandedSequenceId === seq.id;
+                  const isBusy = sequenceBusyId === seq.id;
+                  const usedTargetIds = new Set(seq.target_sequence_steps.map(s => s.target_id));
+                  const availableTargets = targets.filter(t => !usedTargetIds.has(t.id));
+
+                  return (
+                    <div key={seq.id} className="border border-gray-100 rounded-xl p-4 bg-white">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="font-semibold text-gray-800">{seq.name}</p>
+                          <p className="text-xs text-gray-400">{seq.target_sequence_steps.length} step{seq.target_sequence_steps.length !== 1 ? "s" : ""}</p>
+                        </div>
+                        {canEdit && (
+                          <div className="flex items-center gap-3">
+                            <button onClick={() => setExpandedSequenceId(isExpanded ? null : seq.id)}
+                              className="text-xs text-blue-600 hover:text-blue-700">
+                              {isExpanded ? "Collapse" : "Manage steps"}
+                            </button>
+                            <button onClick={() => deleteSequence(seq.id)} disabled={isBusy}
+                              className="text-xs text-gray-300 hover:text-red-400 transition-colors">Delete</button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Always-visible compact step chain */}
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        {seq.target_sequence_steps.map((step, i) => {
+                          const t = step.target;
+                          const stepMastered = t?.status === "mastered";
+                          const stepActive = t?.status === "active";
+                          return (
+                            <div key={step.id} className="flex items-center gap-1.5">
+                              <span className={`text-xs px-2 py-1 rounded-lg border font-medium ${
+                                stepMastered ? "bg-green-50 border-green-200 text-green-700"
+                                : stepActive ? "bg-blue-50 border-blue-200 text-blue-700"
+                                : "bg-gray-50 border-gray-200 text-gray-500"
+                              }`}>
+                                {i + 1}. {t?.target_name ?? "Unknown target"} {stepMastered ? "✓" : stepActive ? "●" : ""}
+                              </span>
+                              {i < seq.target_sequence_steps.length - 1 && <span className="text-gray-300">→</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Expanded management */}
+                      {isExpanded && canEdit && (
+                        <div className="mt-4 border-t border-gray-100 pt-4 space-y-2">
+                          {seq.target_sequence_steps.map((step, i) => (
+                            <div key={step.id} className="flex items-center gap-2 border border-gray-100 rounded-lg p-2">
+                              <span className="text-xs text-gray-400 w-6 text-center">{i + 1}</span>
+                              <div className="flex-1">
+                                <p className="text-sm text-gray-800">{step.target?.target_name ?? "Unknown target"}</p>
+                                <p className="text-xs text-gray-400">{step.target?.program_name}</p>
+                              </div>
+                              <button disabled={isBusy || i === 0} onClick={() => moveStep(seq, step.id, "up")}
+                                className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30">↑</button>
+                              <button disabled={isBusy || i === seq.target_sequence_steps.length - 1} onClick={() => moveStep(seq, step.id, "down")}
+                                className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30">↓</button>
+                              <button disabled={isBusy} onClick={() => removeStep(seq, step.id)}
+                                className="text-xs px-2 py-1 rounded border border-gray-200 text-red-400 hover:bg-red-50 disabled:opacity-30">✕</button>
+                            </div>
+                          ))}
+
+                          {availableTargets.length > 0 ? (
+                            <div className="flex gap-2 pt-2">
+                              <select value={addTargetSelection[seq.id] ?? ""} onChange={e => setAddTargetSelection(prev => ({ ...prev, [seq.id]: e.target.value }))}
+                                className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                                <option value="">Add a target to this sequence...</option>
+                                {availableTargets.map(t => (
+                                  <option key={t.id} value={t.id}>{t.program_name} — {t.target_name}</option>
+                                ))}
+                              </select>
+                              <button disabled={isBusy || !addTargetSelection[seq.id]} onClick={() => addStepToSequence(seq)}
+                                className="px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
+                                Add
+                              </button>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-gray-400 pt-2">All of this client's targets are already in this sequence.</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
