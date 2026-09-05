@@ -346,6 +346,11 @@ export default function TargetsPage() {
     await loadData();
   }
 
+  async function startTarget(target: SkillTarget) {
+    await supabase.from("skill_targets").update({ status: "active" }).eq("id", target.id);
+    await loadData();
+  }
+
   function startEdit(t: SkillTarget) {
     setEditingId(t.id);
     setEditForm({
@@ -817,7 +822,13 @@ export default function TargetsPage() {
                               className="text-xs text-purple-500 hover:text-purple-700 transition-colors">
                               {isEditingThis ? "Close settings" : "⚙ Mastery Settings"}
                             </button>
-                            {!isMastered && (
+                            {target.status === "new" && (
+                              <button onClick={() => startTarget(target)}
+                                className="text-xs text-blue-500 hover:text-blue-700 transition-colors">
+                                ▶ Start
+                              </button>
+                            )}
+                            {(target.status === "active" || target.status === "hold") && (
                               <button onClick={() => toggleHold(target)}
                                 className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
                                 {isOnHold ? "▶ Resume" : "⏸ Put on hold"}
